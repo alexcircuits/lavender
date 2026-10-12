@@ -1,0 +1,84 @@
+@keyframes live-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-1);
+  height: 20px;
+  padding: 0 var(--s-2) 0 var(--s-1_5);
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--control);
+  color: var(--ink-2);
+  font: var(--type-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pill[data-size='sm'] {
+  height: 16px;
+  gap: 3px;
+  padding: 0 var(--s-1_5) 0 var(--s-1);
+}
+
+.glyph {
+  flex: none;
+}
+
+.word {
+  color: var(--ink);
+}
+
+.detail {
+  color: var(--ink-2);
+}
+
+.pill[data-tone='good'] .glyph {
+  color: var(--good);
+}
+
+.pill[data-tone='warning'] .glyph {
+  color: var(--warning);
+}
+
+.pill[data-tone='alert'] .glyph {
+  color: var(--alert);
+}
+
+.pill[data-tone='neutral'] .glyph {
+  color: var(--neutral-state);
+}
+
+.pill[data-tone='neutral'] .word {
+  color: var(--ink-2);
+}
+
+/* Nothing loops: three pulses on mount, then the dot holds (design-system §14). */
+.pill[data-status='live'] .glyph {
+  animation: live-pulse var(--motion-pulse) var(--ease-standard) 3;
+}
+
+.badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 18px;
+  padding: 0 var(--s-1_5);
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--control);
+  color: var(--ink-2);
+  font: var(--type-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.badge[data-tone='accent'] {
+  background: var(--accent-muted);
+  color: var(--accent-ink);
+}

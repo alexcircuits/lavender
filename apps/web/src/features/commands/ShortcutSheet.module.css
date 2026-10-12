@@ -1,0 +1,27 @@
+.sheet {
+  width: min(480px, calc(100vw - var(--s-8)));
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  min-height: var(--row-h-dense);
+}
+
+.title {
+  color: var(--ink);
+  font: var(--type-body-sm);
+}
+
+.keys {
+  margin: 0;
+}

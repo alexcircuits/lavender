@@ -1,0 +1,67 @@
+# cargo-deny 0.20. Licences, bans and sources depend only on Cargo.lock, so `lint` checks
+# them (cacheable). Advisories change without any input changing: run
+# `cargo deny check advisories` on a schedule and before adding or bumping a crate.
+
+[graph]
+all-features = true
+
+[advisories]
+ignore = [
+  # Unmaintained (not a vulnerability): a build-time proc-macro reached only through the
+  # Linux GTK stack of Tauri (glib-macros 0.18 → gtk 0.18 → tao/muda/wry). No safe upgrade
+  # exists; it goes when Tauri moves to gtk-rs ≥ 0.19. Revisit with the Linux desktop build
+  # (Flokzy ENG-998) and before release (ENG-1008).
+  { id = "RUSTSEC-2024-0370", reason = "unmaintained build-time macro via Tauri's Linux GTK stack; no safe upgrade" },
+]
+
+[licenses]
+# Permissive only (Lavender may be sold). Entries beyond MIT/Apache, with their users
+# (from `cargo deny list -l crate`):
+#   BSD-3-Clause, ISC     aws-lc-rs / aws-lc-sys (rustls crypto provider), hyper-rustls
+#   Unicode-3.0           ICU crates under url/idna
+#   Zlib                  miniz_oxide (gzip)
+#   CDLA-Permissive-2.0   webpki-root-certs (Mozilla CA bundle)
+allow = ["Apache-2.0", "BSD-3-Clause", "ISC", "MIT", "Unicode-3.0", "Zlib", "CDLA-Permissive-2.0"]
+confidence-threshold = 0.93
+
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+# Narrow exceptions, desktop (Tauri) dependency tree only — never allowed globally.
+# MPL-2.0 is file-level copyleft: using these crates unmodified in a sold binary is
+# permitted; distributed desktop builds must tell recipients where the MPL sources are
+# (THIRD_PARTY_NOTICES.md; verified in the licensing task ENG-1008).
+[[licenses.exceptions]]
+crate = "cssparser"
+allow = ["MPL-2.0"]
+
+[[licenses.exceptions]]
+crate = "cssparser-macros"
+allow = ["MPL-2.0"]
+
+[[licenses.exceptions]]
+crate = "selectors"
+allow = ["MPL-2.0"]
+
+[[licenses.exceptions]]
+crate = "dtoa-short"
+allow = ["MPL-2.0"]
+
+[[licenses.exceptions]]
+crate = "option-ext"
+allow = ["MPL-2.0"]
+
+# Apache-2.0 WITH LLVM-exception is permissive (the exception only removes conditions).
+[[licenses.exceptions]]
+crate = "target-lexicon"
+allow = ["Apache-2.0 WITH LLVM-exception"]

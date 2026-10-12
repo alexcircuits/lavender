@@ -1,47 +1,77 @@
-# Third-party software notices
+# Third-party notices — Lavender
 
-The project depends on third-party npm packages whose own licenses apply. This
-file records the packages added for the browser-local SDR feature and the
-Street Level viewer; the complete resolved dependency inventory remains in
-`package-lock.json`.
+Lavender is a NoirSystems product. Parts of it are derived from, or depend on, third-party
+work whose licences require notices. Data sources and their attribution requirements are
+recorded in `docs/audit/data-sources-and-licensing.md` and enforced at runtime by the
+source registry (ADR 0008); this file covers code and bundled software.
 
-## Web RTL-SDR
+## God's Eye View (upstream project)
 
-- Package: `@jtarrio/webrtlsdr` 3.0.6
-- Author: Jacobo Tarrio Barreiro; portions copyright Google Inc.
-- Source: <https://github.com/jtarrio/webrtlsdr>
-- License: Apache License 2.0
-- License text: <https://www.apache.org/licenses/LICENSE-2.0>
+Lavender is derived from God's Eye View (https://github.com/bilawalsidhu/gods-eye-view).
+Its source code is used under the MIT License:
 
-## Signals
+```
+MIT License
 
-- Package: `@jtarrio/signals` 0.10.1
-- Author: Jacobo Tarrio Barreiro
-- Source: <https://github.com/jtarrio/signals>
-- License: Apache License 2.0
-- License text: <https://www.apache.org/licenses/LICENSE-2.0>
+Copyright (c) 2026 Bilawal Sidhu
 
-## MapillaryJS
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-- Package: `mapillary-js` 4.1.2 (loaded on demand by the Street Level viewer,
-  with its stylesheet `dist/mapillary.css`)
-- Author: Copyright (c) Facebook, Inc. and its affiliates
-- Source: <https://github.com/mapillary/mapillary-js>
-- License: MIT
-- License text: <https://github.com/mapillary/mapillary-js/blob/main/LICENSE>
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-## RxJS (MapillaryJS dependency)
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
-- Package: `rxjs` 7.8.2
-- Author: Google, Inc., Netflix, Inc., Microsoft Corp. and contributors
-- Source: <https://github.com/ReactiveX/rxjs>
-- License: Apache License 2.0
-- License text: <https://www.apache.org/licenses/LICENSE-2.0>
+The MIT licence covers the upstream **source code only**. The upstream's bundled data
+and assets carry their own licences (some non-commercial); see
+`docs/audit/data-sources-and-licensing.md` §4. The "God's Eye View" name and logo are not
+licensed to Lavender.
 
-## three.js (MapillaryJS dependency)
+### skylight (via God's Eye View)
 
-- Package: `three` 0.134.0
-- Author: Copyright © 2010-2021 three.js authors
-- Source: <https://github.com/mrdoob/three.js>
-- License: MIT
-- License text: <https://github.com/mrdoob/three.js/blob/dev/LICENSE>
+Upstream code in `legacy/src/data/aircraftClass.js` and related modules is adapted from
+skylight (https://github.com/cpaczek/skylight), MIT-licensed. Its exact copyright line
+must be copied from the skylight LICENSE before any release that includes code derived
+from it (open question in the licensing audit; tracked by ENG-1008).
+
+## CesiumJS
+
+Lavender renders the globe with `@cesium/engine` and `@cesium/core` (CesiumJS), Apache
+License 2.0, https://github.com/CesiumGS/cesium. Cesium's own third-party notices ship with the
+package (`ThirdParty.json`).
+
+## Rust dependencies
+
+Rust dependencies are checked by `cargo deny` against a permissive allow-list
+(`deny.toml`). The desktop application additionally includes these crates under the
+**Mozilla Public License 2.0**, used unmodified: `cssparser`, `cssparser-macros`,
+`selectors`, `dtoa-short`, `option-ext`. Their source code is available at
+https://crates.io/crates/cssparser, https://crates.io/crates/cssparser-macros,
+https://crates.io/crates/selectors, https://crates.io/crates/dtoa-short and
+https://crates.io/crates/option-ext.
+
+## Frontend dependencies
+
+Frontend npm dependencies and their licences are recorded in `apps/web/pnpm-lock.yaml`
+and verified before release (ENG-1008).
+
+### satellite.js
+
+The globe propagates satellite orbits in the browser with `satellite.js` 7.1.0
+(https://github.com/shashwatak/satellite-js), MIT License, Copyright (C) 2013 Shashwat
+Kandadai, UCSC Jack Baskin School of Engineering. The full licence text ships with the
+package (`node_modules/satellite.js/LICENSE.md`) and must accompany distributed builds.
+Only its JavaScript SGP4 code is bundled; its optional WASM bulk propagator is excluded
+at build time (`apps/web/satellite-js-without-wasm.ts`).

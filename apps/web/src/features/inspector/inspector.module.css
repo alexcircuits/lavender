@@ -1,0 +1,119 @@
+/* Inspector. Tokens only. */
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  color: var(--ink-2);
+  font: var(--type-body-sm);
+}
+
+.summaryText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gone {
+  composes: sq from global;
+  display: flex;
+  align-items: center;
+  gap: var(--s-1_5);
+  margin-bottom: var(--s-3);
+  padding: var(--s-1_5) var(--s-2);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
+  background: var(--well);
+  color: var(--ink);
+  font: var(--type-body-sm);
+}
+
+.gone svg {
+  flex: none;
+  color: var(--warning);
+}
+
+.subhead {
+  margin: var(--s-4) 0 var(--s-1);
+  color: var(--ink-2);
+  font: var(--type-micro);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) 1fr;
+  column-gap: var(--s-4);
+  row-gap: var(--s-1_5);
+  margin: 0;
+  font: var(--type-body-sm);
+}
+
+.fact {
+  display: contents;
+}
+
+.fact dt {
+  color: var(--ink-2);
+}
+
+.fact dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.toned {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.toned[data-tone='good'] svg {
+  color: var(--good);
+}
+
+.toned[data-tone='warning'] svg {
+  color: var(--warning);
+}
+
+.toned[data-tone='alert'] svg {
+  color: var(--alert);
+}
+
+.toned[data-tone='neutral'] svg {
+  color: var(--neutral-state);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-4);
+}
+
+/* A link that looks like a ghost button: it navigates away, so it stays an <a>. */
+.linkButton {
+  composes: sq from global;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1_5);
+  height: var(--ctl-md);
+  padding-inline: var(--s-3);
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  color: var(--ink);
+  font: var(--type-label);
+  text-decoration: none;
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+.linkIcon {
+  color: var(--ink-2);
+}
+
+@media (hover: hover) {
+  .linkButton:hover {
+    background: var(--island-hover);
+  }
+}

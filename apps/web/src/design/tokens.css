@@ -1,0 +1,280 @@
+/*
+ * Lavender design tokens — the single implementation of docs/design/design-system.md.
+ *
+ * Components never hard-code colours, radii, sizes, z-indices or durations; they read these
+ * custom properties. src/design/tokens.test.ts parses this file and fails if a token named in
+ * the design system is missing or its value drifts, and re-measures the contrast pairs of §3.
+ * src/architecture.test.ts fails if a CSS module uses a raw colour or z-index.
+ *
+ * Provenance: values are copied (not invented) from the family; each block cites its source as
+ * recorded in docs/audit/design-references.md. Dark is the only theme in v1; the tokens are
+ * role-named so a light block can be added later.
+ */
+
+/* ── Squircles (§5.1; KVB mechanism, design-references §1.2) ───────────────────────────────
+ * Two registered, NON-inheriting multipliers, initial 1, so a child never inherits its
+ * parent's compensation. Squircles are opt-in per element with the `.sq` class and exist only
+ * where `corner-shape` is supported; everywhere else the same radii are plain rounded corners.
+ * Radii are therefore applied at the use site:
+ *   border-radius: calc(var(--r-md) * var(--corner-k));      md, lg, xl
+ *   border-radius: calc(var(--r-sm) * var(--corner-k-sm));   xs, sm
+ * (A token like `--r-md-sq: calc(12px * var(--corner-k))` on :root would resolve against
+ * :root's multiplier, 1, and inherit as 12px — which is why the multiplication is not here.)
+ * Never applied globally: Cesium's credit DOM stays untouched. */
+@property --corner-k {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
+}
+
+@property --corner-k-sm {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
+}
+
+@supports (corner-shape: squircle) {
+  .sq {
+    corner-shape: squircle;
+    --corner-k: 1.6;
+    --corner-k-sm: 1.35;
+  }
+}
+
+:root {
+  color-scheme: dark;
+
+  /* ── Typography (§2) ──────────────────────────────────────────────────────────────────── */
+  --font-sans:
+    'Geist Variable', 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:
+    'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace;
+
+  /* Scale: weight size/line family — use as `font: var(--type-body)`. Flokzy dense app scale. */
+  --type-micro: 500 11px / 14px var(--font-sans);
+  --type-caption: 400 12px / 16px var(--font-sans);
+  --type-body-sm: 400 13px / 18px var(--font-sans);
+  --type-body: 400 14px / 20px var(--font-sans);
+  --type-label: 500 13px / 18px var(--font-sans);
+  --type-title-sm: 600 15px / 20px var(--font-sans);
+  --type-title: 600 18px / 24px var(--font-sans);
+  --type-display: 600 26px / 32px var(--font-sans);
+
+  /* Tracking: −0.006 em at 13–15 px, −0.012 em at 18 px and above, 0 for mono. */
+  --tracking-ui: -0.006em;
+  --tracking-title: -0.012em;
+  --tracking-mono: 0;
+  /* Prose surfaces (help, notices). */
+  --measure-prose: 72ch;
+
+  /* ── Surfaces and ink (§3.1; Flokzy globals.css) ─────────────────────────────────────── */
+  --ground: #0a0a0b; /* behind the globe; status bar — Flokzy :161 */
+  --well: #111114; /* sunken fields, trays, search — :192 */
+  --island: #161619; /* panels over the globe — :163 */
+  --island-hover: #1c1c21; /* hovered row / interactive surface — :165 */
+  --popover: #1c1c22; /* menus, popovers, palette — :166 */
+  --control: #202026; /* tonal buttons, chips, segmented controls — :180-182 */
+  --hairline: #2a2a31; /* table rules and focusable regions only — :187 */
+  --hairline-strong: #3f3f46; /* field outlines on hover — :193 */
+  --ink: #fafafa; /* primary text, 17.3:1 on island — :162 */
+  --ink-2: #a1a1aa; /* secondary text, 7.0:1 — :183 */
+  --ink-3: #8d8d9c; /* tertiary text, disabled glyphs; ≥ 4.9:1 on every surface (Flokzy #818191, lightened) */
+
+  /* ── Lavender accent (§3.2; new, measured). Your attention, never data. ──────────────── */
+  --accent-ink: #b9a6ff; /* accent text, focus ring, selection halo — 8.6:1 on island */
+  --accent: #6d5ae6; /* primary fill, active nav indicator — white 4.9:1 */
+  --accent-hover: #7461ea; /* white 4.53:1 */
+  --accent-press: #5f4dd6; /* white 5.97:1 */
+  --accent-subtle: #1f1a33; /* selected row background */
+  --accent-muted: #2a2347; /* selected chip, current nav item background */
+  --on-accent: #ffffff; /* text on --accent / --accent-press fills */
+
+  /* ── Status (§3.3; reserved, icon + word always) ─────────────────────────────────────── */
+  --good: #45b75f; /* live, healthy */
+  --warning: #f39e1e; /* stale, degraded, polling fallback, recoverable error */
+  --alert: #f25555; /* unavailable, failure that needs action; text/glyphs ≥ 4.8:1; red never decorates */
+  --alert-fill: #c62f2f; /* filled destructive buttons (white 5.46:1) */
+  --neutral-state: var(--ink-3); /* unconfigured, licence policy, off */
+
+  /* ── Map symbology (§4; validated all-pairs on island and ground) ────────────────────── */
+  --map-air: #3987e5; /* aircraft */
+  --map-hazard: #d95926; /* earthquakes, fires, cyclones, perimeters */
+  --map-maritime: #199e70; /* vessels */
+  --map-space: #d6d3e6; /* satellites, orbits (neutral, 12.3:1) */
+  --map-context: #9a98a8; /* infrastructure, boundaries, cables (neutral) */
+  --map-selection: var(--accent-ink); /* any selected or tracked entity: 2 px halo */
+  --map-outline: var(--ground); /* 1 px outline on every point symbol; 2 px label halo */
+  /* Hazard magnitude ramp, ordinal, low → high (brighter = more severe on dark imagery). */
+  --hazard-1: #8f3c19;
+  --hazard-2: #b9471d;
+  --hazard-3: #d95926;
+  --hazard-4: #ef7a45;
+  --hazard-5: #f8a57a;
+
+  /* ── Radii (§5.1). Base values; multiply by --corner-k / --corner-k-sm at the use site. ─ */
+  --r-xs: 6px; /* × 1.35 → 8: badges' inner elements, swatches */
+  --r-sm: 8px; /* × 1.35 → 11: small controls (28 px), menu items */
+  --r-md: 12px; /* × 1.6 → 19: buttons, fields, chips */
+  --r-lg: 16px; /* × 1.6 → 26: islands */
+  --r-xl: 20px; /* × 1.6 → 32: dialogs, command palette */
+  --r-pill: 999px; /* status pills, toggles — never squircled */
+
+  /* ── Spacing (§5.2; 4 px grid) ───────────────────────────────────────────────────────── */
+  --s-0_5: 2px;
+  --s-1: 4px;
+  --s-1_5: 6px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --island-pad: 16px;
+  --island-pad-dense: 12px;
+  --gutter: 8px; /* between the globe edge and islands */
+
+  /* ── Control sizes (§5.3) ────────────────────────────────────────────────────────────── */
+  --ctl-sm: 28px; /* compact: rows, toolbars */
+  --ctl-md: 32px; /* default */
+  --ctl-lg: 36px; /* prominent */
+  --ctl-xl: 40px; /* dialog primary */
+  --target-min: 24px; /* WCAG 2.2 target size (minimum); 44 under a coarse pointer */
+  --row-h: 32px;
+  --row-h-dense: 28px;
+  --icon-md: 16px; /* in 32 px controls */
+  --icon-sm: 14px; /* in dense rows */
+  --icon-state: 24px; /* empty and error states */
+  --switch-w: 28px;
+  --switch-h: 16px;
+  --meter-w: 24px; /* freshness meter */
+  --meter-h: 4px;
+
+  /* ── Layout (§6) ─────────────────────────────────────────────────────────────────────── */
+  --rail-w: 56px;
+  --rail-w-expanded: 200px;
+  --panel-header-h: 40px;
+  --panel-w-layers: 320px;
+  --panel-w-layers-min: 280px;
+  --panel-w-layers-max: 440px;
+  --panel-w-inspector: 360px;
+  --search-w: 420px;
+  --palette-w: 640px;
+  --palette-top: 12vh;
+  --statusbar-h: 28px;
+  --tooltip-max-w: 280px;
+  --resize-hit: 4px;
+
+  /* ── Elevation (§5.4): tone carries elevation; no backdrop-filter over the canvas. ───── */
+  --float-edge: 0 0 0 1px rgb(255 255 255 / 0.06);
+  --float-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.5); /* menus, popovers, palette only */
+  --scrim: rgb(0 0 0 / 0.5); /* dialogs; no blur */
+
+  /* ── Z-index ladder (§5.5; Flokzy globals.css:145-153). Raw values are forbidden. ────── */
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-widget: 200;
+  --z-nav: 300;
+  --z-drawer: 400;
+  --z-modal: 500;
+  --z-popover: 600;
+  --z-toast: 700;
+  --z-tooltip: 800;
+
+  /* ── Motion (§14; KVB globals.css:74-92). Transform and opacity only; nothing loops. ─── */
+  --motion-press: 90ms; /* button press scale */
+  --motion-fast: 140ms; /* hover colour */
+  --motion-base: 200ms; /* state change, toggles, row expand */
+  --motion-panel: 280ms; /* panels, inspector, sheets — in */
+  --motion-panel-exit: 180ms; /* … out: exits are faster than entries */
+  --motion-media: 420ms; /* imagery crossfade */
+  --motion-camera: 1200ms; /* camera fly-to */
+  --motion-pulse: 1200ms; /* live dot: pulses three times, then holds */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 1, 1);
+  --scale-press: 0.98;
+  --dist-1: 2px;
+  --dist-2: 4px;
+  --dist-3: 8px;
+  --dist-4: 16px;
+
+  /* ── Focus (§13): follows corner-shape because it is an outline. ─────────────────────── */
+  --focus-ring-color: var(--accent-ink);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+}
+
+/* Coarse pointers: every control target is at least 44 px (§5.3). */
+@media (pointer: coarse) {
+  :root {
+    --ctl-sm: 44px;
+    --ctl-md: 44px;
+    --ctl-lg: 44px;
+    --ctl-xl: 44px;
+    --target-min: 44px;
+    --row-h: 44px;
+    --row-h-dense: 44px;
+  }
+}
+
+/* Reduced motion is one token swap (§14): distances and scales go to identity, durations to
+ * 0, panels and imagery keep an 80 ms crossfade, camera flights cut. Components need no
+ * reduced-motion code of their own. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-press: 0ms;
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-panel: 80ms;
+    --motion-panel-exit: 80ms;
+    --motion-media: 80ms;
+    --motion-camera: 0ms;
+    --motion-pulse: 0ms;
+    --scale-press: 1;
+    --dist-1: 0px;
+    --dist-2: 0px;
+    --dist-3: 0px;
+    --dist-4: 0px;
+  }
+}
+
+/* More contrast (§13): hairlines → hairline-strong, ink-3 → ink-2. The float edge is raised
+ * with them so islands keep a visible edge over bright imagery. */
+@media (prefers-contrast: more) {
+  :root {
+    --hairline: #3f3f46;
+    --ink-3: #a1a1aa;
+    --float-edge: 0 0 0 1px rgb(255 255 255 / 0.24);
+  }
+}
+
+/* Forced colours (§13): system colours. Islands, popovers and controls carry a transparent
+ * 1 px border, which forced-colours mode paints, so every surface keeps an outline. */
+@media (forced-colors: active) {
+  :root {
+    --ground: Canvas;
+    --well: Canvas;
+    --island: Canvas;
+    --island-hover: Canvas;
+    --popover: Canvas;
+    --control: ButtonFace;
+    --hairline: CanvasText;
+    --hairline-strong: CanvasText;
+    --ink: CanvasText;
+    --ink-2: CanvasText;
+    --ink-3: GrayText;
+    --accent-ink: Highlight;
+    --accent: Highlight;
+    --accent-hover: Highlight;
+    --accent-press: Highlight;
+    --accent-subtle: Highlight;
+    --accent-muted: Highlight;
+    --on-accent: HighlightText;
+    --good: CanvasText;
+    --warning: CanvasText;
+    --alert: CanvasText;
+    --focus-ring-color: Highlight;
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "The main window may use Tauri's core defaults and Lavender's own data commands. No filesystem, shell, HTTP or SQL access is granted to the WebView.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "allow-catalog",
+    "allow-status",
+    "allow-feed-snapshot",
+    "allow-feed-subscribe",
+    "allow-feed-update",
+    "allow-feed-unsubscribe",
+    "allow-search",
+    "allow-satellite-track",
+    "allow-smoke-report"
+  ]
+}

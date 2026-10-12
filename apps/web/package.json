@@ -1,0 +1,57 @@
+{
+  "name": "@lavender/web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Lavender frontend: React shell, design system and the lazily loaded Cesium globe. Served by lavender-server and embedded by Tauri.",
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "predev": "node scripts/copy-cesium-assets.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/copy-cesium-assets.mjs",
+    "build": "vite build",
+    "postbuild": "node scripts/check-dist.mjs",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "typecheck": "tsc -p .",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@base-ui/react": "1.9.0",
+    "@cesium/core": "0.1.0",
+    "@cesium/engine": "26.4.0",
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "@phosphor-icons/react": "2.1.10",
+    "@tanstack/react-virtual": "3.14.15",
+    "@tauri-apps/api": "2.12.3",
+    "cmdk": "1.1.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "satellite.js": "7.1.0",
+    "zustand": "5.0.15"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@playwright/test": "1.64.0",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "happy-dom": "21.0.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "vitest": "5.0.3"
+  }
+}

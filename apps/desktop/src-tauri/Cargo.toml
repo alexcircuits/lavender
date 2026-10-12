@@ -1,0 +1,32 @@
+[package]
+name = "lavender-desktop"
+description = "Lavender desktop: a Tauri 2 shell that embeds lavender-core in-process and serves the same frontend as the web build."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "lavender-desktop"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+lavender-core.workspace = true
+lavender-domain.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[features]
+# `cargo tauri build` enables this; a plain `cargo build` is a dev build that loads
+# `build.devUrl` instead of the embedded frontend (spike finding 4).
+custom-protocol = ["tauri/custom-protocol"]
+
+[lints]
+workspace = true

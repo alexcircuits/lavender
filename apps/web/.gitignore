@@ -1,0 +1,9 @@
+node_modules/
+dist/
+# Copied from @cesium/engine by scripts/copy-cesium-assets.mjs on every dev/build.
+public/cesium/
+test-results/
+playwright-report/
+blob-report/
+*.tsbuildinfo
+.vite/

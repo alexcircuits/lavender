@@ -1,0 +1,17 @@
+.skeleton {
+  display: block;
+  flex: none;
+  height: 12px;
+  border-radius: var(--r-xs);
+  background: var(--island-hover);
+}
+
+.skeleton[data-shape='block'] {
+  height: var(--ctl-md);
+  border-radius: var(--r-sm);
+}
+
+.skeleton[data-shape='pill'] {
+  height: 20px;
+  border-radius: var(--r-pill);
+}

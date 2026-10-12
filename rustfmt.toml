@@ -1,0 +1,4 @@
+style_edition = "2024"
+newline_style = "Unix"
+# Short struct literals and calls stay on one line up to max_width.
+use_small_heuristics = "Max"

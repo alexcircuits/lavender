@@ -1,0 +1,14 @@
+# apps/web owns its install and lockfile (monorepo ADR 0001); this file only holds pnpm
+# settings, it declares no workspace packages.
+
+# Dependency rule (owner decision 2026-10-12): use the latest published versions, pinned
+# exactly. The release-age gate is off; supply-chain review happens at upgrade time
+# (lockfile diff, licences, `pnpm audit`) instead of by waiting.
+minimumReleaseAge: 0
+
+# Exact pins for direct dependencies; `pnpm add` must not write ^ or ~.
+savePrefix: ''
+
+# pnpm 10 blocks dependency install scripts by default. Nothing in this tree needs one:
+# Vite 8 (Rolldown), Biome and Playwright ship platform binaries as optional dependencies.
+onlyBuiltDependencies: []

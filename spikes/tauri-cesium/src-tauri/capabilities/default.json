@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Spike: the main window may only use core defaults plus the app's own commands.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

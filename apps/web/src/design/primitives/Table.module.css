@@ -1,0 +1,102 @@
+.scroller {
+  position: relative;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font: var(--type-body-sm);
+}
+
+.head {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+}
+
+.header {
+  height: var(--row-h-dense);
+  padding: 0 var(--s-2);
+  border-bottom: 1px solid var(--hairline);
+  background: var(--island);
+  color: var(--ink-2);
+  font: var(--type-micro);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.header[data-align='end'] {
+  text-align: end;
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  max-width: 100%;
+  height: var(--ctl-sm);
+  margin-inline: calc(var(--s-1) * -1);
+  padding: 0 var(--s-1);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.header[data-align='end'] .sortButton {
+  flex-direction: row-reverse;
+}
+
+@media (hover: hover) {
+  .sortButton:hover {
+    color: var(--ink);
+  }
+}
+
+.sortGlyph {
+  opacity: 0;
+}
+
+.sortButton[data-active] {
+  color: var(--ink);
+}
+
+.sortButton[data-active] .sortGlyph {
+  opacity: 1;
+}
+
+.row {
+  color: var(--ink);
+}
+
+@media (hover: hover) {
+  .row:hover .cell {
+    background: var(--island-hover);
+  }
+}
+
+.cell {
+  padding: 0 var(--s-2);
+  overflow: hidden;
+  border-bottom: 1px solid var(--hairline);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row:last-child .cell {
+  border-bottom-color: transparent;
+}
+
+.cell[data-align='end'] {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.spacer {
+  pointer-events: none;
+}

@@ -1,0 +1,36 @@
+.positioner {
+  z-index: var(--z-tooltip);
+}
+
+.popup {
+  composes: sq from global;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: var(--tooltip-max-w);
+  padding: var(--s-1) var(--s-2);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
+  background: var(--popover);
+  box-shadow: var(--float-edge);
+  color: var(--ink);
+  font: var(--type-caption);
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.popup[data-starting-style],
+.popup[data-ending-style] {
+  opacity: 0;
+  transform: scale(var(--scale-press));
+}
+
+.popup[data-instant] {
+  transition-duration: 0ms;
+}
+
+.kbd {
+  flex: none;
+}

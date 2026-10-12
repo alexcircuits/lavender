@@ -1,0 +1,161 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "root": true,
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/public/cesium",
+      "!**/test-results",
+      "!**/playwright-report",
+      "!src/contracts/generated"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  },
+  "css": {
+    "parser": {
+      "cssModules": true
+    },
+    "formatter": {
+      "enabled": true,
+      "quoteStyle": "single"
+    },
+    "linter": {
+      "enabled": true
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "error"
+      },
+      "style": {
+        "useConst": "error",
+        "noNonNullAssertion": "error",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "@cesium/engine": "Only src/globe/** may import @cesium/engine (ADR 0003, 0004). Talk to the globe through its command interface.",
+              "@cesium/core": "Only src/globe/** may import @cesium/core (CesiumJS core types, ADR 0003, 0004). Talk to the globe through its command interface.",
+              "@tauri-apps/api": "Only src/platform/** may import @tauri-apps/api (ADR 0005). Use the LavenderPlatform interface."
+            },
+            "patterns": [
+              {
+                "group": ["@cesium/engine/**", "@cesium/core/**"],
+                "message": "Only src/globe/** may import @cesium/engine or @cesium/core (ADR 0003, 0004)."
+              },
+              {
+                "group": ["@tauri-apps/**"],
+                "message": "Only src/platform/** may import @tauri-apps/* (ADR 0005)."
+              }
+            ]
+          }
+        },
+        "noRestrictedGlobals": {
+          "level": "error",
+          "options": {
+            "deniedGlobals": {
+              "fetch": "Network I/O goes through the LavenderPlatform interface; only src/platform/** may call fetch (ADR 0005).",
+              "WebSocket": "Realtime transport lives in src/platform/** (ADR 0005).",
+              "EventSource": "Realtime transport lives in src/platform/** (ADR 0005).",
+              "XMLHttpRequest": "Network I/O goes through the LavenderPlatform interface (ADR 0005)."
+            }
+          }
+        }
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/globe/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@tauri-apps/api": "Only src/platform/** may import @tauri-apps/api (ADR 0005). Restated here because an override replaces the top-level options."
+                },
+                "patterns": [
+                  {
+                    "group": ["@tauri-apps/**"],
+                    "message": "Only src/platform/** may import @tauri-apps/* (ADR 0005)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/platform/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@cesium/engine": "Only src/globe/** may import @cesium/engine (ADR 0003, 0004). Restated here because an override replaces the top-level options.",
+                  "@cesium/core": "Only src/globe/** may import @cesium/core (ADR 0003, 0004)."
+                },
+                "patterns": [
+                  {
+                    "group": ["@cesium/engine/**", "@cesium/core/**"],
+                    "message": "Only src/globe/** may import @cesium/engine or @cesium/core (ADR 0003, 0004)."
+                  }
+                ]
+              }
+            },
+            "noRestrictedGlobals": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["scripts/**", "e2e/**", "*.config.ts", "satellite-js-without-wasm.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": "off"
+          }
+        }
+      }
+    }
+  ]
+}

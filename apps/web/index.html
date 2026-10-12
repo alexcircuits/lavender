@@ -1,0 +1,21 @@
+<!doctype html>
+<!--
+  CSP rule: no inline script or style elements and no style attributes in this file. Tauri hashes
+  inline blocks into style-src, which would void unsafe-inline (docs/architecture/tauri.md §5.2).
+  scripts/check-dist.mjs fails the build if the built copy breaks this rule.
+-->
+<html lang="en" class="lv-html">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Lavender</title>
+  </head>
+  <body>
+    <div id="root" class="lv-root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

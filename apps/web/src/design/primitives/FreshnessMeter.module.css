@@ -1,0 +1,30 @@
+.meter {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: var(--meter-w);
+  height: var(--meter-h);
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--hairline-strong);
+}
+
+.fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--good);
+  transform-origin: left center;
+  transition: transform var(--motion-base) var(--ease-standard);
+}
+
+.meter[data-state='late'] .fill {
+  background: var(--warning);
+}
+
+/* Unknown is shown as unknown: an empty, dashed track, never an empty "fresh" bar. */
+.meter[data-state='unknown'] {
+  background: transparent;
+  outline: 1px dashed var(--ink-3);
+  outline-offset: -1px;
+}

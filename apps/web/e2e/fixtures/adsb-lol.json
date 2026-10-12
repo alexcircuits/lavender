@@ -1,0 +1,90 @@
+{
+  "ac": [
+    {
+      "hex": "461f2a",
+      "flight": "FIN7KV  ",
+      "r": "OH-LWA",
+      "t": "A359",
+      "lat": 60.3172,
+      "lon": 24.9633,
+      "alt_baro": 3400,
+      "alt_geom": 3550,
+      "gs": 168.2,
+      "track": 224.5,
+      "baro_rate": -640,
+      "squawk": "4561",
+      "category": "A5",
+      "seen_pos": 0.4
+    },
+    {
+      "hex": "4ca8e1",
+      "flight": "RYR4NQ  ",
+      "r": "EI-FZB",
+      "t": "B38M",
+      "lat": 59.9021,
+      "lon": 24.1188,
+      "alt_baro": 37000,
+      "gs": 451.0,
+      "track": 61.0,
+      "baro_rate": 0,
+      "squawk": "2242",
+      "category": "A3",
+      "seen_pos": 1.2
+    },
+    {
+      "hex": "4b1903",
+      "flight": "SWR1388 ",
+      "r": "HB-JCB",
+      "t": "BCS3",
+      "lat": 60.7504,
+      "lon": 26.0457,
+      "alt_baro": 24125,
+      "gs": 402.4,
+      "track": 318.2,
+      "baro_rate": 1792,
+      "squawk": "7106",
+      "category": "A3",
+      "seen_pos": 0.8
+    },
+    {
+      "hex": "511234",
+      "flight": "ESTAIR1 ",
+      "t": "C172",
+      "lat": 59.4133,
+      "lon": 24.8328,
+      "alt_baro": 1500,
+      "gs": 95.0,
+      "track": 12.0,
+      "category": "A1",
+      "seen_pos": 2.0
+    },
+    {
+      "hex": "43c6f2",
+      "flight": "RRR6612 ",
+      "r": "ZZ336",
+      "t": "A332",
+      "lat": 60.9012,
+      "lon": 21.4532,
+      "alt_baro": 31000,
+      "gs": 437.6,
+      "track": 95.3,
+      "squawk": "7400",
+      "dbFlags": 1,
+      "category": "A5",
+      "seen_pos": 3.1
+    },
+    {
+      "hex": "46b81d",
+      "r": "OH-ATH",
+      "t": "AT76",
+      "lat": 60.3201,
+      "lon": 24.9521,
+      "alt_baro": "ground",
+      "gs": 7.1,
+      "track": 88.0,
+      "category": "A2",
+      "seen_pos": 5.5
+    },
+    { "hex": "bad-row", "lat": "n/a", "lon": 24.0 }
+  ]
+}

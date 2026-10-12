@@ -1,0 +1,26 @@
+{
+  "description": "ISS (ZARYA) mean elements in Lavender's SatelliteElements contract shape (OMM-derived, SGP4 theory). Same element set as the ISS TLE in crates/lavender-geo/src/orbit.rs tests (epoch 2024-03-08T12:00:00Z, 'illustrative but physical'): 1 25544U 98067A 24068.50000000 .00016717 00000-0 30049-3 0 9996 / 2 25544 51.6416 247.4627 0006703 130.5360 325.0288 15.50377579443931. `times` are the instants the client-side propagation test checks against lavender-geo Propagator::position.",
+  "elements": {
+    "noradId": 25544,
+    "name": "ISS (ZARYA)",
+    "intlDesignator": "1998-067A",
+    "group": "stations",
+    "epoch": "2024-03-08T12:00:00Z",
+    "meanMotion": 15.50377579,
+    "eccentricity": 0.0006703,
+    "inclinationDeg": 51.6416,
+    "raanDeg": 247.4627,
+    "argOfPericenterDeg": 130.536,
+    "meanAnomalyDeg": 325.0288,
+    "bstar": 0.00030049,
+    "meanMotionDot": 0.00016717,
+    "meanMotionDdot": 0
+  },
+  "times": [
+    "2024-03-08T12:00:00Z",
+    "2024-03-08T12:30:00Z",
+    "2024-03-08T13:00:00Z",
+    "2024-03-08T13:30:00Z",
+    "2024-03-08T22:00:00Z"
+  ]
+}

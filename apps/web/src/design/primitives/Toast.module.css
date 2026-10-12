@@ -1,0 +1,75 @@
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--dist-3));
+  }
+}
+
+.viewport {
+  position: fixed;
+  bottom: calc(var(--statusbar-h) + var(--s-3));
+  left: 50%;
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  width: min(420px, calc(100vw - var(--s-8)));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+}
+
+.toast {
+  composes: sq from global;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: var(--ctl-xl);
+  padding: var(--s-1_5) var(--s-1_5) var(--s-1_5) var(--s-3);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  background: var(--popover);
+  box-shadow: var(--float-edge), var(--float-shadow);
+  color: var(--ink);
+  pointer-events: auto;
+  animation: toast-enter var(--motion-panel) var(--ease-enter);
+}
+
+.glyph {
+  flex: none;
+  color: var(--ink-2);
+}
+
+.toast[data-kind='success'] .glyph {
+  color: var(--good);
+}
+
+.toast[data-kind='error'] .glyph {
+  color: var(--alert);
+}
+
+.text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  padding-block: var(--s-0_5);
+}
+
+.title {
+  font: var(--type-label);
+}
+
+.description {
+  color: var(--ink-2);
+  font: var(--type-caption);
+}

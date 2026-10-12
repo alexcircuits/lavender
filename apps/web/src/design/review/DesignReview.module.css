@@ -1,0 +1,322 @@
+/* Design review layout. Tokens only, like every other module. */
+
+.page {
+  min-height: 100%;
+  padding: var(--s-6) var(--s-6) calc(var(--statusbar-h) + var(--s-12));
+  background: var(--ground);
+}
+
+.header {
+  max-width: var(--measure-prose);
+  margin-bottom: var(--s-8);
+}
+
+.title {
+  color: var(--ink);
+  font: var(--type-display);
+  letter-spacing: var(--tracking-title);
+}
+
+.lede {
+  margin-top: var(--s-2);
+  color: var(--ink-2);
+  font: var(--type-body);
+}
+
+.section {
+  margin-bottom: var(--s-10);
+}
+
+.sectionTitle {
+  margin-bottom: var(--s-3);
+  color: var(--ink-2);
+  font: var(--type-label);
+}
+
+/* Islands sit on the ground with the 8 px gutter between them, as over the globe. */
+.flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--gutter);
+}
+
+.flow > * {
+  max-width: 100%;
+}
+
+.layers {
+  width: var(--panel-w-layers);
+  max-height: 640px;
+}
+
+.inspector {
+  width: var(--panel-w-inspector);
+}
+
+.contacts {
+  width: var(--panel-w-layers-min);
+}
+
+.narrow {
+  width: var(--panel-w-layers-min);
+}
+
+.medium {
+  width: 440px;
+}
+
+.wide {
+  width: 560px;
+}
+
+.tablePanel {
+  width: 760px;
+}
+
+/* Layer rows */
+.group + .group {
+  margin-top: var(--s-2);
+}
+
+.groupLabel {
+  padding: var(--s-1) var(--s-2);
+  color: var(--ink-2);
+  font: var(--type-micro);
+}
+
+.swatch {
+  composes: sq from global;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: calc(var(--r-xs) * var(--corner-k-sm));
+  color: var(--ground);
+}
+
+.swatch[data-family='air'] {
+  background: var(--map-air);
+}
+
+.swatch[data-family='maritime'] {
+  background: var(--map-maritime);
+}
+
+.swatch[data-family='space'] {
+  background: var(--map-space);
+}
+
+.swatch[data-family='hazard'] {
+  background: var(--map-hazard);
+}
+
+.swatch[data-family='context'] {
+  background: var(--map-context);
+}
+
+.count {
+  min-width: 4ch;
+  color: var(--ink-2);
+  text-align: end;
+}
+
+.footnote {
+  flex: 1 1 auto;
+  color: var(--ink-2);
+  font: var(--type-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Inspector */
+.entitySummary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--ink-2);
+  font: var(--type-body-sm);
+}
+
+.subhead {
+  margin: var(--s-4) 0 var(--s-1);
+  color: var(--ink-2);
+  font: var(--type-micro);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) 1fr;
+  column-gap: var(--s-4);
+  row-gap: var(--s-1_5);
+  margin: 0;
+  font: var(--type-body-sm);
+}
+
+.fact {
+  display: contents;
+}
+
+.fact dt {
+  color: var(--ink-2);
+}
+
+.fact dd {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-4);
+}
+
+/* Catalogue */
+.matrix {
+  display: grid;
+  grid-template-columns: 96px repeat(4, max-content);
+  align-items: center;
+  justify-items: start;
+  gap: var(--s-2) var(--s-3);
+}
+
+.matrixRow {
+  display: contents;
+}
+
+.caption {
+  color: var(--ink-2);
+  font: var(--type-caption);
+}
+
+.muted {
+  color: var(--ink-3);
+}
+
+.note {
+  max-width: var(--measure-prose);
+  margin-bottom: var(--s-3);
+  color: var(--ink-2);
+  font: var(--type-body-sm);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.wide .row {
+  margin-top: var(--s-4);
+}
+
+.mapControls {
+  composes: sq from global;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0_5);
+  padding: var(--s-1);
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  background: var(--well);
+}
+
+.feedChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.healthList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1_5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: var(--type-body-sm);
+}
+
+.healthList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.meterList {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: var(--s-2);
+  margin: 0;
+  font: var(--type-body-sm);
+}
+
+.meterList > div {
+  display: contents;
+}
+
+.meterList dt {
+  color: var(--ink-2);
+}
+
+.meterList dd {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+.skeletonRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--row-h-dense);
+  padding-inline: var(--s-2);
+}
+
+@media (max-width: 767px) {
+  .page {
+    padding: var(--s-4) var(--s-4) calc(var(--statusbar-h) + var(--s-12));
+  }
+
+  .flow > * {
+    width: 100%;
+  }
+
+  .matrix {
+    grid-template-columns: 72px repeat(4, max-content);
+    overflow-x: auto;
+  }
+}
+
+/* Second line of a layer row: status pill, then source. */
+.rowStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1_5);
+  min-width: 0;
+  margin-top: var(--s-0_5);
+}
+
+.rowSource {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

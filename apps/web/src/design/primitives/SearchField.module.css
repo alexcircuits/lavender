@@ -1,0 +1,12 @@
+.search {
+  width: 100%;
+}
+
+.search input::-webkit-search-cancel-button,
+.search input::-webkit-search-decoration {
+  appearance: none;
+}
+
+.clear {
+  margin-inline-end: calc(var(--s-1) * -1);
+}

@@ -1,0 +1,234 @@
+/* Search field, inline results and the command palette. Tokens only. */
+
+.bar {
+  position: relative;
+  width: min(var(--search-w), 100%);
+}
+
+.field,
+.paletteField {
+  composes: sq from global;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--ctl-md);
+  padding-inline: var(--s-3) var(--s-2);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  background: var(--well);
+  box-shadow: var(--float-edge);
+  color: var(--ink);
+  transition: box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.field:has(.input:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (hover: hover) {
+  .field:hover {
+    box-shadow:
+      var(--float-edge),
+      inset 0 0 0 1px var(--hairline-strong);
+  }
+}
+
+.fieldIcon {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: var(--type-body);
+  letter-spacing: var(--tracking-ui);
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+
+.dropdown {
+  composes: sq from global;
+  position: absolute;
+  top: calc(100% + var(--s-2));
+  right: 0;
+  left: 0;
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  max-height: min(60vh, 480px);
+  padding: var(--s-1);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-lg) * var(--corner-k));
+  background: var(--popover);
+  box-shadow: var(--float-edge), var(--float-shadow);
+}
+
+.list {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.list [cmdk-group-heading] {
+  padding: var(--s-2) var(--s-2) var(--s-1);
+  color: var(--ink-2);
+  font: var(--type-micro);
+}
+
+.list [cmdk-group][hidden] {
+  display: none;
+}
+
+.item {
+  composes: sq from global;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--row-h);
+  padding: var(--s-1) var(--s-2);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
+  color: var(--ink);
+  font: var(--type-body-sm);
+  cursor: default;
+  user-select: none;
+}
+
+/* The highlighted result is where Enter goes: plainly visible, the accent's "attention". */
+.item[data-selected='true'] {
+  background: var(--accent-muted);
+}
+
+.item[data-disabled='true'] {
+  color: var(--ink-3);
+}
+
+.itemIcon {
+  flex: none;
+  color: var(--ink-2);
+}
+
+.itemText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.itemTitle,
+.itemDetail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemTitle {
+  font: var(--type-label);
+}
+
+.itemDetail {
+  color: var(--ink-2);
+  font: var(--type-caption);
+}
+
+.itemHint {
+  flex: none;
+  color: var(--ink-3);
+  font: var(--type-caption);
+}
+
+.item[data-selected='true'] .itemHint {
+  color: var(--ink-2);
+}
+
+.groupFooter {
+  padding: var(--s-1) var(--s-2) var(--s-2);
+  color: var(--ink-3);
+  font: var(--type-micro);
+}
+
+.statusLines:empty {
+  display: none;
+}
+
+.statusLine,
+.notice {
+  max-width: var(--measure-prose);
+  padding: var(--s-2);
+  color: var(--ink-2);
+  font: var(--type-body-sm);
+}
+
+.notice {
+  color: var(--ink-3);
+  font: var(--type-caption);
+}
+
+/* ── Palette: the Dialog primitive, wider and higher (§7: 640 px, top 12 vh). ─────────── */
+
+.palette.palette {
+  top: var(--palette-top);
+  width: min(var(--palette-w), calc(100vw - var(--s-8)));
+  max-height: calc(100dvh - var(--palette-top) - var(--s-8));
+  padding: var(--s-3);
+  background: var(--popover);
+  box-shadow: var(--float-edge), var(--float-shadow);
+  transform: translate(-50%, 0);
+}
+
+.palette.palette[data-starting-style],
+.palette.palette[data-ending-style] {
+  transform: translate(-50%, calc(var(--dist-3) * -1));
+}
+
+/* The dialog title names the palette for assistive technology; the field says it visually. */
+.palette > h2 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.command {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-height: 0;
+}
+
+.paletteField {
+  height: var(--ctl-lg);
+  /* Room for the dialog's close button, which sits top-right. */
+  margin-inline-end: var(--s-10);
+  box-shadow: none;
+}
+
+.paletteField:has(.input:focus-visible) {
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+}
+
+.paletteList {
+  max-height: min(56vh, 520px);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-2) 0;
+  border-top: 1px solid var(--hairline);
+  color: var(--ink-3);
+  font: var(--type-caption);
+}

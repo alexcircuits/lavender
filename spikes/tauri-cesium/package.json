@@ -1,0 +1,19 @@
+{
+  "name": "lavender-spike-tauri-cesium",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Throwaway feasibility spike: CesiumJS (@cesium/engine, no widgets) inside a Tauri 2 WebView under a strict CSP, with IPC commands and channels.",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/copy-cesium-assets.mjs && vite build"
+  },
+  "dependencies": {
+    "@cesium/engine": "26.3.0",
+    "@tauri-apps/api": "2.12.0"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vite": "8.3.1"
+  }
+}

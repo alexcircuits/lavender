@@ -1,0 +1,17 @@
+{
+  "count": 53,
+  "cspViolations": [],
+  "elapsedMs": 5042,
+  "errors": [],
+  "feed": "earthquakes",
+  "frame": "(see 2026-10-12-desktop-self-check.png)",
+  "framesPerSecond": 36,
+  "freshness": "live",
+  "globeAttached": true,
+  "layers": 3,
+  "litRatio": 0.245,
+  "ok": true,
+  "platform": "desktop",
+  "transport": "live",
+  "visibility": "visible"
+}

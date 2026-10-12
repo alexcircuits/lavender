@@ -1,0 +1,18 @@
+.kbd {
+  composes: sq from global;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding-inline: var(--s-1);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-xs) * var(--corner-k-sm));
+  background: var(--control);
+  /* --ink-3 measures 4.2:1 on --control; hints are text, so they use --ink-2 (6.3:1). */
+  color: var(--ink-2);
+  font: var(--type-micro);
+  font-family: var(--font-mono);
+  letter-spacing: var(--tracking-mono);
+  white-space: nowrap;
+}

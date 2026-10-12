@@ -1,0 +1,3 @@
+# ts-rs writes the TypeScript contract next to the frontend that consumes it (ADR 0007).
+[env]
+TS_RS_EXPORT_DIR = { value = "apps/web/src/contracts/generated", relative = true }

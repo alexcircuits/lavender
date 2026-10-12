@@ -1,0 +1,40 @@
+[package]
+name = "lavender-server"
+description = "Lavender's web backend: the Axum HTTP/WebSocket adapter around lavender-core, plus static hosting of the built frontend. One binary, no Node.js in production."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "lavender-server"
+path = "src/main.rs"
+
+[dependencies]
+axum.workspace = true
+futures.workspace = true
+http.workspace = true
+lavender-core.workspace = true
+lavender-domain.workspace = true
+moka = { workspace = true, features = ["sync"] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+toml.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+tempfile.workspace = true
+tokio-tungstenite.workspace = true
+url.workspace = true
+wiremock.workspace = true
+async-trait.workspace = true
+jiff.workspace = true
+
+[lints]
+workspace = true

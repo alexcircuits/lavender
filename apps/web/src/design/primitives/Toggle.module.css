@@ -1,0 +1,60 @@
+.track {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  width: var(--switch-w);
+  height: var(--switch-h);
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--hairline-strong);
+  transition: background-color var(--motion-base) var(--ease-standard);
+}
+
+/* Extends the hit area to the target minimum without changing the visual size. */
+.track::before {
+  position: absolute;
+  inset: calc((var(--target-min) - var(--switch-h)) / -2) -4px;
+  content: '';
+}
+
+.track[data-checked] {
+  background: var(--accent);
+}
+
+.track[data-disabled] {
+  background: var(--control);
+  cursor: not-allowed;
+}
+
+.track[data-disabled][data-checked] {
+  background: var(--accent-muted);
+}
+
+.thumb {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  transition: transform var(--motion-base) var(--ease-standard);
+}
+
+.track[data-checked] .thumb {
+  transform: translateX(12px);
+}
+
+.track[data-disabled] .thumb {
+  background: var(--ink-3);
+}
+
+@media (hover: hover) {
+  .track:not([data-disabled], [data-checked]):hover {
+    background: var(--ink-3);
+  }
+
+  .track[data-checked]:not([data-disabled]):hover {
+    background: var(--accent-hover);
+  }
+}

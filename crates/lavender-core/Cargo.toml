@@ -1,0 +1,32 @@
+[package]
+name = "lavender-core"
+description = "Lavender's transport-independent application core: provider adapters, egress policy, feed hub, registry, health, search and the LavenderCore facade. Used by lavender-server (HTTP) and the Tauri desktop app."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+bytes.workspace = true
+fastrand.workspace = true
+futures.workspace = true
+jiff.workspace = true
+lavender-domain.workspace = true
+lavender-geo.workspace = true
+reqwest.workspace = true
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+url = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+wiremock.workspace = true
+
+[lints]
+workspace = true

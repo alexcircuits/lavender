@@ -1,0 +1,4 @@
+html, body { margin: 0; height: 100%; background: #0b0b0f; color: #d9d6e4; font: 12px/1.4 ui-monospace, monospace; }
+#globe { position: absolute; inset: 0; }
+#credits { display: none; }
+#report { position: absolute; left: 12px; bottom: 12px; max-width: 46ch; max-height: 60vh; overflow: auto; margin: 0; padding: 10px 12px; background: rgba(20, 18, 28, 0.86); border-radius: 12px; white-space: pre-wrap; }

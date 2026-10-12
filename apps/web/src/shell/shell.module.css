@@ -1,0 +1,444 @@
+/*
+ * The application shell (design-system §6, §12). The globe fills the workspace; islands sit on
+ * it in a pointer-transparent grid, so empty space still belongs to the globe. Tokens only.
+ */
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--statusbar-h);
+  height: 100%;
+  overflow: hidden;
+  background: var(--ground);
+}
+
+.railArea {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.workspace {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.statusArea {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+/* ── The globe ─────────────────────────────────────────────────────────────────────────── */
+
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  outline: none;
+}
+
+.stage:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.globe {
+  position: absolute;
+  inset: 0;
+}
+
+.caption {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: calc(100% - var(--s-8));
+  margin: 0;
+  color: var(--ink-2);
+  font: var(--type-caption);
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+/* ── Islands over the globe ────────────────────────────────────────────────────────────── */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-raised);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--gutter);
+  padding: var(--gutter);
+  pointer-events: none;
+}
+
+.left,
+.right {
+  display: flex;
+  flex-direction: column;
+  grid-row: 1 / -1;
+  min-height: 0;
+}
+
+.left {
+  grid-column: 1;
+  width: var(--panel-w-layers);
+}
+
+.right {
+  grid-column: 3;
+  width: var(--panel-w-inspector);
+}
+
+.left:empty,
+.right:empty,
+.left[hidden],
+.right[hidden] {
+  display: none;
+}
+
+.island,
+.inspector {
+  width: 100%;
+  max-height: 100%;
+  pointer-events: auto;
+  animation: island-in var(--motion-panel) var(--ease-enter);
+}
+
+@keyframes island-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--dist-2));
+  }
+}
+
+.top {
+  display: flex;
+  grid-column: 2;
+  grid-row: 1;
+  align-items: flex-start;
+  gap: var(--gutter);
+  min-width: 0;
+}
+
+.searchSlot {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: center;
+  min-width: 0;
+}
+
+.searchBar {
+  pointer-events: auto;
+}
+
+.searchButton {
+  display: none;
+  pointer-events: auto;
+}
+
+.chipSlot {
+  flex: none;
+  pointer-events: auto;
+}
+
+.feedChip {
+  box-shadow: var(--float-edge);
+}
+
+.feedChipInner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.feedChipQuiet {
+  color: var(--ink-2);
+  font: var(--type-caption);
+}
+
+.bottom {
+  display: flex;
+  grid-column: 2;
+  grid-row: 3;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--gutter);
+  min-width: 0;
+}
+
+.creditsSlot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-1);
+  min-width: 0;
+  pointer-events: auto;
+}
+
+.creditsButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  max-width: 100%;
+  min-height: var(--target-min);
+  padding: 0 var(--s-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--island);
+  box-shadow: var(--float-edge);
+  color: var(--ink-2);
+  font: var(--type-micro);
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-standard);
+}
+
+@media (hover: hover) {
+  .creditsButton:hover {
+    color: var(--ink);
+  }
+}
+
+.creditsText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cesiumCredits {
+  max-width: 100%;
+  color: var(--ink-3);
+  font: var(--type-micro);
+}
+
+.mapControls {
+  composes: sq from global;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--s-0_5);
+  padding: var(--s-1);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  background: var(--island);
+  box-shadow: var(--float-edge);
+  pointer-events: auto;
+}
+
+/* ── Navigation rail ───────────────────────────────────────────────────────────────────── */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: var(--s-2) 0;
+  background: var(--ground);
+}
+
+.railItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.rail .railButton {
+  width: var(--ctl-lg);
+  height: var(--ctl-lg);
+}
+
+/* The current item: accent-muted fill (IconButton's pressed style) plus a 2 px accent bar. */
+.rail .railButton[aria-pressed='true']::before {
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  left: calc((var(--rail-w) - var(--ctl-lg)) / -2);
+  width: 2px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  content: '';
+}
+
+.rail .soon {
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+/* ── Status bar ────────────────────────────────────────────────────────────────────────── */
+
+.statusBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  min-width: 0;
+  padding-inline: var(--s-3);
+  overflow: hidden;
+  background: var(--ground);
+  color: var(--ink-2);
+  font: var(--type-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.connection {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-1_5);
+}
+
+.connection svg {
+  color: var(--neutral-state);
+}
+
+.connection[data-tone='good'] svg {
+  color: var(--good);
+}
+
+.connection[data-tone='warning'] svg {
+  color: var(--warning);
+}
+
+.connection[data-tone='alert'] svg {
+  color: var(--alert);
+}
+
+.liveCount {
+  white-space: pre;
+}
+
+.statusMiddle {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: center;
+  gap: var(--s-4);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.cursor {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.altitude {
+  flex: none;
+}
+
+.clock {
+  flex: none;
+  font-family: var(--font-mono);
+  letter-spacing: var(--tracking-mono);
+}
+
+/* ── Skeleton island ───────────────────────────────────────────────────────────────────── */
+
+.skeletonRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--row-h-dense);
+  padding-inline: var(--s-2);
+}
+
+/* ── Responsive (§12) ──────────────────────────────────────────────────────────────────── */
+
+/* 768–1023: search collapses to an icon that opens the palette. */
+@media (max-width: 1023px) {
+  .searchBar {
+    display: none;
+  }
+
+  .searchButton {
+    display: inline-flex;
+  }
+
+  .searchSlot {
+    justify-content: flex-start;
+  }
+}
+
+/* < 768: the rail becomes a bottom bar, islands become bottom sheets, and the status bar keeps
+ * only the connection and the clock. */
+@media (max-width: 767px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto var(--statusbar-h);
+  }
+
+  .workspace {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .railArea {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .statusArea {
+    grid-row: 3;
+  }
+
+  .rail {
+    flex-direction: row;
+    justify-content: center;
+    gap: var(--s-4);
+    height: auto;
+    padding: var(--s-1) var(--s-2);
+  }
+
+  .railItems {
+    flex-direction: row;
+  }
+
+  .rail .railButton[aria-pressed='true']::before {
+    top: auto;
+    right: 25%;
+    bottom: calc(var(--s-1) * -1);
+    left: 25%;
+    width: auto;
+    height: 2px;
+  }
+
+  .overlay {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+  }
+
+  .top,
+  .bottom {
+    grid-column: 1;
+  }
+
+  .bottom {
+    grid-row: 3;
+  }
+
+  .left,
+  .right {
+    grid-column: 1;
+    grid-row: 4;
+    width: 100%;
+    max-height: 55dvh;
+  }
+
+  .liveCount,
+  .statusMiddle {
+    display: none;
+  }
+}

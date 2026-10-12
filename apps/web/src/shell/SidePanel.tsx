@@ -1,0 +1,66 @@
+import { Button, ErrorState, Panel, Skeleton } from '../design';
+import { LayerExplorer } from '../features/layers';
+import { SourcesPanel } from '../features/sources';
+import { useRuntime, useSystem, useUi } from '../runtime';
+import styles from './shell.module.css';
+
+const SKELETON_ROWS = 4;
+
+function SkeletonRows() {
+  return (
+    <div className={styles.skeletonRows}>
+      {Array.from({ length: SKELETON_ROWS }, (_, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: static placeholders with no identity.
+        <div key={i} className={styles.skeletonRow}>
+          <Skeleton width="20px" height="20px" shape="block" />
+          <Skeleton width={`${60 - i * 8}%`} />
+          <Skeleton width="28px" height="16px" shape="pill" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export interface SidePanelProps {
+  readonly className?: string | undefined;
+}
+
+/**
+ * The left island: the layer explorer or the Sources panel (`ui.sidePanel`). While the catalog
+ * loads it is a skeleton at the real geometry; if loading fails it says so and offers Retry.
+ */
+export function SidePanel({ className }: SidePanelProps) {
+  const panel = useUi((s) => s.sidePanel);
+  const catalog = useSystem((s) => s.catalog);
+  const error = useSystem((s) => s.catalogError);
+  const runtime = useRuntime();
+  if (!panel) return null;
+  const title = panel === 'layers' ? 'Layers' : 'Sources';
+
+  if (!catalog) {
+    return (
+      <Panel title={title} dense className={className} aria-busy={error ? undefined : true}>
+        {error ? (
+          <ErrorState
+            live
+            title={`${title} could not load`}
+            action={
+              <Button variant="secondary" onClick={() => runtime.reloadCatalog()}>
+                Retry
+              </Button>
+            }
+          >
+            {error.message} Lavender keeps retrying on its own.
+          </ErrorState>
+        ) : (
+          <SkeletonRows />
+        )}
+      </Panel>
+    );
+  }
+  return panel === 'layers' ? (
+    <LayerExplorer catalog={catalog} className={className} />
+  ) : (
+    <SourcesPanel catalog={catalog} className={className} />
+  );
+}

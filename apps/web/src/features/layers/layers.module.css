@@ -1,0 +1,180 @@
+/* Layer explorer. Tokens only. */
+
+.group + .group {
+  margin-top: var(--s-2);
+}
+
+.groupLabel {
+  padding: var(--s-1) var(--s-2);
+  color: var(--ink-2);
+  font: var(--type-micro);
+}
+
+.swatch {
+  composes: sq from global;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: calc(var(--r-xs) * var(--corner-k-sm));
+  color: var(--ground);
+}
+
+.swatch[data-swatch='air'] {
+  background: var(--map-air);
+}
+
+.swatch[data-swatch='maritime'] {
+  background: var(--map-maritime);
+}
+
+.swatch[data-swatch='space'] {
+  background: var(--map-space);
+}
+
+.swatch[data-swatch='hazard'] {
+  background: var(--map-hazard);
+}
+
+.swatch[data-swatch='context'] {
+  background: var(--map-context);
+}
+
+.count {
+  min-width: 3ch;
+  color: var(--ink-2);
+  text-align: end;
+}
+
+.footnote {
+  flex: 1 1 auto;
+  color: var(--ink-2);
+  font: var(--type-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Second line of a row: status pill, then the reason or the source names. */
+.rowStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1_5);
+  min-width: 0;
+  margin-top: var(--s-0_5);
+}
+
+.rowText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Failures are read in full, never truncated away. */
+.reason {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.inlineLink {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font: var(--type-caption);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.connecting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin-top: var(--s-0_5);
+}
+
+@keyframes indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(250%);
+  }
+}
+
+/* The 2 px "turning on" bar (§11): moves until data arrives; static under reduced motion. */
+.progress {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 2px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--control);
+}
+
+.progress::after {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--accent-ink);
+  content: '';
+  animation: indeterminate calc(var(--motion-media) * 3) var(--ease-standard) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress::after {
+    width: 100%;
+    opacity: 0.5;
+    animation: none;
+  }
+}
+
+/* The options disclosure under a row. */
+.optionsGroup {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.options {
+  margin: 0 0 var(--s-1) calc(20px + var(--s-2) * 2);
+  padding: var(--s-2);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
+  background: var(--well);
+  font: var(--type-body-sm);
+  list-style: none;
+}
+
+.optionStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-1_5);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.optionLabel {
+  padding: 0;
+  color: var(--ink-2);
+  font: var(--type-micro);
+}
+
+.optionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: var(--row-h-dense);
+}

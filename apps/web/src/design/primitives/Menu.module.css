@@ -1,0 +1,118 @@
+.positioner {
+  z-index: var(--z-popover);
+  outline: none;
+}
+
+.popup {
+  composes: sq from global;
+  min-width: 200px;
+  max-width: 320px;
+  padding: var(--s-1);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-lg) * var(--corner-k));
+  background: var(--popover);
+  box-shadow: var(--float-edge), var(--float-shadow);
+  color: var(--ink);
+  outline: none;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity var(--motion-fast) var(--ease-enter),
+    transform var(--motion-fast) var(--ease-enter);
+}
+
+.popup[data-starting-style],
+.popup[data-ending-style] {
+  opacity: 0;
+  transform: translateY(calc(var(--dist-2) * -1));
+}
+
+.popup[data-ending-style] {
+  transition-timing-function: var(--ease-exit);
+}
+
+.popup[data-instant] {
+  transition-duration: 0ms;
+}
+
+.item {
+  composes: sq from global;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--row-h);
+  padding-inline: var(--s-2);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
+  color: var(--ink);
+  font: var(--type-body);
+  outline: none;
+  cursor: default;
+  user-select: none;
+}
+
+/* The highlight is the keyboard position inside an open menu, so it must be plainly visible:
+ * --island-hover is one unit away from --popover. Lavender marks attention, so: accent-muted. */
+.item[data-highlighted] {
+  background: var(--accent-muted);
+}
+
+.item[data-disabled] {
+  color: var(--ink-3);
+}
+
+.item[data-danger] {
+  color: var(--alert);
+}
+
+.leading {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-md);
+  color: var(--ink-2);
+}
+
+.item[data-danger] .leading {
+  color: var(--alert);
+}
+
+/* --alert on --accent-muted is 3.9:1; the label goes to --ink, the glyph keeps the alert colour. */
+.item[data-danger][data-highlighted] {
+  color: var(--ink);
+}
+
+.indicator {
+  display: inline-flex;
+  color: var(--accent-ink);
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail {
+  flex: none;
+  color: var(--ink-2);
+  font: var(--type-caption);
+}
+
+.shortcut {
+  flex: none;
+  margin-inline-start: var(--s-2);
+}
+
+.separator {
+  height: 1px;
+  margin: var(--s-1) calc(var(--s-1) * -1);
+  background: var(--hairline);
+}
+
+.groupLabel {
+  padding: var(--s-2) var(--s-2) var(--s-1);
+  color: var(--ink-2);
+  font: var(--type-micro);
+}

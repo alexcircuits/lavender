@@ -1,0 +1,112 @@
+.panel {
+  composes: sq from global;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-lg) * var(--corner-k));
+  background: var(--island);
+  box-shadow: var(--float-edge);
+  color: var(--ink);
+  --pad: var(--island-pad);
+}
+
+.panel[data-dense] {
+  --pad: var(--island-pad-dense);
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--panel-header-h);
+  margin-top: var(--s-1);
+  padding: 0 calc(var(--pad) - var(--s-1)) 0 var(--pad);
+}
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font: var(--type-title-sm);
+  letter-spacing: var(--tracking-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-0_5);
+}
+
+.toolbar {
+  flex: none;
+  padding: 0 var(--pad) var(--s-2);
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 var(--pad) var(--pad);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--pad) var(--pad);
+}
+
+.resize {
+  position: absolute;
+  top: var(--s-4);
+  bottom: var(--s-4);
+  z-index: var(--z-raised);
+  width: var(--resize-hit);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.resize[data-edge='end'] {
+  right: calc(var(--resize-hit) / -2);
+}
+
+.resize[data-edge='start'] {
+  left: calc(var(--resize-hit) / -2);
+}
+
+.resize::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  background: transparent;
+  content: '';
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+@media (hover: hover) {
+  .resize:hover::after {
+    background: var(--hairline-strong);
+  }
+}
+
+.resize:focus-visible {
+  outline-offset: 0;
+}
+
+.resize:active::after,
+.resize:focus-visible::after {
+  background: var(--accent-ink);
+}

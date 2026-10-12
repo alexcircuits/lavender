@@ -1,0 +1,19 @@
+[package]
+name = "lavender-spike-tauri"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Throwaway feasibility spike: CesiumJS in a Tauri 2 WebView with IPC commands and channels."
+
+# Standalone: not a member of the Lavender workspace.
+[workspace]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.0", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.0", features = [] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+base64 = "=0.23.1"
+tokio = { version = "=1.53.1", features = ["time"] }

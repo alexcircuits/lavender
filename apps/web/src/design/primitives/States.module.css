@@ -1,0 +1,38 @@
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-6) var(--s-4);
+  text-align: center;
+}
+
+.glyph {
+  color: var(--ink-3);
+}
+
+.state[data-severity='alert'] .glyph {
+  color: var(--alert);
+}
+
+.state[data-severity='warning'] .glyph {
+  color: var(--warning);
+}
+
+.title {
+  color: var(--ink);
+  font: var(--type-title-sm);
+  letter-spacing: var(--tracking-ui);
+  text-wrap: balance;
+}
+
+.body {
+  max-width: 36ch;
+  color: var(--ink-2);
+  font: var(--type-body-sm);
+  text-wrap: pretty;
+}
+
+.action {
+  margin-top: var(--s-1);
+}

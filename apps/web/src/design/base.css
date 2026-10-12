@@ -1,0 +1,117 @@
+/*
+ * Lavender base styles. Deliberately minimal and scoped:
+ *
+ * - Nothing here targets bare `*`. Resets apply under `.lv-root` (the #root element) and skip
+ *   the globe host, so Cesium's canvas, credit container and widget DOM keep their own styles
+ *   (design-system §1.7; design-references §5.6).
+ * - Selectors are wrapped in :where() so component CSS modules always win without !important.
+ */
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font: var(--type-body);
+  letter-spacing: var(--tracking-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-synthesis: none;
+  accent-color: var(--accent);
+  caret-color: var(--accent-ink);
+}
+
+.lv-root {
+  height: 100%;
+  isolation: isolate;
+  scrollbar-color: var(--hairline-strong) transparent;
+  scrollbar-width: thin;
+}
+
+:where(.lv-root) :where(*:not(.lv-globe-host, .lv-globe-host *)),
+:where(.lv-root) :where(*:not(.lv-globe-host, .lv-globe-host *))::before,
+:where(.lv-root) :where(*:not(.lv-globe-host, .lv-globe-host *))::after {
+  box-sizing: border-box;
+}
+
+:where(.lv-root) :where(h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd, ol, ul) {
+  margin: 0;
+}
+
+:where(.lv-root) :where(h1, h2, h3, h4, h5, h6) {
+  font: inherit;
+}
+
+:where(.lv-root) :where(ol, ul)[role='list'],
+:where(.lv-root) :where(ol, ul)[role='listbox'] {
+  padding: 0;
+  list-style: none;
+}
+
+:where(.lv-root) :where(button, input, select, textarea) {
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+:where(.lv-root) :where(button) {
+  cursor: default;
+}
+
+:where(.lv-root) :where(img, svg, video):where(:not(.lv-globe-host *)) {
+  display: block;
+  max-width: 100%;
+}
+
+/* Focus ring (§13): 2 px accent-ink outline, 2 px offset. An outline follows corner-shape. */
+:where(.lv-root) :focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:where(.lv-root) :focus:not(:focus-visible) {
+  outline: none;
+}
+
+::selection {
+  background: var(--accent-muted);
+  color: var(--ink);
+}
+
+/* Utilities. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  letter-spacing: var(--tracking-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Forced colours: selection must survive the loss of background colours. */
+@media (forced-colors: active) {
+  :where(.lv-root) [data-selected] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+}
