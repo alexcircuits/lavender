@@ -2,7 +2,9 @@
 
 - Product: Lavender, a NoirSystems product
 - Status: v1 specification, 2026-10-11
-- Derived from: God's Eye View (MIT), audited in `docs/audit/`
+- Derived from: God's Eye View (open source, MIT), audited in `docs/audit/`
+- Licence: proprietary, all rights reserved by NoirSystems; not MIT (owner decision
+  2026-10-12). Upstream code under `legacy/` keeps its MIT notice.
 
 ## 1. Vision
 

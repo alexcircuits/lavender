@@ -4,9 +4,10 @@ Geospatial intelligence and OSINT platform by NoirSystems: a Rust core that inge
 validates real-time spatial data, served to a TypeScript interface on a CesiumJS globe, on
 the web and as a Tauri desktop app built on the same core.
 
-Lavender is a rewrite of [God's Eye View](legacy/README.md) (MIT). The upstream project is
-kept intact under [`legacy/`](legacy/) as the behavioural reference while features are
-migrated; its history is this repository's history.
+Lavender is proprietary software (see [Licence](#licence)). It began as a rewrite of the
+open-source [God's Eye View](legacy/README.md); that upstream project is kept intact under
+[`legacy/`](legacy/) as the behavioural reference while features are migrated, and its
+history is this repository's history.
 
 ## Layout
 
@@ -52,13 +53,18 @@ cd apps/web && pnpm run typecheck && pnpm test && pnpm run lint && pnpm run buil
 PLAYWRIGHT_CHANNEL=chrome pnpm run e2e     # against lavender-server in fixture mode
 ```
 
-## Data and licensing
+## Data sources and attribution
 
 Every source, its licence and its attribution are registered in the core and shown in the
 app's Sources panel; `docs/audit/data-sources-and-licensing.md` is the inventory and
 `THIRD_PARTY_NOTICES.md` the notices. Licence mode `evaluation` (default) enables sources
 that do not allow commercial use; `commercial` disables them.
 
-The licence for Lavender's own code has not been chosen yet (owner decision, see
-`docs/product/specification.md` §8). The upstream code in `legacy/` remains under its MIT
-licence (`legacy/LICENSE`).
+## Licence
+
+Copyright © 2026 NoirSystems. All rights reserved. Lavender is proprietary and is **not**
+released under the MIT License or any other open-source licence; see [`LICENSE`](LICENSE).
+
+Third-party code keeps its own licence. The upstream God's Eye View source in `legacy/` is
+MIT-licensed by its authors, and that licence requires its notice to stay with the code, so
+`legacy/LICENSE` and the notices in `THIRD_PARTY_NOTICES.md` remain.

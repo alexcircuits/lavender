@@ -1,5 +1,8 @@
 # Third-party notices — Lavender
 
+Lavender itself is proprietary (see `LICENSE`). The components below are used under
+their own licences, whose notices must accompany the code that includes them.
+
 Lavender is a NoirSystems product. Parts of it are derived from, or depend on, third-party
 work whose licences require notices. Data sources and their attribution requirements are
 recorded in `docs/audit/data-sources-and-licensing.md` and enforced at runtime by the

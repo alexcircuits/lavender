@@ -1,0 +1,11 @@
+Copyright (c) 2026 NoirSystems. All rights reserved.
+
+Lavender is proprietary software. No licence is granted to use, copy, modify, merge,
+publish, distribute, sublicense or sell copies of it, in whole or in part, except with
+the prior written permission of NoirSystems. Making this repository visible does not
+grant any of these rights.
+
+Third-party components keep their own licences, which this notice does not change. In
+particular, the upstream God's Eye View source code kept under legacy/ remains under the
+MIT License in legacy/LICENSE, and the notices required by other components are listed in
+THIRD_PARTY_NOTICES.md.

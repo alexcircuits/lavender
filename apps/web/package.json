@@ -1,6 +1,7 @@
 {
   "name": "@lavender/web",
   "private": true,
+  "license": "UNLICENSED",
   "version": "0.0.0",
   "type": "module",
   "description": "Lavender frontend: React shell, design system and the lazily loaded Cesium globe. Served by lavender-server and embedded by Tauri.",
