@@ -4,6 +4,7 @@
  */
 import { vi } from 'vitest';
 import type {
+  AircraftTrack,
   Catalog,
   FeedId,
   FeedQuery,
@@ -11,14 +12,22 @@ import type {
   GeoPoint,
   ImageryDescriptor,
   LayerDescriptor,
+  SatellitePasses,
+  SatellitePassRequest,
   SatelliteTrack,
   SatelliteTrackRequest,
   SearchQuery,
   SearchResults,
   SystemStatus,
 } from '../contracts';
-import type { EntityRef, GlobeController, ViewState } from '../globe';
-import type { FeedEvent, LavenderPlatform, PreferenceStore, TransportState } from '../platform';
+import type { CameraPose, EntityRef, GlobeController, ViewState } from '../globe';
+import type {
+  CallOptions,
+  FeedEvent,
+  LavenderPlatform,
+  PreferenceStore,
+  TransportState,
+} from '../platform';
 
 export function layer(feed: FeedId, overrides: Partial<LayerDescriptor> = {}): LayerDescriptor {
   const family = feed === 'aircraft' ? 'air' : feed === 'satellites' ? 'space' : 'hazards';
@@ -136,15 +145,35 @@ export class FakePlatform implements LavenderPlatform {
 
   snapshot = vi.fn(async (_query: FeedQuery): Promise<FeedSnapshot> => quakeSnapshot([]));
 
-  search = vi.fn(async (query: SearchQuery) => {
+  search = vi.fn(async (query: SearchQuery, _options?: CallOptions) => {
     this.searches.push(query);
     return this.searchResult;
   });
+
+  aircraftTrack = vi.fn(
+    async (hex: string, _options?: CallOptions): Promise<AircraftTrack> => ({
+      hex,
+      points: [],
+      sources: [],
+    }),
+  );
 
   satelliteTrack = vi.fn(async (r: SatelliteTrackRequest): Promise<SatelliteTrack> => {
     this.tracks.push(r.noradId);
     return { noradId: r.noradId, name: 'SAT', points: [], periodMin: 90 };
   });
+
+  satellitePasses = vi.fn(
+    async (request: SatellitePassRequest, _options?: CallOptions): Promise<SatellitePasses> => ({
+      noradId: request.noradId,
+      name: 'SAT',
+      observer: request.observer,
+      from: '2026-10-13T12:00:00Z',
+      until: '2026-10-14T12:00:00Z',
+      minElevationDeg: request.minElevationDeg ?? 0,
+      passes: [],
+    }),
+  );
 
   subscribe = vi.fn((query: FeedQuery, onEvent: (e: FeedEvent) => void) => {
     const sub: FakeSub = { query, onEvent, closed: false, updates: [] };
@@ -179,23 +208,54 @@ export interface FakeGlobe {
   pick(entity: EntityRef | null): void;
   view(view: ViewState): void;
   cursor(position: GeoPoint | null): void;
+  cameraIntent(): void;
+  point(point: GeoPoint | null): void;
 }
 
 export function fakeGlobe(): FakeGlobe {
   const pickers = new Set<(e: EntityRef | null) => void>();
   const viewers = new Set<(v: ViewState) => void>();
   const cursors = new Set<(p: GeoPoint | null) => void>();
+  const pointListeners = new Set<(p: GeoPoint | null) => void>();
+  const intents = new Set<() => void>();
+  let pose: CameraPose = {
+    lon: 10,
+    lat: 20,
+    heightM: 20_000_000,
+    headingRad: 0,
+    pitchRad: -Math.PI / 2,
+    rollRad: 0,
+  };
+  let centre: GeoPoint | null = { lat: pose.lat, lon: pose.lon };
+  const cameraIntent = () => {
+    for (const listener of intents) listener();
+  };
   const globe = {
     applySnapshot: vi.fn(),
     clearFeed: vi.fn(),
     setSelection: vi.fn(),
     showTrack: vi.fn(),
     setImagery: vi.fn(),
-    flyTo: vi.fn(),
-    home: vi.fn(),
-    zoomIn: vi.fn(),
-    zoomOut: vi.fn(),
-    resetNorth: vi.fn(),
+    setAnnotations: vi.fn(),
+    setDrawing: vi.fn(),
+    onMapPoint: (listener: (p: GeoPoint | null) => void) => {
+      pointListeners.add(listener);
+      return () => void pointListeners.delete(listener);
+    },
+    flyTo: vi.fn(cameraIntent),
+    home: vi.fn(cameraIntent),
+    zoomIn: vi.fn(cameraIntent),
+    zoomOut: vi.fn(cameraIntent),
+    resetNorth: vi.fn(cameraIntent),
+    cameraPose: vi.fn(() => pose),
+    centrePosition: vi.fn(() => centre),
+    restoreCamera: vi.fn((next: CameraPose) => {
+      pose = next;
+    }),
+    onCameraIntent: (listener: () => void) => {
+      intents.add(listener);
+      return () => void intents.delete(listener);
+    },
     onPick: (l: (e: EntityRef | null) => void) => {
       pickers.add(l);
       return () => void pickers.delete(l);
@@ -213,10 +273,15 @@ export function fakeGlobe(): FakeGlobe {
   } satisfies GlobeController;
   return {
     globe,
+    cameraIntent,
+    point: (p) => {
+      for (const listener of pointListeners) listener(p);
+    },
     pick: (e) => {
       for (const l of pickers) l(e);
     },
     view: (v) => {
+      centre = v.centre;
       for (const l of viewers) l(v);
     },
     cursor: (p) => {

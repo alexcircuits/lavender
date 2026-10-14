@@ -49,12 +49,14 @@ export const FEED_GLYPH: Readonly<Record<FeedId, Icon>> = {
   aircraft: AirplaneIcon,
   earthquakes: WaveformIcon,
   satellites: PlanetIcon,
+  cyclones: WaveformIcon,
 };
 
 const NOUNS: Readonly<Record<FeedId, readonly [string, string]>> = {
   aircraft: ['contact', 'contacts'],
   earthquakes: ['event', 'events'],
   satellites: ['satellite', 'satellites'],
+  cyclones: ['storm', 'storms'],
 };
 
 /** "contact" / "contacts", the word a count of this feed's items is read with. */

@@ -1,0 +1,39 @@
+name: Lavender security advisories
+
+# This is a product-repository workflow. When hosted only as a nested monorepo
+# directory, ENG-1004 must wire this job into the host's workflow directory.
+on:
+  schedule:
+    - cron: '0 4 * * *' # Daily at 04:00 UTC; advisories cannot use a source-only cache.
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - Cargo.toml
+      - '**/Cargo.toml'
+      - Cargo.lock
+      - deny.toml
+      - rust-toolchain.toml
+      - '.github/workflows/security-advisories.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lavender-advisories-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  advisories:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # Same immutable checkout revision as the host monorepo CI.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Install the pinned Rust toolchain and checker
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal
+          cargo install --locked --version 0.20.2 cargo-deny
+      - name: Check current RustSec advisories against the locked dependency graph
+        run: cargo deny --locked check advisories

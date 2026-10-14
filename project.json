@@ -3,22 +3,39 @@
   "name": "lavender",
   "projectType": "application",
   "sourceRoot": "products/lavender",
-  "tags": ["type:product", "scope:lavender", "lang:rust"],
+  "tags": [
+    "type:product",
+    "scope:lavender",
+    "lang:rust"
+  ],
   "targets": {
     "build": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["production", "^production", { "runtime": "cargo --version" }],
+      "inputs": [
+        "production",
+        "^production",
+        {
+          "runtime": "cargo --version"
+        }
+      ],
       "options": {
         "command": "cargo build --release --locked -p lavender-server --bins",
         "cwd": "products/lavender"
       },
-      "outputs": ["{projectRoot}/target/release/lavender-server"]
+      "outputs": [
+        "{projectRoot}/target/release/lavender-server"
+      ]
     },
     "typecheck": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["default", { "runtime": "cargo --version" }],
+      "inputs": [
+        "default",
+        {
+          "runtime": "cargo --version"
+        }
+      ],
       "options": {
         "command": "cargo check --workspace --exclude lavender-desktop --all-targets --locked",
         "cwd": "products/lavender"
@@ -27,7 +44,12 @@
     "test": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["default", { "runtime": "cargo --version" }],
+      "inputs": [
+        "default",
+        {
+          "runtime": "cargo --version"
+        }
+      ],
       "options": {
         "command": "cargo test --workspace --exclude lavender-desktop --locked && ./scripts/check-contracts.sh",
         "cwd": "products/lavender"
@@ -36,7 +58,15 @@
     "lint": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["default", { "runtime": "cargo --version" }, { "runtime": "cargo deny --version" }],
+      "inputs": [
+        "default",
+        {
+          "runtime": "cargo --version"
+        },
+        {
+          "runtime": "cargo deny --version"
+        }
+      ],
       "options": {
         "command": "cargo clippy --workspace --exclude lavender-desktop --all-targets --locked -- -D warnings && cargo deny --locked check bans licenses sources",
         "cwd": "products/lavender"
@@ -45,7 +75,12 @@
     "format": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["default", { "runtime": "cargo --version" }],
+      "inputs": [
+        "default",
+        {
+          "runtime": "cargo --version"
+        }
+      ],
       "options": {
         "command": "cargo fmt --all --check",
         "cwd": "products/lavender"
@@ -54,9 +89,46 @@
     "dev": {
       "executor": "nx:run-commands",
       "cache": false,
-      "inputs": ["default", { "runtime": "cargo --version" }],
+      "inputs": [
+        "default",
+        {
+          "runtime": "cargo --version"
+        }
+      ],
       "options": {
-        "command": "cargo run -p lavender-server",
+        "commands": [
+          {
+            "command": "cargo run --locked -p lavender-server",
+            "prefix": "backend",
+            "forwardAllArgs": false
+          },
+          {
+            "command": "npm exec --yes --package=pnpm@12.11.2 -- pnpm --dir apps/web run dev",
+            "prefix": "web",
+            "forwardAllArgs": false
+          }
+        ],
+        "parallel": true,
+        "cwd": "products/lavender"
+      }
+    },
+    "check": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": [
+        "default",
+        {
+          "runtime": "cargo --version"
+        },
+        {
+          "runtime": "node --version"
+        },
+        {
+          "runtime": "pnpm --version"
+        }
+      ],
+      "options": {
+        "command": "npm exec --yes --package=pnpm@12.11.2 -- bash scripts/check.sh",
         "cwd": "products/lavender"
       }
     }

@@ -1,5 +1,5 @@
 # Lavender Rust workspace. Template: products/kvbnews/backend (monorepo Rust conventions).
-# Every dependency is pinned exactly to a release that was at least 14 days old when adopted.
+# Direct dependencies use exact pins; review upgrades and lockfile changes (owner decision 2026-10-12).
 [workspace]
 resolver = "3"
 # The desktop app is a member (shared lockfile) but not a default member: plain `cargo`
@@ -38,7 +38,7 @@ sgp4 = "=2.4.0"
 tauri = { version = "=2.12.3", features = [] }
 tauri-build = { version = "=2.7.2", features = [] }
 thiserror = "=2.0.21"
-tokio = { version = "=1.53.2", features = ["macros", "rt-multi-thread", "sync", "time", "net", "signal", "fs"] }
+tokio = { version = "=1.53.2", features = ["macros", "rt-multi-thread", "sync", "time", "net", "signal", "fs", "io-util"] }
 tokio-util = "=0.7.20"
 toml = "=1.1.8"
 tower = { version = "=0.5.3", features = ["util", "timeout", "limit"] }

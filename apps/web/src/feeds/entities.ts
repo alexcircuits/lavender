@@ -2,9 +2,16 @@
  * Engine-free helpers over snapshot items, shared by the feed controller, the globe
  * renderers and the inspector.
  */
-import type { Aircraft, Earthquake, FeedId, FeedItems, SatelliteElements } from '../contracts';
+import type {
+  Aircraft,
+  Cyclone,
+  Earthquake,
+  FeedId,
+  FeedItems,
+  SatelliteElements,
+} from '../contracts';
 
-export type FeedItem = Aircraft | Earthquake | SatelliteElements;
+export type FeedItem = Aircraft | Earthquake | SatelliteElements | Cyclone;
 
 /** The stable id of an item within its feed. */
 export function itemId(items: FeedItems, item: FeedItem): string {
@@ -15,6 +22,8 @@ export function itemId(items: FeedItems, item: FeedItem): string {
       return (item as Earthquake).id;
     case 'satellites':
       return String((item as SatelliteElements).noradId);
+    case 'cyclones':
+      return (item as Cyclone).id;
   }
 }
 
@@ -29,5 +38,5 @@ export function findItem(items: FeedItems, id: string): FeedItem | undefined {
 
 /** Feeds whose server-side filtering uses the viewport (satellites are global objects). */
 export function usesViewport(feed: FeedId): boolean {
-  return feed !== 'satellites';
+  return feed === 'aircraft' || feed === 'earthquakes';
 }

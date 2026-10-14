@@ -93,6 +93,34 @@
   margin-top: var(--s-4);
 }
 
+.historyNote {
+  margin: var(--s-2) 0;
+  color: var(--ink-2);
+  font: var(--type-body-sm);
+}
+
+.historyScroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.historyTable {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--type-caption);
+}
+.historyTable caption {
+  padding-block: var(--s-2);
+  color: var(--ink-2);
+  text-align: start;
+}
+.historyTable th,
+.historyTable td {
+  padding: var(--s-1_5);
+  border-bottom: 1px solid var(--line);
+  text-align: start;
+  vertical-align: top;
+}
+
 /* A link that looks like a ghost button: it navigates away, so it stays an <a>. */
 .linkButton {
   composes: sq from global;

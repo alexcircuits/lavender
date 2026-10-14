@@ -20,6 +20,8 @@ use url::Url;
 
 use crate::config::FetchConfig;
 
+mod dns;
+
 /// Hard ceiling on any response body. `fetch.max_body_bytes` is the cap for requests that
 /// do not set their own; a provider's own cap (`FetchOptions::max_body_bytes`) is
 /// authoritative up to this ceiling.
@@ -72,6 +74,10 @@ impl HostPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum FetchError {
+    #[error("{host} resolves to an address refused by network policy")]
+    NonPublicAddress { host: String },
+    #[error("conditional request validators are invalid")]
+    InvalidValidators,
     #[error("{host} is not an allowed host for this source")]
     HostNotAllowed { host: String },
     #[error("plain HTTP to {host} is refused; use HTTPS")]
@@ -90,6 +96,67 @@ pub enum FetchError {
     Decode { host: String, reason: String },
     #[error("the request was cancelled")]
     Cancelled,
+}
+
+/// Validators for one cached resource. Only typed, bounded conditional headers can be
+/// emitted; arbitrary headers and credentials are deliberately not part of this type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CacheValidators {
+    etag: Option<String>,
+    last_modified: Option<String>,
+}
+
+impl CacheValidators {
+    /// Builds validators from an HTTP entity tag and/or IMF-fixdate Last-Modified value.
+    ///
+    /// # Errors
+    /// Refuses malformed, oversized or control-bearing values without quoting them.
+    pub fn new(etag: Option<&str>, last_modified: Option<&str>) -> Result<Self, FetchError> {
+        if etag.is_none() && last_modified.is_none()
+            || etag.is_some_and(|v| !valid_etag(v))
+            || last_modified.is_some_and(|v| !valid_modified(v))
+        {
+            return Err(FetchError::InvalidValidators);
+        }
+        Ok(Self { etag: etag.map(str::to_owned), last_modified: last_modified.map(str::to_owned) })
+    }
+
+    #[must_use]
+    pub fn etag(&self) -> Option<&str> {
+        self.etag.as_deref()
+    }
+
+    #[must_use]
+    pub fn last_modified(&self) -> Option<&str> {
+        self.last_modified.as_deref()
+    }
+
+    fn from_headers(headers: &HeaderMap) -> Option<Self> {
+        let etag = headers.get(header::ETAG).and_then(|v| v.to_str().ok());
+        let modified = headers.get(header::LAST_MODIFIED).and_then(|v| v.to_str().ok());
+        Self::new(etag, modified).ok()
+    }
+}
+
+fn valid_etag(value: &str) -> bool {
+    let body = value.strip_prefix("W/").unwrap_or(value);
+    value.len() <= 512
+        && HeaderValue::from_str(value).is_ok()
+        && body.starts_with('"')
+        && body.ends_with('"')
+        && body.len() >= 2
+        && body.as_bytes()[1..body.len() - 1]
+            .iter()
+            .all(|b| *b == b'!' || (0x23..=0x7e).contains(b))
+}
+
+fn valid_modified(value: &str) -> bool {
+    value.len() == 29
+        && value.is_ascii()
+        && HeaderValue::from_str(value).is_ok()
+        && jiff::fmt::strtime::parse("%a, %d %b %Y %H:%M:%S GMT", value)
+            .and_then(|date| date.to_datetime())
+            .is_ok()
 }
 
 impl FetchError {
@@ -114,11 +181,20 @@ pub struct FetchOptions {
     /// Retries for this request, replacing the configured count (providers with strict
     /// usage policies retry on their own schedule instead).
     pub retries: Option<u8>,
+    /// Conditional GET for a cached copy of this exact URL. A redirect to another URL
+    /// clears these headers and 304 acceptance, even when the host remains allowed.
+    pub conditional: Option<CacheValidators>,
 }
 
 impl Default for FetchOptions {
     fn default() -> Self {
-        Self { max_body_bytes: None, accept: "application/json", cancel: None, retries: None }
+        Self {
+            max_body_bytes: None,
+            accept: "application/json",
+            cancel: None,
+            retries: None,
+            conditional: None,
+        }
     }
 }
 
@@ -127,6 +203,9 @@ pub struct FetchResponse {
     pub status: u16,
     pub body: Bytes,
     pub elapsed: Duration,
+    /// Validators are scoped to the original request URL. Responses from a different
+    /// redirect target do not expose validators for reuse against that original resource.
+    pub validators: Option<CacheValidators>,
 }
 
 #[derive(Debug)]
@@ -156,6 +235,8 @@ impl Fetcher {
             .default_headers(headers)
             .connect_timeout(config.connect_timeout())
             .redirect(redirect::Policy::none())
+            .no_proxy()
+            .dns_resolver(Arc::new(dns::PublicResolver::new(config.allow_http_hosts.clone())))
             .gzip(true)
             .build()
             .map_err(|e| FetchError::Network {
@@ -208,11 +289,18 @@ impl Fetcher {
         }
         let plain_http_allowed =
             self.config.allow_http_hosts.iter().any(|h| h.eq_ignore_ascii_case(&host));
-        match url.scheme() {
-            "https" => Ok(()),
-            "http" if plain_http_allowed => Ok(()),
-            _ => Err(FetchError::InsecureScheme { host }),
+        if url.scheme() != "https" && !(url.scheme() == "http" && plain_http_allowed) {
+            return Err(FetchError::InsecureScheme { host });
         }
+        let address = match url.host() {
+            Some(url::Host::Ipv4(ip)) => Some(std::net::IpAddr::V4(ip)),
+            Some(url::Host::Ipv6(ip)) => Some(std::net::IpAddr::V6(ip)),
+            _ => None,
+        };
+        if !plain_http_allowed && address.is_some_and(|ip| !dns::is_public(ip)) {
+            return Err(FetchError::NonPublicAddress { host });
+        }
+        Ok(())
     }
 
     /// GETs `url` under `policy` and returns the body, retrying transient failures.
@@ -279,20 +367,45 @@ impl Fetcher {
         let started = Instant::now();
         let limit = self.body_limit(opts);
         let mut current = url.clone();
+        let mut conditional = opts.conditional.as_ref();
         for _ in 0..=self.config.max_redirects {
             self.check(&current, policy).map_err(|e| (e, None))?;
             let host = host_of(&current);
             self.pace(&host, policy.min_interval).await;
             let permit = self.semaphore(&host).acquire_owned().await;
-            let response = self
+            let mut request = self
                 .client
                 .get(current.clone())
                 .header(header::ACCEPT, opts.accept)
-                .timeout(self.config.request_timeout())
-                .send()
-                .await
-                .map_err(|e| (classify(&host, e), None))?;
+                .timeout(self.config.request_timeout());
+            if let Some(validators) = conditional {
+                if let Some(etag) = validators.etag() {
+                    request = request.header(header::IF_NONE_MATCH, etag);
+                }
+                if let Some(modified) = validators.last_modified() {
+                    request = request.header(header::IF_MODIFIED_SINCE, modified);
+                }
+            }
+            let response = request.send().await.map_err(|e| (classify(&host, e), None))?;
             let status = response.status();
+            let validators = if response.url() == url {
+                CacheValidators::from_headers(response.headers())
+            } else {
+                None
+            };
+            if status == StatusCode::NOT_MODIFIED {
+                if conditional.is_none() {
+                    return Err((FetchError::Status { host, status: 304 }, None));
+                }
+                // 304 has no message body. Content-Length may describe the cached 200
+                // representation, so neither body parsing nor its transfer-size test applies.
+                return Ok(FetchResponse {
+                    status: 304,
+                    body: Bytes::new(),
+                    elapsed: started.elapsed(),
+                    validators,
+                });
+            }
             if status.is_redirection() {
                 let next = response
                     .headers()
@@ -303,6 +416,9 @@ impl Fetcher {
                         (FetchError::Status { host: host.clone(), status: status.as_u16() }, None)
                     })?;
                 drop(permit);
+                if next != current {
+                    conditional = None;
+                }
                 current = next;
                 continue;
             }
@@ -317,7 +433,12 @@ impl Fetcher {
             }
             let body = read_capped(response, &host, limit).await.map_err(|e| (e, None))?;
             drop(permit);
-            return Ok(FetchResponse { status: status.as_u16(), body, elapsed: started.elapsed() });
+            return Ok(FetchResponse {
+                status: status.as_u16(),
+                body,
+                elapsed: started.elapsed(),
+                validators,
+            });
         }
         Err((FetchError::TooManyRedirects { host: host_of(url) }, None))
     }
@@ -342,6 +463,13 @@ impl Fetcher {
 }
 
 fn classify(host: &str, err: reqwest::Error) -> FetchError {
+    let mut source = std::error::Error::source(&err);
+    while let Some(error) = source {
+        if error.downcast_ref::<dns::BlockedAddress>().is_some() {
+            return FetchError::NonPublicAddress { host: host.to_owned() };
+        }
+        source = error.source();
+    }
     if err.is_timeout() {
         FetchError::Timeout { host: host.to_owned() }
     } else {
@@ -381,276 +509,4 @@ async fn read_capped(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    fn config() -> FetchConfig {
-        FetchConfig {
-            allow_http_hosts: vec!["127.0.0.1".into()],
-            retries: 2,
-            request_timeout_s: 2,
-            ..FetchConfig::default()
-        }
-    }
-
-    fn policy(server: &MockServer) -> HostPolicy {
-        HostPolicy::for_url(&Url::parse(&server.uri()).unwrap())
-    }
-
-    #[tokio::test]
-    async fn fetches_json_from_an_allowed_host() {
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/ok"))
-            .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"a":1}"#))
-            .mount(&server)
-            .await;
-        let f = Fetcher::new(config()).unwrap();
-        let url = Url::parse(&format!("{}/ok", server.uri())).unwrap();
-        let (v, _): (serde_json::Value, _) =
-            f.get_json(&url, &policy(&server), &FetchOptions::default()).await.unwrap();
-        assert_eq!(v["a"], 1);
-    }
-
-    #[tokio::test]
-    async fn refuses_hosts_outside_the_policy_and_plain_http() {
-        let f = Fetcher::new(FetchConfig::default()).unwrap();
-        let url = Url::parse("https://evil.example/x").unwrap();
-        let err = f
-            .get(&url, &HostPolicy::new(&["good.example"]), &FetchOptions::default())
-            .await
-            .unwrap_err();
-        assert_eq!(err, FetchError::HostNotAllowed { host: "evil.example".into() });
-        let url = Url::parse("http://good.example/x").unwrap();
-        let err = f
-            .get(&url, &HostPolicy::new(&["good.example"]), &FetchOptions::default())
-            .await
-            .unwrap_err();
-        assert_eq!(err, FetchError::InsecureScheme { host: "good.example".into() });
-    }
-
-    #[tokio::test]
-    async fn refuses_redirects_to_other_hosts() {
-        let server = MockServer::start().await;
-        Mock::given(path("/r"))
-            .respond_with(
-                ResponseTemplate::new(302)
-                    .insert_header("location", "https://elsewhere.example/steal"),
-            )
-            .mount(&server)
-            .await;
-        let f = Fetcher::new(config()).unwrap();
-        let url = Url::parse(&format!("{}/r", server.uri())).unwrap();
-        let err = f.get(&url, &policy(&server), &FetchOptions::default()).await.unwrap_err();
-        assert_eq!(err, FetchError::HostNotAllowed { host: "elsewhere.example".into() });
-    }
-
-    #[tokio::test]
-    async fn follows_same_host_redirects() {
-        let server = MockServer::start().await;
-        Mock::given(path("/old"))
-            .respond_with(ResponseTemplate::new(301).insert_header("location", "/new"))
-            .mount(&server)
-            .await;
-        Mock::given(path("/new"))
-            .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
-            .mount(&server)
-            .await;
-        let f = Fetcher::new(config()).unwrap();
-        let url = Url::parse(&format!("{}/old", server.uri())).unwrap();
-        let r = f.get(&url, &policy(&server), &FetchOptions::default()).await.unwrap();
-        assert_eq!(&r.body[..], b"ok");
-    }
-
-    #[tokio::test]
-    async fn caps_body_size() {
-        let server = MockServer::start().await;
-        Mock::given(path("/big"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![b'x'; 4096]))
-            .mount(&server)
-            .await;
-        let f = Fetcher::new(config()).unwrap();
-        let url = Url::parse(&format!("{}/big", server.uri())).unwrap();
-        let opts = FetchOptions { max_body_bytes: Some(1024), ..FetchOptions::default() };
-        let err = f.get(&url, &policy(&server), &opts).await.unwrap_err();
-        assert!(matches!(err, FetchError::BodyTooLarge { limit: 1024, .. }), "{err:?}");
-    }
-
-    #[tokio::test]
-    async fn retries_429_then_succeeds() {
-        let server = MockServer::start().await;
-        Mock::given(path("/flaky"))
-            .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "0"))
-            .up_to_n_times(1)
-            .mount(&server)
-            .await;
-        Mock::given(path("/flaky"))
-            .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
-            .mount(&server)
-            .await;
-        let f = Fetcher::new(config()).unwrap();
-        let url = Url::parse(&format!("{}/flaky", server.uri())).unwrap();
-        let r = f.get(&url, &policy(&server), &FetchOptions::default()).await.unwrap();
-        assert_eq!(&r.body[..], b"ok");
-    }
-
-    #[tokio::test]
-    async fn does_not_retry_404_and_reports_host_only() {
-        let server = MockServer::start().await;
-        Mock::given(path("/missing"))
-            .respond_with(ResponseTemplate::new(404))
-            .expect(1)
-            .mount(&server)
-            .await;
-        let f = Fetcher::new(config()).unwrap();
-        let url = Url::parse(&format!("{}/missing?key=SECRET", server.uri())).unwrap();
-        let err = f.get(&url, &policy(&server), &FetchOptions::default()).await.unwrap_err();
-        assert!(matches!(err, FetchError::Status { status: 404, .. }));
-        assert!(!err.to_string().contains("SECRET"), "{err}");
-    }
-
-    #[tokio::test]
-    async fn paces_requests_to_a_rate_limited_host() {
-        let server = MockServer::start().await;
-        Mock::given(path("/p"))
-            .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
-            .mount(&server)
-            .await;
-        let f = Arc::new(Fetcher::new(config()).unwrap());
-        let policy = policy(&server).with_min_interval(Duration::from_millis(150));
-        let url = Url::parse(&format!("{}/p", server.uri())).unwrap();
-        let started = Instant::now();
-        let calls = (0..4).map(|_| {
-            let (f, policy, url) = (f.clone(), policy.clone(), url.clone());
-            tokio::spawn(
-                async move { f.get(&url, &policy, &FetchOptions::default()).await.unwrap() },
-            )
-        });
-        for c in calls.collect::<Vec<_>>() {
-            c.await.unwrap();
-        }
-        assert!(
-            started.elapsed() >= Duration::from_millis(450),
-            "4 requests at ≥150 ms spacing took {:?}",
-            started.elapsed()
-        );
-    }
-
-    #[tokio::test]
-    async fn cancelled_waiters_do_not_delay_later_requests() {
-        // Review finding 5b: each cancelled waiter used to keep its pacing reservation, so
-        // five cancellations pushed the next real request out by five intervals.
-        let server = MockServer::start().await;
-        Mock::given(path("/p"))
-            .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
-            .mount(&server)
-            .await;
-        let f = Arc::new(Fetcher::new(config()).unwrap());
-        let policy = policy(&server).with_min_interval(Duration::from_millis(300));
-        let url = Url::parse(&format!("{}/p", server.uri())).unwrap();
-        let started = Instant::now();
-        f.get(&url, &policy, &FetchOptions::default()).await.unwrap();
-        for _ in 0..5 {
-            let cancel = CancellationToken::new();
-            let opts = FetchOptions { cancel: Some(cancel.clone()), ..FetchOptions::default() };
-            let (f, policy, url) = (f.clone(), policy.clone(), url.clone());
-            let waiter = tokio::spawn(async move { f.get(&url, &policy, &opts).await });
-            tokio::time::sleep(Duration::from_millis(10)).await;
-            cancel.cancel();
-            assert_eq!(waiter.await.unwrap().unwrap_err(), FetchError::Cancelled);
-        }
-        f.get(&url, &policy, &FetchOptions::default()).await.unwrap();
-        let elapsed = started.elapsed();
-        assert!(elapsed >= Duration::from_millis(290), "still paced: {elapsed:?}");
-        assert!(elapsed < Duration::from_millis(900), "cancelled waiters delayed it: {elapsed:?}");
-    }
-
-    #[tokio::test]
-    async fn per_request_body_caps_are_authoritative_within_the_ceiling() {
-        let server = MockServer::start().await;
-        Mock::given(path("/mid"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![b'x'; 4096]))
-            .mount(&server)
-            .await;
-        let f = Fetcher::new(FetchConfig { max_body_bytes: 1024, ..config() }).unwrap();
-        let url = Url::parse(&format!("{}/mid", server.uri())).unwrap();
-        assert!(
-            f.get(&url, &policy(&server), &FetchOptions::default()).await.is_err(),
-            "the configured default applies without a provider cap"
-        );
-        let opts = FetchOptions { max_body_bytes: Some(8192), ..FetchOptions::default() };
-        assert_eq!(f.get(&url, &policy(&server), &opts).await.unwrap().body.len(), 4096);
-        let huge = FetchOptions { max_body_bytes: Some(usize::MAX), ..FetchOptions::default() };
-        assert_eq!(f.body_limit(&huge), MAX_BODY_CEILING);
-    }
-
-    #[tokio::test]
-    async fn per_request_retry_count_overrides_the_default() {
-        let server = MockServer::start().await;
-        Mock::given(path("/down"))
-            .respond_with(ResponseTemplate::new(503))
-            .expect(1)
-            .mount(&server)
-            .await;
-        let f = Fetcher::new(config()).unwrap();
-        let url = Url::parse(&format!("{}/down", server.uri())).unwrap();
-        let opts = FetchOptions { retries: Some(0), ..FetchOptions::default() };
-        let err = f.get(&url, &policy(&server), &opts).await.unwrap_err();
-        assert!(matches!(err, FetchError::Status { status: 503, .. }), "{err:?}");
-    }
-
-    #[tokio::test]
-    async fn treats_420_as_a_retryable_rate_limit() {
-        let server = MockServer::start().await;
-        Mock::given(path("/calm"))
-            .respond_with(ResponseTemplate::new(420))
-            .up_to_n_times(1)
-            .mount(&server)
-            .await;
-        Mock::given(path("/calm"))
-            .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
-            .mount(&server)
-            .await;
-        let f = Fetcher::new(config()).unwrap();
-        let url = Url::parse(&format!("{}/calm", server.uri())).unwrap();
-        assert_eq!(
-            &f.get(&url, &policy(&server), &FetchOptions::default()).await.unwrap().body[..],
-            b"ok"
-        );
-    }
-
-    #[tokio::test]
-    async fn times_out() {
-        let server = MockServer::start().await;
-        Mock::given(path("/slow"))
-            .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(5)))
-            .mount(&server)
-            .await;
-        let f = Fetcher::new(FetchConfig { retries: 0, request_timeout_s: 1, ..config() }).unwrap();
-        let url = Url::parse(&format!("{}/slow", server.uri())).unwrap();
-        let err = f.get(&url, &policy(&server), &FetchOptions::default()).await.unwrap_err();
-        assert!(matches!(err, FetchError::Timeout { .. }), "{err:?}");
-    }
-
-    #[tokio::test]
-    async fn cancellation_stops_a_request() {
-        let server = MockServer::start().await;
-        Mock::given(path("/slow"))
-            .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(5)))
-            .mount(&server)
-            .await;
-        let f = Fetcher::new(config()).unwrap();
-        let url = Url::parse(&format!("{}/slow", server.uri())).unwrap();
-        let cancel = CancellationToken::new();
-        let opts = FetchOptions { cancel: Some(cancel.clone()), ..FetchOptions::default() };
-        let canceller = tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(50)).await;
-            cancel.cancel();
-        });
-        let err = f.get(&url, &policy(&server), &opts).await.unwrap_err();
-        canceller.await.unwrap();
-        assert_eq!(err, FetchError::Cancelled);
-    }
-}
+mod tests;

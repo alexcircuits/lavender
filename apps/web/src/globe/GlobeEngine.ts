@@ -6,7 +6,7 @@
 // cursor (interaction.ts), view normalisation (view.ts) and one renderer per feed
 // (renderers/*). Explicit rendering throughout: nothing renders unless something changed.
 import '@cesium/engine/Source/Widget/CesiumWidget.css';
-import { Cartesian2, Cartesian3, Color, Rectangle } from '@cesium/core';
+import { Cartesian2, Cartesian3, Math as CesiumMath, Color, Rectangle } from '@cesium/core';
 import {
   CesiumWidget,
   CreditDisplay,
@@ -21,12 +21,14 @@ import type {
   ImageryDescriptor,
   SatelliteTrack,
 } from '../contracts';
+import type { AnnotationDraft, MapAnnotation } from '../features/annotations/model';
 import { CameraService, HOME_VIEW, MAX_HEIGHT_M, prefersReducedMotion } from './camera';
 import { captureFrame } from './capture';
 import { cesiumCameraPort } from './cesiumCamera';
 import { watchContextLoss } from './contextLoss';
 import { BaseImagery, bundledProvider } from './imagery';
 import type {
+  CameraPose,
   EntityRef,
   FlyTarget,
   FrameCapture,
@@ -37,6 +39,8 @@ import type {
 import { geoPointAt, Interaction } from './interaction';
 import { Listeners } from './listeners';
 import { AircraftRenderer } from './renderers/aircraft';
+import { AnnotationRenderer } from './renderers/annotations';
+import { CycloneRenderer } from './renderers/cyclones';
 import { EarthquakeRenderer } from './renderers/earthquakes';
 import { SatelliteRenderer } from './renderers/satellites';
 import { SelectionHalo } from './renderers/selection';
@@ -54,6 +58,7 @@ interface Mounted {
   readonly widget: CesiumWidget;
   readonly renderers: ReadonlyMap<FeedId, FeedRenderer>;
   readonly satellites: SatelliteRenderer;
+  readonly annotations: AnnotationRenderer;
   readonly halo: SelectionHalo;
   readonly imagery: BaseImagery;
   readonly camera: CameraService;
@@ -72,7 +77,10 @@ export class GlobeEngine implements GlobeController {
   readonly #pickListeners = new Listeners<EntityRef | null>('pick');
   readonly #viewListeners = new Listeners<ViewState>('view');
   readonly #cursorListeners = new Listeners<GeoPoint | null>('cursor');
+  readonly #cameraIntentListeners = new Listeners<void>('camera intent');
   #mounted: Mounted | null = null;
+  readonly #pointListeners = new Listeners<GeoPoint | null>('map point');
+  #drawing = false;
   #selection: EntityRef | null = null;
   #lastView: ViewState | null = null;
   #restarts = 0;
@@ -136,12 +144,20 @@ export class GlobeEngine implements GlobeController {
     });
     const renderers = new Map<FeedId, FeedRenderer>([
       ['earthquakes', new EarthquakeRenderer(primitives, ctx)],
+      ['cyclones', new CycloneRenderer(primitives, ctx)],
       ['satellites', satellites],
       ['aircraft', new AircraftRenderer(primitives, ctx)],
     ]);
     const cleanup: Array<() => void> = [];
     cleanup.push(scene.renderError.addEventListener((_s, error) => this.#renderError(error)));
     cleanup.push(scene.camera.moveEnd.addEventListener(() => this.#emitView()));
+    const cameraIntent = () => this.#cameraIntentListeners.emit(undefined);
+    widget.canvas.addEventListener('pointerdown', cameraIntent);
+    widget.canvas.addEventListener('wheel', cameraIntent, { passive: true });
+    cleanup.push(() => {
+      widget.canvas.removeEventListener('pointerdown', cameraIntent);
+      widget.canvas.removeEventListener('wheel', cameraIntent);
+    });
     const offFirstFrame = scene.postRender.addEventListener(() => {
       offFirstFrame();
       this.#emitView();
@@ -153,12 +169,15 @@ export class GlobeEngine implements GlobeController {
       widget,
       renderers,
       satellites,
+      annotations: new AnnotationRenderer(primitives, ctx, scene),
       halo: new SelectionHalo(primitives, colors),
       imagery: new BaseImagery(scene, prefersReducedMotion),
       camera: new CameraService(cesiumCameraPort(scene), prefersReducedMotion),
       interaction: new Interaction(widget, {
         pick: (entity) => this.#pickListeners.emit(entity),
         cursor: (position) => this.#cursorListeners.emit(position),
+        point: (position) => this.#pointListeners.emit(position),
+        drawing: () => this.#drawing,
       }),
       cleanup,
     };
@@ -199,28 +218,89 @@ export class GlobeEngine implements GlobeController {
     this.#mounted?.satellites.showTrack(track);
   }
 
+  setAnnotations(annotations: readonly MapAnnotation[], draft: AnnotationDraft | null): void {
+    this.#mounted?.annotations.show(annotations, draft);
+  }
+
+  setDrawing(active: boolean): void {
+    this.#drawing = active;
+  }
+
+  onMapPoint(listener: (point: GeoPoint | null) => void): () => void {
+    return this.#pointListeners.add(listener);
+  }
+
   setImagery(imagery: ImageryDescriptor): void {
     this.#mounted?.imagery.show(imagery);
   }
 
   flyTo(target: FlyTarget): void {
+    this.#cameraIntentListeners.emit(undefined);
     this.#mounted?.camera.flyTo(target);
   }
 
   home(): void {
+    this.#cameraIntentListeners.emit(undefined);
     this.#mounted?.camera.home();
   }
 
   zoomIn(): void {
+    this.#cameraIntentListeners.emit(undefined);
     this.#mounted?.camera.zoomIn();
   }
 
   zoomOut(): void {
+    this.#cameraIntentListeners.emit(undefined);
     this.#mounted?.camera.zoomOut();
   }
 
   resetNorth(): void {
+    this.#cameraIntentListeners.emit(undefined);
     this.#mounted?.camera.resetNorth();
+  }
+
+  cameraPose(): CameraPose | null {
+    const camera = this.#mounted?.widget.scene.camera;
+    if (!camera) return null;
+    const position = camera.positionCartographic;
+    return {
+      lon: CesiumMath.toDegrees(position.longitude),
+      lat: CesiumMath.toDegrees(position.latitude),
+      heightM: position.height,
+      headingRad: camera.heading,
+      pitchRad: camera.pitch,
+      rollRad: camera.roll,
+    };
+  }
+
+  restoreCamera(pose: CameraPose): void {
+    const scene = this.#mounted?.widget.scene;
+    if (!scene) return;
+    scene.camera.cancelFlight();
+    scene.camera.setView({
+      destination: Cartesian3.fromDegrees(pose.lon, pose.lat, pose.heightM),
+      orientation: { heading: pose.headingRad, pitch: pose.pitchRad, roll: pose.rollRad },
+    });
+    this.#emitView();
+    scene.requestRender();
+  }
+
+  centrePosition(): GeoPoint | null {
+    const mounted = this.#mounted;
+    if (!mounted) return null;
+    const canvas = mounted.widget.scene.canvas;
+    try {
+      return geoPointAt(
+        mounted.widget,
+        new Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  onCameraIntent(listener: () => void): () => void {
+    return this.#cameraIntentListeners.add(listener);
   }
 
   onPick(listener: (entity: EntityRef | null) => void): () => void {
@@ -264,6 +344,8 @@ export class GlobeEngine implements GlobeController {
     this.#pickListeners.clear();
     this.#viewListeners.clear();
     this.#cursorListeners.clear();
+    this.#cameraIntentListeners.clear();
+    this.#pointListeners.clear();
     if (!m) return;
     try {
       for (const c of m.cleanup.splice(0)) c();
@@ -271,6 +353,7 @@ export class GlobeEngine implements GlobeController {
       m.imagery.destroy();
       for (const renderer of m.renderers.values()) renderer.destroy();
       m.halo.destroy();
+      m.annotations.destroy();
     } finally {
       if (!m.widget.isDestroyed()) m.widget.destroy();
     }
@@ -293,15 +376,12 @@ export class GlobeEngine implements GlobeController {
     if (!m) return;
     try {
       const scene = m.widget.scene;
-      const canvas = scene.canvas;
-      const centre = geoPointAt(
-        m.widget,
-        new Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2),
-      );
+      const centre = this.centrePosition();
       const rectangle = scene.camera.computeViewRectangle(scene.ellipsoid, new Rectangle());
       const view = toViewState(rectangle, centre, scene.camera.positionCartographic.height);
       this.#lastView = view;
       for (const renderer of m.renderers.values()) renderer.viewChanged();
+      m.annotations.viewChanged();
       this.#viewListeners.emit(view);
     } catch (error) {
       console.error('Globe could not compute the view', error);

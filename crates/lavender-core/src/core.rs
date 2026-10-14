@@ -6,10 +6,13 @@ use std::time::Duration;
 
 use jiff::{SignedDuration, Timestamp};
 use lavender_domain::{
-    Availability, Catalog, FeedId, FeedItems, FeedQuery, FeedSnapshot, FeedStatus, SatelliteTrack,
-    SatelliteTrackRequest, SearchQuery, SearchResults, SystemStatus,
+    AircraftTrack, Availability, Catalog, FeedId, FeedItems, FeedQuery, FeedSnapshot, FeedStatus,
+    SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery,
+    SearchResults, SystemStatus,
 };
-use lavender_geo::Propagator;
+use lavender_geo::{OrbitError, Propagator};
+use tokio::sync::Semaphore;
+use tokio_util::sync::CancellationToken;
 
 use crate::audit::{AuditEvent, AuditSink, NoAudit};
 use crate::config::CoreConfig;
@@ -20,9 +23,11 @@ use crate::hub::{FeedHub, FeedSubscription, HubDeps, RegionBudget, SubscriptionE
 use crate::providers::FeedProvider;
 use crate::providers::adsb_lol::AdsbLolProvider;
 use crate::providers::celestrak::CelestrakProvider;
+use crate::providers::cyclones::CyclonesProvider;
 use crate::providers::usgs::UsgsProvider;
 use crate::registry::Registry;
 use crate::search;
+use crate::search::geocoder::{ConfiguredGeocoder, Geocoder};
 use crate::secrets::{MemorySecretStore, SecretStore};
 use crate::settings::{MemorySettingsStore, SettingsStore};
 
@@ -40,9 +45,28 @@ struct CoreInner {
     hub: FeedHub,
     audit: Arc<dyn AuditSink>,
     started_at: Timestamp,
+    geocoder: Option<Arc<dyn Geocoder>>,
+    cancel: CancellationToken,
+    pass_capacity: Arc<Semaphore>,
 }
 
 /// Cheap to clone; all clones share one core.
+///
+/// Build one core per application and share its handle with the transport adapter.
+/// Providers start fetching only when a snapshot or subscription needs them.
+///
+/// ```no_run
+/// use lavender_core::{CoreConfig, LavenderCore};
+/// use lavender_domain::{FeedId, FeedQuery};
+///
+/// # async fn example() -> Result<(), lavender_core::CoreError> {
+/// let core = LavenderCore::builder(CoreConfig::default()).build()?;
+/// let earthquakes = core.snapshot(FeedQuery::new(FeedId::Earthquakes)).await?;
+/// println!("{:?}", earthquakes.freshness);
+/// core.shutdown();
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone)]
 pub struct LavenderCore {
     inner: Arc<CoreInner>,
@@ -102,12 +126,18 @@ impl LavenderCoreBuilder {
             CoreError::BadRequest(format!("invalid configuration: {}", errors.join("; ")))
         })?;
         let fetcher = Arc::new(Fetcher::new(self.config.fetch.clone())?);
+        let geocoder: Option<Arc<dyn Geocoder>> = if self.config.geocoder.enabled {
+            Some(Arc::new(ConfiguredGeocoder::new(self.config.geocoder.clone(), fetcher.clone())?))
+        } else {
+            None
+        };
         let providers = self.providers.unwrap_or_else(|| {
             let p = &self.config.providers;
             vec![
                 Arc::new(AdsbLolProvider::new(p.adsb_lol.clone())) as Arc<dyn FeedProvider>,
                 Arc::new(UsgsProvider::new(p.usgs.clone())),
                 Arc::new(CelestrakProvider::new(p.celestrak.clone())),
+                Arc::new(CyclonesProvider::new(p.cyclones.clone())),
             ]
         });
         let health = Arc::new(HealthTracker::default());
@@ -129,6 +159,9 @@ impl LavenderCoreBuilder {
                 hub,
                 audit: self.audit,
                 started_at: Timestamp::now(),
+                geocoder,
+                cancel: CancellationToken::new(),
+                pass_capacity: Arc::new(Semaphore::new(2)),
             }),
         })
     }
@@ -160,7 +193,12 @@ impl LavenderCore {
     /// What Lavender can show: layers with availability, sources with licences, imagery.
     #[must_use]
     pub fn catalog(&self) -> Catalog {
-        self.inner.registry.catalog(self.inner.secrets.as_ref(), |f| self.feed_meta(f))
+        let mut catalog =
+            self.inner.registry.catalog(self.inner.secrets.as_ref(), |f| self.feed_meta(f));
+        if let Some(geocoder) = &self.inner.geocoder {
+            catalog.sources.push(geocoder.source_info());
+        }
+        catalog
     }
 
     /// Provider health and feed load.
@@ -291,13 +329,46 @@ impl LavenderCore {
         }
     }
 
-    /// Coordinates, live entities and (when configured) places.
+    /// Coordinates and loaded entities, with configured place lookup on explicit submission.
     ///
     /// # Errors
     /// Returns an error for invalid queries.
-    pub fn search(&self, query: &SearchQuery) -> Result<SearchResults, CoreError> {
+    pub async fn search(&self, query: &SearchQuery) -> Result<SearchResults, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
         self.inner.audit.record(AuditEvent::Searched { chars: query.q.chars().count() });
-        search::search(query, &self.inner.hub)
+        if let Some(geocoder) = &self.inner.geocoder
+            && self.inner.config.licence_mode == lavender_domain::LicenceMode::Commercial
+            && !self.inner.config.licence_acknowledged.contains(&geocoder.source_info().id)
+        {
+            let mut results = search::search(query, &self.inner.hub)?;
+            if query.places == Some(true) && results.coordinates.is_empty() {
+                results.notices.clear();
+                results.notices.push("Place search is disabled until this service's commercial terms are acknowledged.".to_owned());
+            }
+            return Ok(results);
+        }
+        search::search_with_geocoder(
+            query,
+            &self.inner.hub,
+            self.inner.geocoder.as_deref(),
+            self.inner.cancel.child_token(),
+        )
+        .await
+    }
+
+    /// Recent positions observed by the shared feed hub. Reading history causes no network call.
+    ///
+    /// # Errors
+    /// Invalid ICAO address, unavailable aircraft feed, or no retained observations.
+    pub fn aircraft_track(&self, hex: &str) -> Result<AircraftTrack, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        self.check_available(FeedId::Aircraft)?;
+        self.inner.audit.record(AuditEvent::AircraftTrack);
+        self.inner.hub.aircraft_track(hex)
     }
 
     /// A propagated ground track for a satellite in the loaded catalogue.
@@ -309,9 +380,19 @@ impl LavenderCore {
         req: SatelliteTrackRequest,
     ) -> Result<SatelliteTrack, CoreError> {
         self.inner.audit.record(AuditEvent::SatelliteTrack { norad_id: req.norad_id });
+        if req.norad_id == 0 {
+            return Err(CoreError::BadRequest("NORAD id must be a positive integer".to_owned()));
+        }
         let step_s = req.step_s.unwrap_or(60);
         if !(10..=600).contains(&step_s) {
             return Err(CoreError::BadRequest("stepS must be between 10 and 600".to_owned()));
+        }
+        if let Some(minutes) = req.minutes
+            && (!(1..=1_440).contains(&minutes) || minutes * 60 / step_s + 1 > 1_440)
+        {
+            return Err(CoreError::BadRequest(
+                "minutes must be 1–1440 with at most 1440 points".to_owned(),
+            ));
         }
         let mut elements = self.find_satellite(req.norad_id);
         if elements.is_none() {
@@ -329,7 +410,7 @@ impl LavenderCore {
         let default_minutes = propagator.period_min().clamp(1.0, 120.0).round();
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let minutes = req.minutes.unwrap_or(default_minutes as u32);
-        if !(1..=1_440).contains(&minutes) || minutes * 60 / step_s > 1_440 {
+        if !(1..=1_440).contains(&minutes) || minutes * 60 / step_s + 1 > 1_440 {
             return Err(CoreError::BadRequest(
                 "minutes must be 1–1440 with at most 1440 points".to_owned(),
             ));
@@ -353,6 +434,89 @@ impl LavenderCore {
         })
     }
 
+    /// Geometric observer passes in a bounded window; computation runs off the async executor.
+    ///
+    /// # Errors
+    /// Invalid observer/window, unavailable elements, excessive work, or propagation failure.
+    pub async fn satellite_passes(
+        &self,
+        req: SatellitePassRequest,
+    ) -> Result<SatellitePasses, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        let hours = req.hours.unwrap_or(24);
+        let threshold = req.min_elevation_deg.unwrap_or(0.0);
+        if req.norad_id == 0
+            || !(1..=24).contains(&hours)
+            || !threshold.is_finite()
+            || !(0.0..=89.0).contains(&threshold)
+        {
+            return Err(CoreError::BadRequest(
+                "NORAD id must be positive; hours must be 1–24 and minElevationDeg 0–89".to_owned(),
+            ));
+        }
+        lavender_domain::GeoPoint::new(req.observer.lat, req.observer.lon)?;
+        if !req.observer.alt_m.unwrap_or(0.0).is_finite()
+            || !(-500.0..=10_000.0).contains(&req.observer.alt_m.unwrap_or(0.0))
+        {
+            return Err(CoreError::BadRequest(
+                "observer altitude must be -500–10000 metres".to_owned(),
+            ));
+        }
+        self.check_available(FeedId::Satellites)?;
+        let permit = self.inner.pass_capacity.clone().try_acquire_owned().map_err(|_| {
+            CoreError::Limit("Satellite pass prediction is busy; try again shortly.".to_owned())
+        })?;
+        let mut elements = self.find_satellite(req.norad_id);
+        if elements.is_none() {
+            self.snapshot(FeedQuery::new(FeedId::Satellites)).await?;
+            elements = self.find_satellite(req.norad_id);
+        }
+        let elements = elements.ok_or_else(|| {
+            CoreError::NotFound(format!(
+                "satellite {} is not in the loaded catalogue",
+                req.norad_id
+            ))
+        })?;
+        let from = req.from.unwrap_or_else(Timestamp::now);
+        let until =
+            from.checked_add(SignedDuration::from_hours(i64::from(hours))).map_err(|_| {
+                CoreError::BadRequest(
+                    "pass window is outside the supported timestamp range".to_owned(),
+                )
+            })?;
+        if from.duration_since(elements.epoch).abs() > MAX_TRACK_EPOCH_OFFSET
+            || until.duration_since(elements.epoch).abs() > MAX_TRACK_EPOCH_OFFSET
+        {
+            return Err(CoreError::BadRequest(
+                "pass window must be within 14 days of the orbital element epoch".to_owned(),
+            ));
+        }
+        self.inner.audit.record(AuditEvent::SatellitePasses { norad_id: req.norad_id });
+        let compute = tokio::task::spawn_blocking(move || {
+            // Keep the permit until CPU work ends even if the calling request is cancelled.
+            let _permit = permit;
+            let propagator = Propagator::new(&elements).map_err(orbit_error)?;
+            let passes =
+                propagator.passes(req.observer, from, hours, threshold).map_err(orbit_error)?;
+            Ok(SatellitePasses {
+                norad_id: req.norad_id,
+                name: elements.name,
+                observer: req.observer,
+                from,
+                until,
+                min_elevation_deg: threshold,
+                passes,
+            })
+        });
+        tokio::select! {
+            biased;
+            () = self.inner.cancel.cancelled() => Err(CoreError::ShuttingDown),
+            result = compute => result.map_err(|_| CoreError::Upstream("Satellite pass computation failed.".to_owned()))?,
+        }
+    }
+
     fn find_satellite(&self, norad_id: u32) -> Option<lavender_domain::SatelliteElements> {
         self.inner.hub.current_items(FeedId::Satellites).iter().find_map(|items| {
             match items.as_ref() {
@@ -372,11 +536,20 @@ impl LavenderCore {
 
     /// Stops every background task. Subscriptions end; later calls fail.
     pub fn shutdown(&self) {
+        self.inner.cancel.cancel();
         self.inner.hub.shutdown();
     }
 
     #[must_use]
     pub fn is_shut_down(&self) -> bool {
         self.inner.hub.is_shut_down()
+    }
+}
+
+fn orbit_error(error: OrbitError) -> CoreError {
+    match error {
+        OrbitError::InvalidRequest(message) => CoreError::BadRequest(message),
+        OrbitError::Limit(message) => CoreError::Limit(message),
+        other => CoreError::Upstream(other.to_string()),
     }
 }

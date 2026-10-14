@@ -1,6 +1,7 @@
 // Lavender's wire contract, generated from Rust (lavender-domain) by ts-rs (ADR 0007).
 // Import contract types from here, never from ./generated directly.
 export type { Aircraft } from './generated/Aircraft';
+export type { AircraftTrack } from './generated/AircraftTrack';
 export type { ApiError } from './generated/ApiError';
 export type { Availability } from './generated/Availability';
 export type { BBox } from './generated/BBox';
@@ -9,6 +10,9 @@ export type { ClientFrame } from './generated/ClientFrame';
 export type { CommercialUse } from './generated/CommercialUse';
 export type { CoordinateHit } from './generated/CoordinateHit';
 export type { Coverage } from './generated/Coverage';
+export type { Cyclone } from './generated/Cyclone';
+export type { CycloneConeGeometry } from './generated/CycloneConeGeometry';
+export type { CycloneTrackGeometry } from './generated/CycloneTrackGeometry';
 export type { Earthquake } from './generated/Earthquake';
 export type { EntityHit } from './generated/EntityHit';
 export type { ErrorCode } from './generated/ErrorCode';
@@ -32,6 +36,9 @@ export type { Privacy } from './generated/Privacy';
 export type { ProviderHealth } from './generated/ProviderHealth';
 export type { ProviderScope } from './generated/ProviderScope';
 export type { SatelliteElements } from './generated/SatelliteElements';
+export type { SatellitePass } from './generated/SatellitePass';
+export type { SatellitePasses } from './generated/SatellitePasses';
+export type { SatellitePassRequest } from './generated/SatellitePassRequest';
 export type { SatelliteTrack } from './generated/SatelliteTrack';
 export type { SatelliteTrackRequest } from './generated/SatelliteTrackRequest';
 export type { SearchQuery } from './generated/SearchQuery';

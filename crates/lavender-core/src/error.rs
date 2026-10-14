@@ -1,3 +1,5 @@
+//! Core failures converted into stable API errors by the HTTP and desktop adapters.
+
 use lavender_domain::{ApiError, DomainError, ErrorCode, FeedId};
 
 use crate::fetch::FetchError;

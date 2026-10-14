@@ -103,13 +103,10 @@ async fn api_error_envelope(request: Request, next: Next) -> Response {
 /// A panic becomes a JSON 500 that does not repeat the panic message.
 // `CatchPanicLayer` hands the payload over by value.
 #[allow(clippy::needless_pass_by_value)]
-fn panic_response(err: Box<dyn Any + Send + 'static>) -> Response {
-    let detail = err
-        .downcast_ref::<String>()
-        .map(String::as_str)
-        .or_else(|| err.downcast_ref::<&str>().copied())
-        .unwrap_or("(no message)");
-    tracing::error!(panic = detail, "a request handler panicked");
+fn panic_response(_err: Box<dyn Any + Send + 'static>) -> Response {
+    // Panic payloads may contain credentials or provider documents. The event is
+    // useful; repeating its arbitrary payload in structured diagnostics is not.
+    tracing::error!("a request handler panicked");
     json_error(
         StatusCode::INTERNAL_SERVER_ERROR,
         ErrorCode::Internal,
@@ -149,7 +146,9 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/catalog", get(routes::catalog))
         .route("/feeds/{feed}", get(routes::feed))
         .route("/search", get(routes::search))
+        .route("/aircraft/{hex}/track", get(routes::aircraft_track))
         .route("/satellites/{norad}/track", get(routes::satellite_track))
+        .route("/satellites/{norad}/passes", get(routes::satellite_passes))
         .route("/stream", get(ws::stream))
         .fallback(routes::api_not_found)
         .layer(middleware::from_fn(security::require_same_origin))
@@ -194,7 +193,15 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
             header::HeaderName::from_static("permissions-policy"),
             HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
         ))
-        .layer(TraceLayer::new_for_http())
+        .layer(TraceLayer::new_for_http().make_span_with(|request: &Request| {
+            // The default span includes the full URI. Provider credentials and
+            // private search text can be in its query, so keep method/path only.
+            tracing::debug_span!(
+                "http_request",
+                method = %request.method(),
+                path = request.uri().path(),
+            )
+        }))
         .with_state(state)
 }
 
@@ -211,3 +218,6 @@ fn static_service(dir: &Path) -> Router {
         .fallback_service(spa)
         .layer(middleware::from_fn(static_cache_headers))
 }
+
+#[cfg(test)]
+mod security_regression_tests;

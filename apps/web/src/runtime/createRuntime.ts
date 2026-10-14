@@ -10,6 +10,7 @@ import type { GlobeController } from '../globe';
 import { type LavenderPlatform, toApiError } from '../platform';
 import { createStores, type Stores } from '../state/stores';
 import { readWorkspace, toPersisted, WORKSPACE_PREF_KEY } from './workspacePrefs';
+import { browserWorkspaceLocation, type WorkspaceLocation, WorkspaceShare } from './workspaceShare';
 
 export interface RuntimeOptions {
   /** How often backend status is refreshed for the status bar and Sources panel. */
@@ -18,6 +19,8 @@ export interface RuntimeOptions {
   readonly catalogRetryMs?: { readonly min: number; readonly max: number };
   /** Delay before a workspace change is written to preferences. */
   readonly persistDelayMs?: number;
+  /** Replace browser navigation in tests, or disable it for an embedded host. */
+  readonly workspaceLocation?: WorkspaceLocation | null;
 }
 
 export interface Runtime {
@@ -33,6 +36,8 @@ export interface Runtime {
   reloadCatalog(): void;
   /** The imagery the globe should show: the workspace choice, else the catalog default. */
   activeImagery(): ImageryDescriptor | null;
+  copyViewLink(): Promise<void>;
+  restoreViewUrl(url: string): boolean;
 }
 
 export function createRuntime(platform: LavenderPlatform, options: RuntimeOptions = {}): Runtime {
@@ -42,12 +47,21 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
   const stores = createStores();
   const feeds = new FeedController(platform, stores);
   const { workspace, system, ui } = stores;
+  const share = new WorkspaceShare(
+    stores,
+    options.workspaceLocation === undefined
+      ? browserWorkspaceLocation()
+      : options.workspaceLocation,
+  );
+
+  const initialPreferences = platform.preferences.get<unknown>(WORKSPACE_PREF_KEY);
 
   let running: (() => void) | null = null;
   let catalogTimer: ReturnType<typeof setTimeout> | null = null;
   let catalogAttempt = 0;
   let catalogRequest: AbortController | null = null;
   let shownImagery: string | null = null;
+  let offCameraIntent: (() => void) | null = null;
 
   const activeImagery = (): ImageryDescriptor | null => {
     const catalog = system.getState().catalog;
@@ -83,12 +97,21 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
         if (system.getState().catalog === null) {
           // First load: hydrate before publishing the catalog so the controller opens the
           // right feeds once. Later reloads keep what the analyst turned on since.
-          const persisted = readWorkspace(
-            platform.preferences.get<unknown>(WORKSPACE_PREF_KEY),
-            catalog,
-          );
-          workspace.getState().hydrate(persisted.layers, persisted.imageryId);
+          const persisted = readWorkspace(initialPreferences, catalog);
+          const state = workspace.getState();
+          workspace
+            .getState()
+            .hydrate(
+              state.revisions.layers === 0 ? persisted.layers : state.layers,
+              state.revisions.imagery === 0 ? persisted.imageryId : state.imageryId,
+            );
+          const current = workspace.getState();
+          if (current.revisions.annotations === 0)
+            workspace
+              .getState()
+              .restore(current.layers, current.imageryId, current.selection, persisted.annotations);
         }
+        share.apply(catalog);
         system.getState().setCatalog(catalog);
       })
       .catch((error: unknown) => {
@@ -109,9 +132,31 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
       });
   };
 
+  const persistWorkspace = (state: ReturnType<typeof workspace.getState>): void => {
+    const error =
+      'Device storage is unavailable. These annotations are saved only for this session; copy a view link to keep them.';
+    try {
+      platform.preferences.set(
+        WORKSPACE_PREF_KEY,
+        toPersisted(state.layers, state.imageryId, state.annotations),
+      );
+      const saved = platform.preferences.get<{ readonly annotations?: unknown }>(
+        WORKSPACE_PREF_KEY,
+      );
+      workspace
+        .getState()
+        .setAnnotationStorageError(
+          JSON.stringify(saved?.annotations) === JSON.stringify(state.annotations) ? null : error,
+        );
+    } catch {
+      workspace.getState().setAnnotationStorageError(error);
+    }
+  };
+
   const start = (): (() => void) => {
     if (running) return running;
     const cleanup: Array<() => void> = [];
+    cleanup.push(share.start());
     feeds.start();
     cleanup.push(() => feeds.stop());
     loadCatalog();
@@ -126,12 +171,22 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
     let persistTimer: ReturnType<typeof setTimeout> | null = null;
     cleanup.push(
       workspace.subscribe((s, prev) => {
-        if (s.layers === prev.layers && s.imageryId === prev.imageryId) return;
+        if (
+          s.layers === prev.layers &&
+          s.imageryId === prev.imageryId &&
+          s.annotations === prev.annotations
+        )
+          return;
+        if (s.annotations !== prev.annotations) {
+          ui.getState().globe?.setAnnotations(s.annotations, null);
+          // Marks are durable before a reload can cancel the debounce timer.
+          if (s.annotations.length > 0 || prev.annotations.length > 0) persistWorkspace(s);
+        }
         if (s.imageryId !== prev.imageryId) syncImagery();
         if (persistTimer) clearTimeout(persistTimer);
         persistTimer = setTimeout(() => {
           persistTimer = null;
-          platform.preferences.set(WORKSPACE_PREF_KEY, toPersisted(s.layers, s.imageryId));
+          persistWorkspace(s);
         }, persistDelayMs);
       }),
     );
@@ -153,17 +208,25 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
     feeds,
     start,
     attachGlobe(globe) {
+      offCameraIntent?.();
+      offCameraIntent = globe.onCameraIntent(() => share.claimCamera());
       shownImagery = null;
       ui.getState().setGlobe(globe);
       feeds.attachGlobe(globe);
       syncImagery();
+      share.apply(system.getState().catalog);
+      globe.setAnnotations(workspace.getState().annotations, null);
     },
     detachGlobe() {
+      offCameraIntent?.();
+      offCameraIntent = null;
       feeds.detachGlobe();
       ui.getState().setGlobe(null);
       shownImagery = null;
     },
     reloadCatalog: loadCatalog,
     activeImagery,
+    copyViewLink: () => share.copyLink(),
+    restoreViewUrl: (url) => share.restoreUrl(url),
   };
 }

@@ -3,8 +3,9 @@
  * (coordinates, live entities from the feeds already on, layers, commands) plus the server's
  * places, entities and coordinate forms, debounced and cancellable (design-system §8).
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EntityHit, FeedId, GeoPoint, SearchResults } from '../../contracts';
+import { MapTrifoldIcon } from '../../design';
 import { parseCoordinates } from '../../lib/coordinates';
 import type { Runtime } from '../../runtime';
 import {
@@ -46,17 +47,33 @@ export interface SearchModel {
 
 interface RemoteState {
   readonly query: string;
+  readonly places: boolean;
+  readonly generation: number;
   readonly status: 'ready' | 'failed';
   readonly results: SearchResults | null;
 }
 
 /** Server search for `query`, debounced, with the previous request aborted on every change. */
-function useRemoteSearch(query: string): { status: RemoteStatus; results: SearchResults | null } {
+function useRemoteSearch(query: string): {
+  status: RemoteStatus;
+  results: SearchResults | null;
+  searchPlaces: () => void;
+  placesRequested: boolean;
+} {
   const platform = usePlatform();
   const globe = useGlobe();
   const centre = useRef<GeoPoint | null>(null);
   const [state, setState] = useState<RemoteState | null>(null);
+  const [submission, setSubmission] = useState<{ query: string; generation: number } | null>(null);
   const q = query.trim();
+  // A previous submitted place name must not authorize lookup for newly typed text.
+  if (submission !== null && submission.query !== q) setSubmission(null);
+  const places = submission?.query === q;
+  const generation = submission?.generation ?? 0;
+  const searchPlaces = useCallback(
+    () => setSubmission((previous) => ({ query: q, generation: (previous?.generation ?? 0) + 1 })),
+    [q],
+  );
 
   // Bias places towards what the camera shows, without re-rendering on every move.
   useEffect(
@@ -70,29 +87,37 @@ function useRemoteSearch(query: string): { status: RemoteStatus; results: Search
   useEffect(() => {
     if (q.length < MIN_REMOTE_QUERY) return;
     const request = new AbortController();
-    const timer = setTimeout(() => {
-      const near = centre.current;
-      platform
-        .search({ q, limit: REMOTE_LIMIT, ...(near ? { near } : {}) }, { signal: request.signal })
-        .then((results) => {
-          if (!request.signal.aborted) setState({ query: q, status: 'ready', results });
-        })
-        .catch(() => {
-          if (!request.signal.aborted) setState({ query: q, status: 'failed', results: null });
-        });
-    }, SEARCH_DEBOUNCE_MS);
+    const timer = setTimeout(
+      () => {
+        const near = centre.current;
+        platform
+          .search(
+            { q, limit: REMOTE_LIMIT, places, ...(near ? { near } : {}) },
+            { signal: request.signal },
+          )
+          .then((results) => {
+            if (!request.signal.aborted)
+              setState({ query: q, places, generation, status: 'ready', results });
+          })
+          .catch(() => {
+            if (!request.signal.aborted)
+              setState({ query: q, places, generation, status: 'failed', results: null });
+          });
+      },
+      places ? 0 : SEARCH_DEBOUNCE_MS,
+    );
     return () => {
       clearTimeout(timer);
       request.abort();
     };
-  }, [platform, q]);
+  }, [platform, q, places, generation]);
 
-  if (q.length < MIN_REMOTE_QUERY) return { status: 'idle', results: null };
-  if (state?.query !== q) {
-    // Keep showing the previous answer while the next one is on its way.
-    return { status: 'loading', results: state?.status === 'ready' ? state.results : null };
+  if (q.length < MIN_REMOTE_QUERY)
+    return { status: 'idle', results: null, searchPlaces, placesRequested: places };
+  if (state?.query !== q || state.places !== places || state.generation !== generation) {
+    return { status: 'loading', results: null, searchPlaces, placesRequested: places };
   }
-  return { status: state.status, results: state.results };
+  return { status: state.status, results: state.results, searchPlaces, placesRequested: places };
 }
 
 /** Selects an entity, turning its layer on first if needed, and flies to it when it has a place. */
@@ -168,14 +193,36 @@ export function useSearchModel(query: string, options: SearchModelOptions): Sear
   return useMemo(() => {
     const results = remote.results;
     const listCommands = commands || q !== '';
+    const placeResults = placeGroup(results?.places ?? [], catalog, act);
+    const placeAction: ResultGroup | null =
+      !placeResults &&
+      !parsed &&
+      q.length >= MIN_REMOTE_QUERY &&
+      (!remote.placesRequested || remote.status !== 'loading')
+        ? {
+            id: 'places',
+            heading: 'Places',
+            items: [
+              {
+                id: `places:submit:${q}`,
+                title: `${remote.placesRequested ? 'Search places again for' : 'Search places for'} “${q}”`,
+                hint: 'Search',
+                icon: MapTrifoldIcon,
+                run: remote.searchPlaces,
+              },
+            ],
+          }
+        : null;
     const groups = [
       coordinateGroup(parsed, results?.coordinates ?? [], act),
-      placeGroup(results?.places ?? [], catalog, act),
+      placeResults,
       entityGroup(liveEntities, results?.entities ?? [], act),
       listCommands ? layerGroup(catalog, layerStates, q, act) : null,
       listCommands ? actionGroup(q, act) : null,
+      placeAction,
     ].filter((g): g is ResultGroup => g !== null);
-    const total = groups.reduce((sum, g) => sum + g.items.length, 0);
+    const total =
+      groups.reduce((sum, g) => sum + g.items.length, 0) - (placeAction?.items.length ?? 0);
     return {
       groups,
       status: remote.status,
@@ -194,5 +241,7 @@ export function useSearchModel(query: string, options: SearchModelOptions): Sear
     q,
     remote.results,
     remote.status,
+    remote.placesRequested,
+    remote.searchPlaces,
   ]);
 }

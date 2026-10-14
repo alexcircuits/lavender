@@ -94,6 +94,27 @@ class FakeSocket implements SocketLike {
 
 function webAdapter(backend: FakeBackend): LavenderPlatform {
   const fetch = async (url: string): Promise<Response> => {
+    if (url.includes('/api/v1/satellites/25544/passes'))
+      return new Response(
+        JSON.stringify({
+          noradId: 25544,
+          name: 'ISS',
+          observer: { lat: 60, lon: 24 },
+          from: '2026-10-13T12:00:00Z',
+          until: '2026-10-14T12:00:00Z',
+          minElevationDeg: 0,
+          passes: [],
+        }),
+      );
+    if (url.includes('/api/v1/aircraft/'))
+      return new Response(
+        JSON.stringify({
+          hex: '4ca1b2',
+          points: [{ time: '2026-10-13T12:00:00Z', position: { lat: 60, lon: 24 } }],
+          sources: ['adsb-lol'],
+        }),
+        { status: 200 },
+      );
     if (url.endsWith('/api/v1/catalog')) {
       try {
         return new Response(JSON.stringify(backend.catalog()), { status: 200 });
@@ -121,6 +142,22 @@ function desktopAdapter(backend: FakeBackend): LavenderPlatform {
         return backend.catalog() as T;
       case 'feed_snapshot':
         return snapshot('earthquakes', 5) as T;
+      case 'aircraft_track':
+        return {
+          hex: args?.hex,
+          points: [{ time: '2026-10-13T12:00:00Z', position: { lat: 60, lon: 24 } }],
+          sources: ['adsb-lol'],
+        } as T;
+      case 'satellite_passes':
+        return {
+          noradId: 25544,
+          name: 'ISS',
+          observer: { lat: 60, lon: 24 },
+          from: '2026-10-13T12:00:00Z',
+          until: '2026-10-14T12:00:00Z',
+          minElevationDeg: 0,
+          passes: [],
+        } as T;
       case 'feed_subscribe': {
         const channel = args?.channel as ChannelLike<ServerFrame>;
         backend.subscribe(args?.id as string, args?.query as FeedQuery, (f) =>
@@ -168,6 +205,27 @@ describe.each([
     expect(s.sourceCount).toBe(5);
   });
 
+  it('reads the same bounded aircraft history through either adapter', async () => {
+    const platform = make(new FakeBackend());
+    await expect(platform.aircraftTrack('4ca1b2')).resolves.toMatchObject({
+      hex: '4ca1b2',
+      points: [{ time: '2026-10-13T12:00:00Z', position: { lat: 60, lon: 24 } }],
+      sources: ['adsb-lol'],
+    });
+  });
+
+  it('predicts the same geometric satellite passes through either adapter', async () => {
+    const platform = make(new FakeBackend());
+    await expect(
+      platform.satellitePasses({ noradId: 25544, observer: { lat: 60, lon: 24 }, hours: 24 }),
+    ).resolves.toMatchObject({
+      noradId: 25544,
+      observer: { lat: 60, lon: 24 },
+      minElevationDeg: 0,
+      passes: [],
+    });
+  });
+
   it('subscribes, updates and unsubscribes', async () => {
     const backend = new FakeBackend();
     const platform = make(backend);
@@ -193,6 +251,24 @@ describe.each([
 
 describe('web transport specifics', () => {
   afterEach(() => vi.useRealTimers());
+
+  it('marks place submission explicitly and safely encodes aircraft ids', async () => {
+    const urls: string[] = [];
+    const platform = new WebPlatform({
+      fetch: async (url) => {
+        urls.push(url);
+        return new Response('{}');
+      },
+      preferences: memoryPrefs(),
+      socket: () => new FakeSocket(new FakeBackend()),
+    });
+    await platform.search({ q: 'Helsinki', places: false });
+    await platform.search({ q: 'Helsinki', places: true });
+    await platform.aircraftTrack('a/b');
+    expect(urls[0]).toContain('places=false');
+    expect(urls[1]).toContain('places=true');
+    expect(urls[2]).toContain('/aircraft/a%2Fb/track');
+  });
 
   it('builds feed query strings like lavender-server expects', () => {
     expect(

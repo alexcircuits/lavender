@@ -13,6 +13,7 @@ import type {
   Freshness,
   SystemStatus,
 } from '../contracts';
+import { type MapAnnotation, validateAnnotations } from '../features/annotations/model';
 import type { EntityRef, GlobeController } from '../globe';
 import type { TransportState } from '../platform';
 
@@ -27,12 +28,30 @@ export interface WorkspaceState {
   readonly layers: Partial<Record<FeedId, LayerState>>;
   readonly selection: EntityRef | null;
   readonly imageryId: string | null;
+  readonly annotations: readonly MapAnnotation[];
+  readonly annotationStorageError: string | null;
+  setAnnotationStorageError(error: string | null): void;
+  setAnnotations(annotations: readonly MapAnnotation[]): void;
+  claimAnnotations(): void;
+  /** User intent counters; hydration/restoration never claims a lane. Even no-op actions do. */
+  readonly revisions: {
+    readonly layers: number;
+    readonly imagery: number;
+    readonly selection: number;
+    readonly annotations: number;
+  };
   setLayerEnabled(feed: FeedId, enabled: boolean): void;
   setFilters(feed: FeedId, filters: FeedFilters): void;
   select(selection: EntityRef | null): void;
   setImagery(id: string): void;
   /** Applies persisted or default layer choices without touching selection. */
   hydrate(layers: Partial<Record<FeedId, LayerState>>, imageryId: string | null): void;
+  restore(
+    layers: Partial<Record<FeedId, LayerState>>,
+    imageryId: string | null,
+    selection: EntityRef | null,
+    annotations?: readonly MapAnnotation[],
+  ): void;
 }
 
 export const createWorkspaceStore = () =>
@@ -40,18 +59,42 @@ export const createWorkspaceStore = () =>
     layers: {},
     selection: null,
     imageryId: null,
+    annotations: [],
+    annotationStorageError: null,
+    setAnnotationStorageError: (annotationStorageError) => set({ annotationStorageError }),
+    revisions: { layers: 0, imagery: 0, selection: 0, annotations: 0 },
+    setAnnotations: (annotations) =>
+      set((s) => ({
+        annotations: validateAnnotations(annotations),
+        revisions: { ...s.revisions, annotations: s.revisions.annotations + 1 },
+      })),
+    claimAnnotations: () =>
+      set((s) => ({ revisions: { ...s.revisions, annotations: s.revisions.annotations + 1 } })),
     setLayerEnabled: (feed, enabled) =>
       set((s) => ({
         layers: { ...s.layers, [feed]: { filters: s.layers[feed]?.filters ?? {}, enabled } },
         selection: !enabled && s.selection?.feed === feed ? null : s.selection,
+        revisions: {
+          ...s.revisions,
+          layers: s.revisions.layers + 1,
+          selection: s.revisions.selection + (!enabled && s.selection?.feed === feed ? 1 : 0),
+        },
       })),
     setFilters: (feed, filters) =>
       set((s) => ({
         layers: { ...s.layers, [feed]: { enabled: s.layers[feed]?.enabled ?? false, filters } },
+        revisions: { ...s.revisions, layers: s.revisions.layers + 1 },
       })),
-    select: (selection) => set({ selection }),
-    setImagery: (imageryId) => set({ imageryId }),
+    select: (selection) =>
+      set((s) => ({
+        selection,
+        revisions: { ...s.revisions, selection: s.revisions.selection + 1 },
+      })),
+    setImagery: (imageryId) =>
+      set((s) => ({ imageryId, revisions: { ...s.revisions, imagery: s.revisions.imagery + 1 } })),
     hydrate: (layers, imageryId) => set({ layers, imageryId }),
+    restore: (layers, imageryId, selection, annotations) =>
+      set((s) => ({ layers, imageryId, selection, annotations: annotations ?? s.annotations })),
   }));
 
 // ── feeds: per-layer summaries the interface renders (count, freshness, errors) ───────────
@@ -143,7 +186,7 @@ export const createSystemStore = () =>
 
 // ── ui: panels, palette and the mounted globe (never persisted) ───────────────────────────
 
-export type SidePanel = 'layers' | 'sources';
+export type SidePanel = 'layers' | 'sources' | 'annotations';
 
 export interface UiState {
   /** The mounted globe's command interface, or null while it loads or after it failed. */

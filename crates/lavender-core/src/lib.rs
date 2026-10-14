@@ -6,9 +6,11 @@
 //! Nothing in this crate knows about HTTP servers or Tauri; `lavender-server` and the
 //! desktop app are thin adapters around it.
 
+pub mod aircraft_history;
 pub mod audit;
 pub mod config;
 pub mod core;
+pub mod diagnostics;
 pub mod error;
 pub mod fetch;
 pub mod health;

@@ -12,7 +12,9 @@
     "allow-feed-update",
     "allow-feed-unsubscribe",
     "allow-search",
+    "allow-aircraft-track",
     "allow-satellite-track",
+    "allow-satellite-passes",
     "allow-smoke-report"
   ]
 }

@@ -370,16 +370,34 @@ async fn catalog_status_search_and_shutdown() {
     let mut sub = core.subscribe(FeedQuery::new(FeedId::Earthquakes)).unwrap();
     next_snapshot(&mut sub).await;
     let results = core
-        .search(&lavender_domain::SearchQuery { q: "helsinki".into(), near: None, limit: None })
+        .search(&lavender_domain::SearchQuery {
+            q: "helsinki".into(),
+            near: None,
+            limit: None,
+            places: None,
+        })
+        .await
         .unwrap();
     assert_eq!(results.entities.len(), 1);
     let coords = core
-        .search(&lavender_domain::SearchQuery { q: "60.17, 24.94".into(), near: None, limit: None })
+        .search(&lavender_domain::SearchQuery {
+            q: "60.17, 24.94".into(),
+            near: None,
+            limit: None,
+            places: None,
+        })
+        .await
         .unwrap();
     assert_eq!(coords.coordinates.len(), 1);
     assert!(
-        core.search(&lavender_domain::SearchQuery { q: "  ".into(), near: None, limit: None })
-            .is_err()
+        core.search(&lavender_domain::SearchQuery {
+            q: "  ".into(),
+            near: None,
+            limit: None,
+            places: None
+        })
+        .await
+        .is_err()
     );
 
     core.shutdown();

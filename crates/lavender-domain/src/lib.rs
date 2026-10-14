@@ -21,7 +21,10 @@ pub use catalog::{
     Availability, Catalog, ImageryDescriptor, ImageryKind, LayerDescriptor, LayerFamily,
     ProviderScope,
 };
-pub use entities::{Aircraft, Earthquake, SatelliteElements};
+pub use entities::{
+    Aircraft, Cyclone, CycloneConeGeometry, CycloneForecastPoint, CycloneGeometryStatus,
+    CycloneMovement, CycloneTrackGeometry, Earthquake, SatelliteElements,
+};
 pub use error::{ApiError, DomainError, ErrorCode};
 pub use feed::{Coverage, FeedFilters, FeedId, FeedItems, FeedQuery, FeedSnapshot, Freshness};
 pub use geo::{BBox, GeoPoint};
@@ -29,7 +32,10 @@ pub use search::{CoordinateHit, EntityHit, PlaceHit, SearchQuery, SearchResults}
 pub use source::{CommercialUse, Licence, LicenceMode, Privacy, SourceInfo};
 pub use status::{FeedStatus, HealthState, ProviderHealth, SystemStatus};
 pub use stream::{ClientFrame, ServerFrame};
-pub use track::{SatelliteTrack, SatelliteTrackRequest, TrackPoint};
+pub use track::{
+    AircraftTrack, SatellitePass, SatellitePassRequest, SatellitePasses, SatelliteTrack,
+    SatelliteTrackRequest, TrackPoint,
+};
 
 /// Timestamps on the wire are RFC 3339 strings in UTC.
 pub use jiff::Timestamp;

@@ -68,6 +68,53 @@ afterEach(() => {
 });
 
 describe('Inspector', () => {
+  it('loads observed aircraft history on demand with source and timestamps', async () => {
+    const h = await setup('aircraft');
+    h.platform
+      .live('aircraft')
+      ?.onEvent({ kind: 'snapshot', snapshot: aircraftSnapshot([aircraft('4aca2d')]) });
+    h.platform.aircraftTrack.mockResolvedValue({
+      hex: '4aca2d',
+      sources: ['adsb-lol'],
+      points: [{ time: '2026-10-11T11:59:57Z', position: { lat: 60.1699, lon: 24.9384 } }],
+    });
+    select(h, 'aircraft', '4aca2d');
+    expect(h.platform.aircraftTrack).not.toHaveBeenCalled();
+    await h.user.click(screen.getByRole('button', { name: 'Load recent history' }));
+    const table = await screen.findByRole('table', { name: 'Aircraft history' });
+    expect(within(table).getByText('11:59:57 UTC')).toBeVisible();
+    expect(within(table).getByText('60.1699° N, 24.9384° E')).toBeVisible();
+    expect(screen.getByText('1 retained observations · adsb.lol')).toBeVisible();
+    expect(h.platform.aircraftTrack).toHaveBeenCalledWith(
+      '4aca2d',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(screen.getByRole('button', { name: 'Refresh history' })).toBeVisible();
+  });
+
+  it('shows a history error and cancels pending work when selection changes', async () => {
+    const h = await setup('aircraft');
+    h.platform.live('aircraft')?.onEvent({
+      kind: 'snapshot',
+      snapshot: aircraftSnapshot([aircraft('4aca2d'), aircraft('abcdef')]),
+    });
+    h.platform.aircraftTrack.mockRejectedValueOnce({
+      code: 'notFound',
+      message: 'No retained track is available.',
+      retryable: false,
+    });
+    select(h, 'aircraft', '4aca2d');
+    await h.user.click(screen.getByRole('button', { name: 'Load recent history' }));
+    expect(await screen.findByText('No retained track is available.')).toBeVisible();
+    h.platform.aircraftTrack.mockImplementationOnce(() => new Promise(() => {}));
+    await h.user.click(screen.getByRole('button', { name: 'Load recent history' }));
+    const options = h.platform.aircraftTrack.mock.calls.at(-1)?.[1];
+    select(h, 'aircraft', 'abcdef');
+    expect(options?.signal?.aborted).toBe(true);
+    expect(screen.queryByText('No retained track is available.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Load recent history' })).toBeVisible();
+  });
+
   it('renders nothing without a selection', async () => {
     harness = await startHarness({ catalog: CATALOG });
     renderWithRuntime(harness.runtime, <Inspector />);

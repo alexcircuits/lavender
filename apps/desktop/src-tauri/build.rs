@@ -9,7 +9,9 @@ const COMMANDS: &[&str] = &[
     "feed_update",
     "feed_unsubscribe",
     "search",
+    "aircraft_track",
     "satellite_track",
+    "satellite_passes",
     "smoke_report",
 ];
 

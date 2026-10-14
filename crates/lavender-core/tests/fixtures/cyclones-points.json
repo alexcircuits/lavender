@@ -1,0 +1,39 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "idp_source": "al062026-006_5day_pts",
+        "advisnum": "006",
+        "tau": 0,
+        "maxwind": 80,
+        "gust": 100
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -60,
+          20
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "idp_source": "al062026-006_5day_pts",
+        "advisnum": "006",
+        "tau": 24,
+        "maxwind": 90,
+        "gust": 110
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -65,
+          24
+        ]
+      }
+    }
+  ]
+}

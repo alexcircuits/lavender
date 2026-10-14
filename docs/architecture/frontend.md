@@ -71,6 +71,29 @@ Import rules (Biome `noRestrictedImports` plus a boundary test):
 
 ## 3. State
 
+Current workspace sharing uses `WorkspaceDocument v1` in
+`state/workspaceDocument.ts` and `runtime/workspaceShare.ts`. A deliberate copy
+action creates `#view=<base64url UTF-8 JSON>`; it does not continuously rewrite the
+URL. Limits are 5,500 decoded bytes, 7,500 payload characters and 8,192 URL
+characters. Unsupported versions/fields or malformed values produce a toast.
+Restoration respects independent user revisions for layers, imagery, selection
+and camera, filters against the current catalog and handles hash/back/forward.
+Annotations are reserved as an empty array; native `lavender://view?view=…` is a
+reserved format rather than an installed OS handler.
+
+Place search is an explicit selectable action, with retry for unchanged text.
+Debounced keystroke requests set `places: false`; coordinates and loaded entities
+remain local to Lavender. Only `places: true` may contact an operator-configured
+Nominatim/Photon service. This follows the
+[public Nominatim policy](https://operations.osmfoundation.org/policies/nominatim/),
+which forbids autocomplete. No public service is automatically selected.
+
+The inspector requests aircraft history and satellite passes on demand through
+`LavenderPlatform`, identically on HTTP and Tauri. Pass observers use the map
+viewport's centre ground intersection at sea level, including tilted views. UTC dates,
+geometric elevations and clipped-window flags describe the returned calculation;
+no optical visibility or camera-follow behavior is implied.
+
 | Store | Holds | Writers |
 |---|---|---|
 | `workspace` | enabled layers + options, selection `{ kind, id }`, tracked ids, camera bookmarks, imagery choice | UI actions, share-link restore |

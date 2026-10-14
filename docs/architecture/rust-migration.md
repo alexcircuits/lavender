@@ -1,5 +1,8 @@
 # Lavender — Rust migration plan (Node backend → `lavender-core` / `lavender-server`)
 
+> This is the full migration target and legacy-route inventory. Proposed modules, routes and error categories below are not a claim of implementation. Read [the current migration table](../development/rust-rewrite.md), [API reference](../development/reference.md) and [roadmap](../roadmap.md) for implemented behavior and remaining tasks.
+
+
 | | |
 |---|---|
 | Status | v1, 2026-10-11 |
@@ -8,6 +11,14 @@
 | Phases | P1 Foundations · P2 First vertical slices · P3 Feature wave A · P4 Feature wave B · P5 Automation & deferred · P6 Desktop readiness · P7 Optimisation & hardening · P8 Final verification & legacy removal · Roadmap · — (removed) |
 
 ## Purpose
+
+Implemented operations now include
+`GET /api/v1/aircraft/{hex}/track` (bounded observed session history, no upstream
+fetch), `GET /api/v1/satellites/{norad}/passes?observer=lat,lon&hours=24`
+(bounded geometric prediction) and explicit `places=true` on `/api/v1/search`.
+The core operations are `aircraft_track`, async `satellite_passes` and async
+`search`; Tauri exposes matching commands. Limits/error behavior are documented
+in [the current API reference](../development/reference.md).
 
 GEV's backend is about 19,000 lines of Node.js. It runs as Connect middleware inside Vite's dev and preview servers and exposes 58 method+path endpoints on 39 mounts, plus a JSON 404 catch-all and a dev-only `/panel/*` mount (backend audit §0, §2.0). It has no production process.
 

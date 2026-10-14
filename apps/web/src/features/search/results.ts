@@ -122,6 +122,7 @@ const ENTITY_ICONS: Readonly<Record<FeedId, Icon>> = {
   aircraft: AirplaneIcon,
   earthquakes: WaveformIcon,
   satellites: PlanetIcon,
+  cyclones: WaveformIcon,
 };
 
 /** Live entities: local matches first, then the server's, each entity once. */

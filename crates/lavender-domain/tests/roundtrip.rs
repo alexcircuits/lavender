@@ -199,7 +199,12 @@ fn catalog_status_search_and_tracks_round_trip() {
             subscribers: 2,
         }],
     });
-    roundtrip(&SearchQuery { q: "x".into(), near: Some(point()), limit: Some(5) });
+    roundtrip(&SearchQuery {
+        q: "x".into(),
+        near: Some(point()),
+        limit: Some(5),
+        places: Some(true),
+    });
     roundtrip(&SearchResults {
         coordinates: vec![CoordinateHit {
             position: point(),

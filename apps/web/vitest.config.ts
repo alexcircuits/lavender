@@ -1,8 +1,11 @@
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 import { satelliteJsWithoutWasm } from './satellite-js-without-wasm.ts';
 
 export default defineConfig({
+  // Docs read checked-in Markdown and evidence from the Lavender repository, outside web/.
+  server: { fs: { allow: [fileURLToPath(new URL('../..', import.meta.url))] } },
   // Tests resolve satellite.js exactly as the production build does.
   plugins: [react(), satelliteJsWithoutWasm()],
   css: {

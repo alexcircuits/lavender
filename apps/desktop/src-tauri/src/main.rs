@@ -30,6 +30,7 @@ fn build_core(app: &tauri::App) -> Result<LavenderCore, String> {
 }
 
 fn main() {
+    lavender_core::diagnostics::install_redacting_panic_hook();
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
@@ -66,7 +67,9 @@ fn main() {
             commands::feed_update,
             commands::feed_unsubscribe,
             commands::search,
+            commands::aircraft_track,
             commands::satellite_track,
+            commands::satellite_passes,
             commands::smoke_report,
         ])
         .build(tauri::generate_context!());

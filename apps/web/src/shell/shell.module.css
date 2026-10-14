@@ -269,6 +269,22 @@
   color: var(--ink-3);
   cursor: not-allowed;
 }
+.documentationLink {
+  composes: sq from global;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--ctl-lg);
+  min-height: var(--ctl-lg);
+  color: var(--ink-2);
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-md) * var(--corner-k));
+}
+.documentationLink:hover {
+  color: var(--ink);
+  background: var(--island-hover);
+}
 
 /* ── Status bar ────────────────────────────────────────────────────────────────────────── */
 

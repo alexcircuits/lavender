@@ -2,7 +2,12 @@
 import type { FeedId } from '../contracts';
 import type { EntityRef } from './index';
 
-const FEEDS: ReadonlySet<string> = new Set<FeedId>(['aircraft', 'earthquakes', 'satellites']);
+const FEEDS: ReadonlySet<string> = new Set<FeedId>([
+  'aircraft',
+  'earthquakes',
+  'satellites',
+  'cyclones',
+]);
 
 export function isEntityRef(value: unknown): value is EntityRef {
   if (typeof value !== 'object' || value === null) return false;

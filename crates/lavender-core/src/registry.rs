@@ -48,6 +48,14 @@ pub fn layers() -> Vec<LayerDef> {
             sources: vec![sources::CELESTRAK],
             default_on: false,
         },
+        LayerDef {
+            feed: FeedId::Cyclones,
+            name: "Tropical cyclones",
+            description: "NHC/CPHC advisory positions, forecast tracks and uncertainty cones for the Atlantic and eastern/central North Pacific.",
+            family: LayerFamily::Hazards,
+            sources: vec![sources::NOAA_CYCLONES],
+            default_on: false,
+        },
     ]
 }
 

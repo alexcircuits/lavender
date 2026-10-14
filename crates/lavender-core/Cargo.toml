@@ -15,6 +15,7 @@ futures.workspace = true
 jiff.workspace = true
 lavender-domain.workspace = true
 lavender-geo.workspace = true
+moka.workspace = true
 reqwest.workspace = true
 secrecy.workspace = true
 serde.workspace = true

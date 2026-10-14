@@ -178,3 +178,39 @@
   width: 100%;
   min-height: var(--row-h-dense);
 }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1_5) var(--s-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  font: var(--type-caption);
+}
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.legendSwatch {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--map-outline);
+  border-radius: var(--r-xs);
+}
+.legendSwatch[data-step='0'] {
+  background: var(--hazard-1);
+}
+.legendSwatch[data-step='1'] {
+  background: var(--hazard-2);
+}
+.legendSwatch[data-step='2'] {
+  background: var(--hazard-3);
+}
+.legendSwatch[data-step='3'] {
+  background: var(--hazard-4);
+}
+.legendSwatch[data-step='4'] {
+  background: var(--hazard-5);
+}

@@ -1,8 +1,10 @@
+//! Feed identifiers, queries, results and freshness states shared by both transports.
+
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::entities::{Aircraft, Earthquake, SatelliteElements};
+use crate::entities::{Aircraft, Cyclone, Earthquake, SatelliteElements};
 use crate::{BBox, DomainError};
 
 /// A live data feed, which the interface shows as a layer.
@@ -13,11 +15,13 @@ pub enum FeedId {
     Aircraft,
     Earthquakes,
     Satellites,
+    Cyclones,
 }
 
 impl FeedId {
     /// Every feed, in catalog order.
-    pub const ALL: [Self; 3] = [Self::Aircraft, Self::Earthquakes, Self::Satellites];
+    pub const ALL: [Self; 4] =
+        [Self::Aircraft, Self::Earthquakes, Self::Satellites, Self::Cyclones];
 
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -25,6 +29,7 @@ impl FeedId {
             Self::Aircraft => "aircraft",
             Self::Earthquakes => "earthquakes",
             Self::Satellites => "satellites",
+            Self::Cyclones => "cyclones",
         }
     }
 }
@@ -127,6 +132,7 @@ pub enum FeedItems {
     Aircraft(Vec<Aircraft>),
     Earthquakes(Vec<Earthquake>),
     Satellites(Vec<SatelliteElements>),
+    Cyclones(Vec<Cyclone>),
 }
 
 impl FeedItems {
@@ -136,6 +142,7 @@ impl FeedItems {
             Self::Aircraft(v) => v.len(),
             Self::Earthquakes(v) => v.len(),
             Self::Satellites(v) => v.len(),
+            Self::Cyclones(v) => v.len(),
         }
     }
 
@@ -151,6 +158,7 @@ impl FeedItems {
             FeedId::Aircraft => Self::Aircraft(Vec::new()),
             FeedId::Earthquakes => Self::Earthquakes(Vec::new()),
             FeedId::Satellites => Self::Satellites(Vec::new()),
+            FeedId::Cyclones => Self::Cyclones(Vec::new()),
         }
     }
 }

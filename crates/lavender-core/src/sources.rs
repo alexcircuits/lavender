@@ -11,6 +11,7 @@ use crate::secrets::SecretKey;
 pub const USGS: &str = "usgs-earthquakes";
 pub const ADSB_LOL: &str = "adsb-lol";
 pub const CELESTRAK: &str = "celestrak";
+pub const NOAA_CYCLONES: &str = "noaa-nhc-cphc";
 pub const NASA_GIBS: &str = "nasa-gibs";
 pub const NATURAL_EARTH: &str = "natural-earth";
 
@@ -80,6 +81,17 @@ pub fn all() -> Vec<SourceDef> {
             CommercialUse::Unknown,
             Some(
                 "CelesTrak grants no explicit licence; commercial basis pending an owner decision (ENG-938).",
+            ),
+        ),
+        source(
+            NOAA_CYCLONES,
+            "NOAA National Hurricane Center / Central Pacific Hurricane Center",
+            "https://www.nhc.noaa.gov/",
+            "NOAA/NWS National Hurricane Center / Central Pacific Hurricane Center; no endorsement implied",
+            ("Public domain (NOAA/NWS data)", "https://www.weather.gov/disclaimer"),
+            CommercialUse::Allowed,
+            Some(
+                "NWS data only; no Esri basemap imagery. Lavender projects these data for display and is not an official NOAA/NWS product. Atlantic and eastern/central North Pacific coverage. Cones show centre-track uncertainty, not the extent of hazards.",
             ),
         ),
         source(

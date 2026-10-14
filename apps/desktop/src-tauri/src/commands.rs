@@ -6,8 +6,9 @@
 
 use lavender_core::LavenderCore;
 use lavender_domain::{
-    ApiError, Catalog, FeedQuery, FeedSnapshot, SatelliteTrack, SatelliteTrackRequest, SearchQuery,
-    SearchResults, ServerFrame, SystemStatus,
+    AircraftTrack, ApiError, Catalog, FeedQuery, FeedSnapshot, SatellitePassRequest,
+    SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults,
+    ServerFrame, SystemStatus,
 };
 use tauri::ipc::Channel;
 use tauri::{State, WebviewWindow};
@@ -70,7 +71,15 @@ pub async fn search(
     core: State<'_, LavenderCore>,
     query: SearchQuery,
 ) -> Result<SearchResults, ApiError> {
-    core.search(&query).map_err(ApiError::from)
+    core.search(&query).await.map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub fn aircraft_track(
+    core: State<'_, LavenderCore>,
+    hex: String,
+) -> Result<AircraftTrack, ApiError> {
+    core.aircraft_track(&hex).map_err(ApiError::from)
 }
 
 #[tauri::command]
@@ -79,6 +88,14 @@ pub async fn satellite_track(
     request: SatelliteTrackRequest,
 ) -> Result<SatelliteTrack, ApiError> {
     core.satellite_track(request).await.map_err(ApiError::from)
+}
+
+#[tauri::command]
+pub async fn satellite_passes(
+    core: State<'_, LavenderCore>,
+    request: SatellitePassRequest,
+) -> Result<SatellitePasses, ApiError> {
+    core.satellite_passes(request).await.map_err(ApiError::from)
 }
 
 /// Writes the frontend's self-measured smoke report when `LAVENDER_SMOKE_OUT` is set

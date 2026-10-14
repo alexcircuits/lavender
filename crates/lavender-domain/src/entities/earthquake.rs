@@ -1,3 +1,5 @@
+//! Validated earthquake records shared by providers, transports and the frontend.
+
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

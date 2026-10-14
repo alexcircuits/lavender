@@ -92,10 +92,28 @@ function scoreSnapshot(snapshot: FeedSnapshot, q: string): Scored[] {
           },
         ];
       });
+    case 'cyclones':
+      return items.items.flatMap((storm) => {
+        const s = best([storm.id, storm.name], q);
+        return s === null
+          ? []
+          : [
+              {
+                score: s,
+                hit: {
+                  feed: 'cyclones' as const,
+                  id: storm.id,
+                  label: storm.name,
+                  detail: `${storm.classification} · ${storm.basin}`,
+                  position: storm.position,
+                },
+              },
+            ];
+      });
   }
 }
 
-const ALL_FEEDS: readonly FeedId[] = ['aircraft', 'satellites', 'earthquakes'];
+const ALL_FEEDS: readonly FeedId[] = ['aircraft', 'satellites', 'earthquakes', 'cyclones'];
 
 /** The best `limit` matches across `feeds` (default: all), best match first. */
 export function searchLiveEntities(

@@ -15,16 +15,19 @@ import {
 } from '../../design';
 import type { EntityRef } from '../../globe';
 import { formatDecimal } from '../../lib/coordinates';
-import { usgsEventUrl } from '../../lib/safeUrl';
+import { noaaRecordUrl, usgsEventUrl } from '../../lib/safeUrl';
 import { formatUtcTime, parseTime } from '../../lib/time';
 import { useNow } from '../../lib/useNow';
 import { useFeeds, useGlobe, useSystem, useWorkspace } from '../../runtime';
 import type { FeedSummary } from '../../state/stores';
 import { GLOBE_REGION_ID } from '../commands';
 import { FamilySwatch, feedGlyph } from '../layers';
+import { AircraftHistory } from './AircraftHistory';
+import { CycloneForecast } from './CycloneForecast';
 import { FactSheet } from './FactSheet';
 import {
   aircraftFacts,
+  cycloneFacts,
   earthquakeFacts,
   type Fact,
   type Inspected,
@@ -35,6 +38,7 @@ import {
   satelliteGroupLabel,
 } from './facts';
 import styles from './inspector.module.css';
+import { SatellitePasses } from './SatellitePasses';
 import { useSatellitePosition } from './useSatellitePosition';
 
 /** Copies a position to the clipboard and says what happened, in the action's own verb. */
@@ -77,6 +81,18 @@ function sheetFor(
   const fetchedMs = parseTime(summary?.fetchedAt);
   const snapshotSources = summary?.sources ?? [];
   switch (view.kind) {
+    case 'cyclones': {
+      const storm = view.item;
+      return {
+        title: storm.name,
+        summary: `${storm.classification} · ${storm.id}`,
+        facts: cycloneFacts(storm),
+        position: storm.position,
+        observedMs: parseTime(storm.positionAt),
+        sourceIds: snapshotSources,
+        recordUrl: noaaRecordUrl(storm.advisoryUrl) ?? noaaRecordUrl(storm.outlookUrl),
+      };
+    }
     case 'aircraft': {
       const a = view.item;
       const detail = [a.typeCode, a.registration, a.isMilitary ? 'Military' : null].filter(Boolean);
@@ -146,7 +162,7 @@ function emptyMessage(
   if (canTurnOn) return `${selection.id} is in ${name}, which is off. Turn it on to see it.`;
   if (waiting) return `Waiting for ${name} data…`;
   // Aircraft and earthquakes are fetched for the area the globe shows; satellites worldwide.
-  if (selection.feed !== 'satellites') {
+  if (selection.feed === 'aircraft' || selection.feed === 'earthquakes') {
     return `${selection.id} is not in the latest ${name} data for the area the globe shows.`;
   }
   return `${selection.id} is not in the latest ${name} data.`;
@@ -279,6 +295,13 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
       <FactSheet facts={sheet.facts} label="Facts" />
       <h3 className={styles.subhead}>Provenance</h3>
       <FactSheet facts={provenance} label="Provenance" />
+      {view.kind === 'aircraft' ? (
+        <AircraftHistory key={view.item.hex} hex={view.item.hex} />
+      ) : null}
+      {view.kind === 'satellites' ? (
+        <SatellitePasses key={view.item.noradId} noradId={view.item.noradId} />
+      ) : null}
+      {view.kind === 'cyclones' ? <CycloneForecast storm={view.item} /> : null}
       <div className={styles.actions}>
         <Button
           variant="primary"

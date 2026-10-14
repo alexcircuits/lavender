@@ -10,6 +10,7 @@ import {
   withMilitaryOnly,
   withMinMagnitude,
 } from './filters';
+import { HazardLegend } from './HazardLegend';
 import styles from './layers.module.css';
 
 const NO_FILTERS: FeedFilters = {};
@@ -39,6 +40,7 @@ export function LayerOptions({ layer }: LayerOptionsProps) {
             value={magnitudeValue(filters)}
             onValueChange={(value) => setFilters(feed, withMinMagnitude(filters, value))}
           />
+          <HazardLegend kind="magnitude" />
         </div>
       );
     case 'aircraft':
@@ -52,6 +54,8 @@ export function LayerOptions({ layer }: LayerOptionsProps) {
           />
         </div>
       );
+    case 'cyclones':
+      return <HazardLegend kind="wind" />;
     case 'satellites': {
       const shown = new Set(selectedGroups(filters));
       return (

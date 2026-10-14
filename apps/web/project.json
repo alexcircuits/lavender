@@ -9,44 +9,65 @@
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["production", "^production", { "runtime": "node --version" }],
-      "options": { "command": "pnpm run build", "cwd": "products/lavender/apps/web" },
+      "options": {
+        "command": "npm exec --yes --package=pnpm@12.11.2 -- pnpm run build",
+        "cwd": "products/lavender/apps/web"
+      },
       "outputs": ["{projectRoot}/dist"]
     },
     "test": {
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["default", { "runtime": "node --version" }],
-      "options": { "command": "pnpm run test", "cwd": "products/lavender/apps/web" }
+      "options": {
+        "command": "npm exec --yes --package=pnpm@12.11.2 -- pnpm run test",
+        "cwd": "products/lavender/apps/web"
+      }
     },
     "lint": {
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["default", { "runtime": "node --version" }],
-      "options": { "command": "pnpm run lint", "cwd": "products/lavender/apps/web" }
+      "options": {
+        "command": "npm exec --yes --package=pnpm@12.11.2 -- pnpm run lint",
+        "cwd": "products/lavender/apps/web"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["default", { "runtime": "node --version" }],
-      "options": { "command": "pnpm run typecheck", "cwd": "products/lavender/apps/web" }
+      "options": {
+        "command": "npm exec --yes --package=pnpm@12.11.2 -- pnpm run typecheck",
+        "cwd": "products/lavender/apps/web"
+      }
     },
     "format": {
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["default", { "runtime": "node --version" }],
-      "options": { "command": "pnpm run format:check", "cwd": "products/lavender/apps/web" }
+      "options": {
+        "command": "npm exec --yes --package=pnpm@12.11.2 -- pnpm run format:check",
+        "cwd": "products/lavender/apps/web"
+      }
     },
     "dev": {
       "executor": "nx:run-commands",
       "cache": false,
       "inputs": ["default", { "runtime": "node --version" }],
-      "options": { "command": "pnpm run dev", "cwd": "products/lavender/apps/web" }
+      "options": {
+        "command": "npm exec --yes --package=pnpm@12.11.2 -- pnpm run dev",
+        "cwd": "products/lavender/apps/web"
+      }
     },
     "e2e": {
       "executor": "nx:run-commands",
       "cache": false,
       "inputs": ["default", { "runtime": "node --version" }],
-      "options": { "command": "pnpm run e2e", "cwd": "products/lavender/apps/web" }
+      "options": {
+        "command": "npm exec --yes --package=pnpm@12.11.2 -- pnpm run e2e",
+        "cwd": "products/lavender/apps/web"
+      }
     }
   }
 }

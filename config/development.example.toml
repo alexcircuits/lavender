@@ -1,0 +1,24 @@
+# Optional local development settings; all fields are supported by ServerConfig.
+# Defaults already work without this file. No provider keys belong here.
+[server]
+addr = "127.0.0.1:7410"
+static_dir = "apps/web/dist"
+data_dir = "var/data"
+cache_dir = "var/cache"
+log_format = "text"
+# Uncomment for recorded feeds, without contacting live feed providers:
+# fixtures_dir = "apps/web/e2e/fixtures"
+
+[core]
+licence_mode = "evaluation"
+
+# Optional operator-selected Nominatim/Photon-compatible service. Defaults stay off.
+# Resolve instance terms before enabling; no public instance is selected automatically.
+# [core.geocoder]
+# enabled = true
+# format = "nominatim" # or "photon"
+# base_url = "https://places.your-domain.example/"
+# min_request_interval_ms = 1100
+# cache_max_entries = 128
+# cache_ttl_s = 300
+# max_pending = 4

@@ -10,6 +10,19 @@
 
 ## How to read it
 
+### Implemented slices checked 2026-10-13
+
+The rows below remain the full target inventory. Current additions are bounded
+aircraft session history (F-023, no upstream backfill or follow yet), geometric
+observer satellite passes (F-031, no sunlight/refraction/optical visibility model),
+configured Nominatim/Photon place search through the core (search rows F-073 onward),
+and v1 workspace links with camera/layer/filter/imagery/selection restoration
+(F-108/109). Unknown layers and unavailable selections are ignored safely.
+Populated annotations and native deep-link registration remain separate tasks.
+See [the migration status](../development/rust-rewrite.md) and
+[verification records](../PROGRESS.md) for scope and tests; this does not sign off
+all upstream parity or commercial source terms.
+
 - **One row per feature.** IDs (`F-001`…) are stable. Tasks, tests and the migration plan refer to them. The Dependencies column names other F-ids that must land first or alongside.
 - **Paths** are relative to `products/lavender/`. `legacy/...` is GEV as vendored. `:n` line references come from the audits.
 - **Notation:**

@@ -1,5 +1,7 @@
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { cesiumWithoutDefaultToken } from './cesium-without-default-token.ts';
 import { satelliteJsWithoutWasm } from './satellite-js-without-wasm.ts';
 
 /** lavender-server's default listen address (docs/architecture/frontend.md §7). */
@@ -28,8 +30,10 @@ const PREVIEW_CSP = [
 // reached through the dynamic import in src/globe/index.ts, so Rolldown emits it as its own
 // lazily loaded chunk and the shell paints without it.
 export default defineConfig({
-  plugins: [react(), satelliteJsWithoutWasm()],
+  plugins: [react(), satelliteJsWithoutWasm(), cesiumWithoutDefaultToken()],
   server: {
+    // Markdown and linked source files live outside web/ but inside this product's repository.
+    fs: { allow: [fileURLToPath(new URL('../..', import.meta.url))] },
     port: 5410,
     strictPort: true,
     proxy: {
@@ -49,6 +53,12 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
+    rolldownOptions: {
+      input: {
+        app: fileURLToPath(new URL('./index.html', import.meta.url)),
+        docs: fileURLToPath(new URL('./docs/index.html', import.meta.url)),
+      },
+    },
     // The engine chunk is ~4 MB minified by nature; the shell has its own, much tighter budget
     // (≤ 250 KiB gzip initial JS), enforced per chunk by scripts/check-dist.mjs. Vite's limit
     // is global, so it is raised only to stop the engine chunk from drowning the build log.

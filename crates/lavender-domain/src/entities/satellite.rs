@@ -1,3 +1,5 @@
+//! Orbital elements shared by the satellite provider, propagation code and frontend.
+
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

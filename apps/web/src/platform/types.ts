@@ -6,10 +6,13 @@
  * src/architecture.test.ts).
  */
 import type {
+  AircraftTrack,
   ApiError,
   Catalog,
   FeedQuery,
   FeedSnapshot,
+  SatellitePasses,
+  SatellitePassRequest,
   SatelliteTrack,
   SatelliteTrackRequest,
   SearchQuery,
@@ -61,7 +64,9 @@ export interface LavenderPlatform {
     options?: SubscribeOptions,
   ): FeedSubscription;
   search(query: SearchQuery, options?: CallOptions): Promise<SearchResults>;
+  aircraftTrack(hex: string, options?: CallOptions): Promise<AircraftTrack>;
   satelliteTrack(request: SatelliteTrackRequest, options?: CallOptions): Promise<SatelliteTrack>;
+  satellitePasses(request: SatellitePassRequest, options?: CallOptions): Promise<SatellitePasses>;
   /** Reports transport changes; calls the listener immediately with the current state. */
   onTransportState(listener: (state: TransportState) => void): () => void;
   readonly preferences: PreferenceStore;

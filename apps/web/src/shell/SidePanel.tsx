@@ -1,4 +1,5 @@
 import { Button, ErrorState, Panel, Skeleton } from '../design';
+import { AnnotationsPanel } from '../features/annotations/AnnotationsPanel';
 import { LayerExplorer } from '../features/layers';
 import { SourcesPanel } from '../features/sources';
 import { useRuntime, useSystem, useUi } from '../runtime';
@@ -35,6 +36,7 @@ export function SidePanel({ className }: SidePanelProps) {
   const error = useSystem((s) => s.catalogError);
   const runtime = useRuntime();
   if (!panel) return null;
+  if (panel === 'annotations') return <AnnotationsPanel className={className} />;
   const title = panel === 'layers' ? 'Layers' : 'Sources';
 
   if (!catalog) {

@@ -56,8 +56,17 @@ async fn shutdown_signal() {
     }
 }
 
-#[tokio::main]
-async fn main() -> ExitCode {
+fn main() -> ExitCode {
+    lavender_core::diagnostics::install_redacting_panic_hook();
+    if let Ok(runtime) = tokio::runtime::Builder::new_multi_thread().enable_all().build() {
+        runtime.block_on(run())
+    } else {
+        eprintln!("lavender-server: cannot initialise async runtime");
+        ExitCode::from(1)
+    }
+}
+
+async fn run() -> ExitCode {
     let config = match ServerConfig::load(config_path().as_deref()) {
         Ok(c) => c,
         Err(e) => {

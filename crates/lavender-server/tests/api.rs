@@ -96,7 +96,9 @@ impl FeedProvider for Planes {
             "isMilitary": false, "seenPosS": 0.0, "source": "adsb-lol"
         }))
         .unwrap();
-        Ok(FeedItems::Aircraft(vec![plane]).into())
+        let mut fetched = Fetched::fresh(FeedItems::Aircraft(vec![plane]));
+        fetched.as_of = Some(jiff::Timestamp::now());
+        Ok(fetched)
     }
 }
 
@@ -212,6 +214,31 @@ async fn feed_snapshot_with_etag_revalidation() {
         .unwrap();
     let (s, _, _) = send(&f.app, req).await;
     assert_eq!(s, StatusCode::NOT_MODIFIED);
+}
+
+#[tokio::test]
+async fn aircraft_history_is_captured_by_shared_refresh_and_validates_hex() {
+    let f = fixture_full(vec![Arc::new(Planes)], &HubConfig::default(), |_| {});
+    let (status, _, body) =
+        send(&f.app, get("/api/v1/aircraft/4CA1B2/track").body(Body::empty()).unwrap()).await;
+    assert_eq!((status, body["code"].as_str()), (StatusCode::NOT_FOUND, Some("notFound")));
+    let (status, _, _) =
+        send(&f.app, get("/api/v1/feeds/aircraft?bbox=1,1,4,4").body(Body::empty()).unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _, body) =
+        send(&f.app, get("/api/v1/aircraft/4CA1B2/track").body(Body::empty()).unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["hex"], "4ca1b2");
+    assert_eq!(body["sources"], serde_json::json!(["adsb-lol"]));
+    assert_eq!(body["points"].as_array().unwrap().len(), 1);
+    assert_eq!(body["points"][0]["position"]["lat"], 2.5);
+    let (status, _, body) =
+        send(&f.app, get("/api/v1/aircraft/not-a-hex/track").body(Body::empty()).unwrap()).await;
+    assert_eq!((status, body["code"].as_str()), (StatusCode::BAD_REQUEST, Some("invalidRequest")));
+    let (status, _, body) =
+        send(&f.app, get("/api/v1/aircraft/abcdef/track").body(Body::empty()).unwrap()).await;
+    assert_eq!((status, body["code"].as_str()), (StatusCode::NOT_FOUND, Some("notFound")));
+    f.core.shutdown();
 }
 
 #[tokio::test]
@@ -579,4 +606,156 @@ async fn websocket_from_a_foreign_origin_is_refused() {
     req.headers_mut().insert(header::ORIGIN, "https://evil.example".parse().unwrap());
     let err = tokio_tungstenite::connect_async(req).await.unwrap_err();
     assert!(err.to_string().contains("403"), "{err}");
+}
+
+#[tokio::test]
+async fn scheme_downgraded_origin_is_refused_through_the_router() {
+    let f = fixture();
+    let req = get("/api/v1/status")
+        .header("x-forwarded-proto", "https")
+        .header(header::ORIGIN, "http://localhost:7410")
+        .body(Body::empty())
+        .unwrap();
+    let (status, headers, body) = send(&f.app, req).await;
+    assert_envelope(status, &body, StatusCode::FORBIDDEN, "forbidden");
+    assert!(headers.contains_key(header::CONTENT_SECURITY_POLICY));
+    let req = get("/api/v1/status")
+        .header("x-forwarded-proto", "https")
+        .header(header::ORIGIN, "https://localhost:7410")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(send(&f.app, req).await.0, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn rotating_untrusted_forwarded_for_cannot_bypass_router_rate_limit() {
+    let f = fixture_with(|s| {
+        s.rate_limit_per_s = 1;
+        s.rate_limit_burst = 2;
+    });
+    for address in ["192.0.2.1", "192.0.2.2"] {
+        let req =
+            get("/api/v1/status").header("x-forwarded-for", address).body(Body::empty()).unwrap();
+        assert_eq!(send(&f.app, req).await.0, StatusCode::OK);
+    }
+    let req =
+        get("/api/v1/status").header("x-forwarded-for", "192.0.2.3").body(Body::empty()).unwrap();
+    let (status, headers, body) = send(&f.app, req).await;
+    assert_envelope(status, &body, StatusCode::TOO_MANY_REQUESTS, "rateLimited");
+    let retry: u64 = headers.get(header::RETRY_AFTER).unwrap().to_str().unwrap().parse().unwrap();
+    assert!(retry > 0);
+}
+
+#[tokio::test]
+async fn websocket_total_capacity_refusal_has_retry_after_and_security_headers() {
+    let f = fixture_with(|s| {
+        s.max_connections = 1;
+        s.max_connections_per_client = 2;
+    });
+    let addr = serve(&f).await;
+    let _first = connect(addr).await.unwrap();
+    match connect(addr).await.unwrap_err() {
+        tokio_tungstenite::tungstenite::Error::Http(response) => {
+            assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+            assert_eq!(response.headers().get(header::RETRY_AFTER).unwrap(), "10");
+            assert!(response.headers().contains_key(header::CONTENT_SECURITY_POLICY));
+            let body: serde_json::Value =
+                serde_json::from_slice(response.body().as_deref().unwrap_or_default()).unwrap();
+            assert_eq!(body["code"], "rateLimited");
+            assert_eq!(body["retryable"], true);
+        }
+        other => panic!("expected an HTTP capacity refusal, got {other}"),
+    }
+}
+
+#[tokio::test]
+async fn websocket_unreadable_message_budget_closes_with_policy_violation() {
+    let f = fixture_with(|s| {
+        s.ws_messages_per_s = 100;
+        s.ws_message_burst = 100;
+    });
+    let addr = serve(&f).await;
+    let mut ws = connect(addr).await.unwrap();
+    for _ in 0..10 {
+        ws.send(Message::Text("not json".into())).await.unwrap();
+    }
+    assert_eq!(close_code(&mut ws).await, 1008);
+}
+
+#[tokio::test]
+async fn websocket_subscription_limit_does_not_evict_an_existing_subscription() {
+    let f = fixture_with(|s| s.max_subscriptions_per_connection = 1);
+    let addr = serve(&f).await;
+    let mut ws = connect(addr).await.unwrap();
+    ws.send(Message::Text(
+        r#"{"op":"subscribe","id":"first","query":{"feed":"earthquakes"}}"#.into(),
+    ))
+    .await
+    .unwrap();
+    assert!(matches!(next_frame(&mut ws).await, ServerFrame::Snapshot { id, .. } if id == "first"));
+    ws.send(Message::Text(
+        r#"{"op":"subscribe","id":"excess","query":{"feed":"earthquakes"}}"#.into(),
+    ))
+    .await
+    .unwrap();
+    let ServerFrame::Error { id, error } = next_frame(&mut ws).await else {
+        panic!("expected a subscription limit error")
+    };
+    assert_eq!(id.as_deref(), Some("excess"));
+    assert_eq!(error.code, lavender_domain::ErrorCode::RateLimited);
+    ws.send(Message::Text(r#"{"op":"update","id":"first","query":{"feed":"earthquakes","bbox":{"west":20,"south":55,"east":30,"north":65}}}"#.into())).await.unwrap();
+    let ServerFrame::Snapshot { id, snapshot } = next_frame(&mut ws).await else {
+        panic!("the first subscription must remain active")
+    };
+    assert_eq!(id, "first");
+    assert_eq!(snapshot.items.len(), 1);
+    ws.close(None).await.unwrap();
+}
+
+/// An oversized frame/message must terminate the connection, rather than being parsed
+/// as another request or held until the idle deadline. Transport errors may precede a
+/// close frame when tungstenite rejects the frame before application framing begins.
+async fn oversized_input_is_disconnected(ws: &mut WsStream) {
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            match ws.next().await {
+                None | Some(Err(_) | Ok(Message::Close(_))) => break,
+                Some(Ok(Message::Ping(payload))) => ws.send(Message::Pong(payload)).await.unwrap(),
+                other => panic!("oversized input was delivered to application framing: {other:?}"),
+            }
+        }
+    })
+    .await
+    .expect("oversized input must be disconnected before the idle deadline");
+}
+
+#[tokio::test]
+async fn websocket_oversized_frame_is_disconnected_before_application_parsing() {
+    let f = fixture();
+    let addr = serve(&f).await;
+    let mut ws = connect(addr).await.unwrap();
+    ws.send(Message::Text("x".repeat(65 * 1024).into())).await.unwrap();
+    oversized_input_is_disconnected(&mut ws).await;
+}
+
+#[tokio::test]
+async fn websocket_fragmented_message_is_capped_across_individually_small_frames() {
+    use tokio_tungstenite::tungstenite::protocol::frame::{
+        Frame,
+        coding::{Data, OpCode},
+    };
+    let f = fixture();
+    let addr = serve(&f).await;
+    let mut ws = connect(addr).await.unwrap();
+    ws.send(Message::Frame(Frame::message(vec![b'x'; 40 * 1024], OpCode::Data(Data::Text), false)))
+        .await
+        .unwrap();
+    ws.send(Message::Frame(Frame::message(
+        vec![b'x'; 40 * 1024],
+        OpCode::Data(Data::Continue),
+        true,
+    )))
+    .await
+    .unwrap();
+    oversized_input_is_disconnected(&mut ws).await;
 }

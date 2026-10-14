@@ -10,6 +10,8 @@ pub enum AuditEvent {
     Snapshot { feed: FeedId },
     Searched { chars: usize },
     SatelliteTrack { norad_id: u32 },
+    AircraftTrack,
+    SatellitePasses { norad_id: u32 },
 }
 
 pub trait AuditSink: Send + Sync + std::fmt::Debug {

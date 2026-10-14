@@ -1,0 +1,88 @@
+import { Cartesian3 } from '@cesium/core';
+import {
+  type GroundPrimitive,
+  type PointPrimitiveCollection,
+  type PolylineCollection,
+  PrimitiveCollection,
+} from '@cesium/engine';
+import { describe, expect, it, vi } from 'vitest';
+import type { Cyclone, FeedSnapshot } from '../../contracts';
+import { cyclone } from '../../test/cyclone';
+import { DEFAULT_PALETTE } from '../tokens';
+import { CycloneRenderer, cycloneRampIndex } from './cyclones';
+import { toMapColors } from './types';
+
+function setup() {
+  const root = new PrimitiveCollection();
+  const renderer = new CycloneRenderer(root, {
+    colors: toMapColors(DEFAULT_PALETTE),
+    requestRender: vi.fn(),
+    cameraPosition: () => Cartesian3.ZERO,
+    cameraHeightM: () => 1e6,
+  });
+  return {
+    root,
+    renderer,
+    points: root.get(0) as PointPrimitiveCollection,
+    lines: root.get(1) as PolylineCollection,
+  };
+}
+function snapshot(storms: Cyclone[], stale = false): FeedSnapshot {
+  return {
+    feed: 'cyclones',
+    sources: ['noaa-nhc-cphc'],
+    generatedAt: '2026-10-14T00:00:00Z',
+    items: { kind: 'cyclones', items: storms },
+    freshness: stale ? { state: 'stale', ageS: 3600 } : { state: 'live' },
+    coverage: { kind: 'complete' },
+    sourceCount: storms.length,
+    pendingRegions: 0,
+    notices: [],
+  };
+}
+describe('cyclone geometry', () => {
+  it('keeps points and unchanged advisory primitives, with all parts and holes', () => {
+    const { root, renderer, points, lines } = setup();
+    renderer.apply(snapshot([cyclone()]));
+    const point = points.get(0);
+    const firstLine = lines.get(0);
+    expect(lines.length).toBe(5);
+    expect(root.length).toBe(4);
+    const fill = root.get(2) as GroundPrimitive;
+    const instances = fill.geometryInstances;
+    expect(Array.isArray(instances)).toBe(false);
+    expect(
+      (instances as { geometry: { polygonHierarchy: { holes: unknown[] } } }).geometry
+        .polygonHierarchy.holes,
+    ).toHaveLength(1);
+    renderer.apply(snapshot([cyclone({ position: { lat: 21, lon: -61 } })]));
+    expect(points.get(0)).toBe(point);
+    expect(lines.get(0)).toBe(firstLine);
+    expect(point.id).toEqual({ feed: 'cyclones', id: 'al062026' });
+    expect(renderer.locate('al062026')?.position).toBe(point.position);
+    renderer.clear();
+    expect(points.length).toBe(0);
+    expect(lines.length).toBe(0);
+    expect(root.length).toBe(2);
+    renderer.destroy();
+    expect(root.length).toBe(0);
+  });
+  it('never draws pending or unavailable forecast geometry, and dims stale data', () => {
+    const { renderer, points, lines } = setup();
+    renderer.apply(snapshot([cyclone()]));
+    renderer.apply(snapshot([cyclone({ geometryStatus: 'pending' })], true));
+    expect(lines.length).toBe(0);
+    expect(points.get(0).color.alpha).toBe(0.6);
+    renderer.apply(snapshot([cyclone({ geometryStatus: 'unavailable' })]));
+    expect(lines.length).toBe(0);
+    expect(points.get(0).color.alpha).toBe(1);
+    renderer.apply(snapshot([]));
+    expect(renderer.size).toBe(0);
+    renderer.destroy();
+  });
+  it('maps the legend boundaries to the actual five colour steps', () => {
+    expect([undefined, 33, 34, 63, 64, 95, 96, 136, 137].map(cycloneRampIndex)).toEqual([
+      0, 0, 1, 1, 2, 2, 3, 3, 4,
+    ]);
+  });
+});

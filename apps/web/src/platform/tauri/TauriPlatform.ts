@@ -5,9 +5,12 @@
  * import `@tauri-apps/*` (src/architecture.test.ts).
  */
 import type {
+  AircraftTrack,
   Catalog,
   FeedQuery,
   FeedSnapshot,
+  SatellitePasses,
+  SatellitePassRequest,
   SatelliteTrack,
   SatelliteTrackRequest,
   SearchQuery,
@@ -88,6 +91,14 @@ export class TauriPlatform implements LavenderPlatform {
 
   search(query: SearchQuery, options?: CallOptions): Promise<SearchResults> {
     return this.#call('search', { query }, options);
+  }
+
+  aircraftTrack(hex: string, options?: CallOptions): Promise<AircraftTrack> {
+    return this.#call('aircraft_track', { hex }, options);
+  }
+
+  satellitePasses(request: SatellitePassRequest, options?: CallOptions): Promise<SatellitePasses> {
+    return this.#call('satellite_passes', { request }, options);
   }
 
   satelliteTrack(request: SatelliteTrackRequest, options?: CallOptions): Promise<SatelliteTrack> {

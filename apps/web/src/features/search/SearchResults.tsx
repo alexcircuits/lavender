@@ -46,7 +46,7 @@ function StatusLine({ query, model }: { query: string; model: SearchModel }) {
   } else if (model.empty) {
     text = `No matches for '${q}'. Try a place name, coordinates or a callsign.`;
   } else if (model.status === 'loading' && q !== '') {
-    text = 'Searching places…';
+    text = 'Searching…';
   }
   return (
     <div role="status" aria-live="polite" className={styles.statusLines}>

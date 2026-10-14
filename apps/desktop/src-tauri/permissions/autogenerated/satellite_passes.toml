@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-satellite-passes"
+description = "Enables the satellite_passes command without any pre-configured scope."
+commands.allow = ["satellite_passes"]
+
+[[permission]]
+identifier = "deny-satellite-passes"
+description = "Denies the satellite_passes command without any pre-configured scope."
+commands.deny = ["satellite_passes"]

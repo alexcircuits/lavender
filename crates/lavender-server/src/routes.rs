@@ -11,8 +11,9 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use lavender_domain::text::clean;
 use lavender_domain::{
-    BBox, Catalog, ErrorCode, FeedFilters, FeedId, FeedQuery, GeoPoint, SatelliteTrack,
-    SatelliteTrackRequest, SearchQuery, SearchResults, SystemStatus, Timestamp,
+    AircraftTrack, BBox, Catalog, ErrorCode, FeedFilters, FeedId, FeedQuery, GeoPoint,
+    SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery,
+    SearchResults, SystemStatus, Timestamp,
 };
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -160,6 +161,7 @@ pub struct SearchParams {
     q: Option<String>,
     limit: Option<u32>,
     near: Option<String>,
+    places: Option<bool>,
 }
 
 /// `GET /api/v1/search?q=…&near=lat,lon&limit=n`
@@ -182,8 +184,24 @@ pub async fn search(
             GeoPoint::new(lat, lon).map_err(|e| bad(e.to_string()))
         })
         .transpose()?;
-    let query = SearchQuery { q: params.q.unwrap_or_default(), near, limit: params.limit };
-    Ok(Json(state.core.search(&query)?))
+    let query = SearchQuery {
+        q: params.q.unwrap_or_default(),
+        near,
+        limit: params.limit,
+        places: params.places,
+    };
+    Ok(Json(state.core.search(&query).await?))
+}
+
+/// History already observed by this core; this endpoint never initiates a provider fetch.
+///
+/// # Errors
+/// Invalid hex (400), missing retained history (404), or unavailable feed.
+pub async fn aircraft_track(
+    State(state): State<AppState>,
+    ApiPath(hex): ApiPath<String>,
+) -> Result<Json<AircraftTrack>, HttpError> {
+    Ok(Json(state.core.aircraft_track(&hex)?))
 }
 
 #[derive(Debug, Deserialize)]
@@ -212,6 +230,44 @@ pub async fn satellite_track(
     let req =
         SatelliteTrackRequest { norad_id, from, minutes: params.minutes, step_s: params.step_s };
     Ok(Json(state.core.satellite_track(req).await?))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PassParams {
+    observer: String,
+    alt_m: Option<f64>,
+    from: Option<Timestamp>,
+    hours: Option<u32>,
+    min_elevation_deg: Option<f64>,
+}
+
+/// `GET /api/v1/satellites/{norad}/passes?observer=lat,lon&hours=24`
+///
+/// # Errors
+/// Invalid parameters (400), missing elements (404), busy computation (429), or upstream failure.
+pub async fn satellite_passes(
+    State(state): State<AppState>,
+    ApiPath(norad): ApiPath<u32>,
+    ApiQuery(params): ApiQuery<PassParams>,
+) -> Result<Json<SatellitePasses>, HttpError> {
+    let (lat, lon) =
+        params.observer.split_once(',').ok_or_else(|| bad("observer must be 'lat,lon'"))?;
+    let latitude =
+        lat.trim().parse::<f64>().map_err(|_| bad("observer latitude must be a number"))?;
+    let longitude =
+        lon.trim().parse::<f64>().map_err(|_| bad("observer longitude must be a number"))?;
+    let observer = GeoPoint::new(latitude, longitude)
+        .and_then(|point| point.with_altitude(params.alt_m))
+        .map_err(|error| bad(error.to_string()))?;
+    let request = SatellitePassRequest {
+        norad_id: norad,
+        observer,
+        from: params.from,
+        hours: params.hours,
+        min_elevation_deg: params.min_elevation_deg,
+    };
+    Ok(Json(state.core.satellite_passes(request).await?))
 }
 
 #[cfg(test)]

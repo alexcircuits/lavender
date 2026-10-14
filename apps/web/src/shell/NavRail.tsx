@@ -1,4 +1,6 @@
-import { cx, GearSixIcon, type Icon, IconButton, InfoIcon, StackIcon } from '../design';
+import { BookOpenIcon } from '@phosphor-icons/react/dist/csr/BookOpen';
+import { PencilSimpleIcon } from '@phosphor-icons/react/dist/csr/PencilSimple';
+import { cx, GearSixIcon, type Icon, IconButton, InfoIcon, StackIcon, Tooltip } from '../design';
 import { useUi } from '../runtime';
 import type { SidePanel } from '../state/stores';
 import { moveFocusWithArrows } from './arrowFocus';
@@ -11,6 +13,7 @@ const ITEMS: ReadonlyArray<{
 }> = [
   { panel: 'layers', label: 'Layers', icon: StackIcon },
   { panel: 'sources', label: 'Sources', icon: InfoIcon },
+  { panel: 'annotations', label: 'Annotations', icon: PencilSimpleIcon },
 ];
 
 export interface NavRailProps {
@@ -44,14 +47,27 @@ export function NavRail({ className }: NavRailProps) {
           />
         ))}
       </div>
-      {/* Visible so the layout is stable, but honest: it does nothing yet. */}
-      <IconButton
-        label="Settings (coming later)"
-        icon={GearSixIcon}
-        tooltipSide="right"
-        aria-disabled="true"
-        className={cx(styles.railButton, styles.soon)}
-      />
+      <div className={styles.railItems}>
+        <Tooltip content="Developer documentation" side="right">
+          <a
+            href="/docs/"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Developer documentation"
+            className={cx(styles.railButton, styles.documentationLink)}
+          >
+            <BookOpenIcon size={18} weight="bold" aria-hidden />
+          </a>
+        </Tooltip>
+        {/* Visible so the layout is stable, but honest: it does nothing yet. */}
+        <IconButton
+          label="Settings (coming later)"
+          icon={GearSixIcon}
+          tooltipSide="right"
+          aria-disabled="true"
+          className={cx(styles.railButton, styles.soon)}
+        />
+      </div>
     </nav>
   );
 }

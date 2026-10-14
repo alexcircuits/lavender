@@ -11,5 +11,5 @@ pub mod region;
 pub use coords::{ParsedCoordinate, format_decimal, format_dms, parse_coordinates};
 pub use geodesy::{destination, distance_m, initial_bearing_deg};
 pub use index::PointIndex;
-pub use orbit::{OrbitError, Propagator};
+pub use orbit::{LookAngles, OrbitError, Propagator};
 pub use region::{Cell, RegionPlan, plan_cells};

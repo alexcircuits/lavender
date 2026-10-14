@@ -12,6 +12,8 @@ import type { EntityRef } from './index';
 export interface InteractionHandlers {
   readonly pick: (entity: EntityRef | null) => void;
   readonly cursor: (position: GeoPoint | null) => void;
+  readonly point?: (position: GeoPoint | null) => void;
+  readonly drawing?: () => boolean;
 }
 
 const scratchCartesian = new Cartesian3();
@@ -67,6 +69,10 @@ export class Interaction {
   }
 
   #pick(position: Cartesian2): void {
+    if (this.#handlers.drawing?.()) {
+      this.#handlers.point?.(geoPointAt(this.#widget, position));
+      return;
+    }
     let entity: EntityRef | null = null;
     try {
       entity = entityFromPick(this.#widget.scene.pick(position));

@@ -9,4 +9,4 @@ near?: GeoPoint,
 /**
  * Maximum results per group (default 8, at most 25).
  */
-limit?: number, };
+limit?: number, places?: boolean, };

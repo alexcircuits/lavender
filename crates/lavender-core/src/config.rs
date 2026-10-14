@@ -23,6 +23,7 @@ pub struct CoreConfig {
     pub fetch: FetchConfig,
     pub hub: HubConfig,
     pub providers: ProvidersConfig,
+    pub geocoder: GeocoderConfig,
 }
 
 impl Default for CoreConfig {
@@ -33,6 +34,7 @@ impl Default for CoreConfig {
             fetch: FetchConfig::default(),
             hub: HubConfig::default(),
             providers: ProvidersConfig::default(),
+            geocoder: GeocoderConfig::default(),
         }
     }
 }
@@ -53,6 +55,8 @@ pub struct FetchConfig {
     pub per_host_concurrency: usize,
     /// Hosts that may be contacted over plain HTTP. Empty in production; tests use it
     /// for local mock servers.
+    /// Explicit development/internal-host exception to HTTPS and public-address checks.
+    /// Production public providers should leave this empty.
     pub allow_http_hosts: Vec<String>,
 }
 
@@ -112,6 +116,95 @@ pub struct ProvidersConfig {
     pub usgs: UsgsConfig,
     pub adsb_lol: AdsbLolConfig,
     pub celestrak: CelestrakConfig,
+    pub cyclones: CyclonesConfig,
+}
+
+/// The wire format of an operator-selected OSM geocoding service.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum GeocoderFormat {
+    #[default]
+    Nominatim,
+    Photon,
+}
+
+/// Place lookup is opt-in. No public endpoint is selected implicitly: choosing a
+/// self-hosted or contracted service remains an operator decision (ENG-938).
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct GeocoderConfig {
+    pub enabled: bool,
+    pub format: GeocoderFormat,
+    /// Service root, ending in '/'. Search uses `search` or `api/` below this root.
+    pub base_url: Option<Url>,
+    pub cache_max_entries: u64,
+    pub cache_ttl_s: u64,
+    /// Applies across geocoder instances in this process, with a 1000 ms floor.
+    pub min_request_interval_ms: u64,
+    /// Distinct cache misses admitted while waiting or fetching. Duplicates coalesce.
+    pub max_pending: usize,
+    /// Optional additional service credit, displayed alongside mandatory OSM credit.
+    pub attribution: Option<String>,
+}
+
+impl Default for GeocoderConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            format: GeocoderFormat::Nominatim,
+            base_url: None,
+            cache_max_entries: 128,
+            cache_ttl_s: 300,
+            min_request_interval_ms: 1100,
+            max_pending: 4,
+            attribution: None,
+        }
+    }
+}
+
+impl GeocoderConfig {
+    /// Transport allowlists are checked separately by the core and Fetcher.
+    pub(crate) fn validation_errors(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        if let Some(base) = &self.base_url {
+            if base.host_str().is_none()
+                || !matches!(base.scheme(), "https" | "http")
+                || !base.username().is_empty()
+                || base.password().is_some()
+                || base.query().is_some()
+                || base.fragment().is_some()
+            {
+                errors.push("geocoder.base_url: must have an HTTP(S) host and no credentials, query or fragment".to_owned());
+            }
+        } else if self.enabled {
+            errors.push("geocoder.base_url: required when place lookup is enabled".to_owned());
+        }
+        if !(1..=4096).contains(&self.cache_max_entries) {
+            errors.push("geocoder.cache_max_entries: must be between 1 and 4096".to_owned());
+        }
+        if !(1..=86400).contains(&self.cache_ttl_s) {
+            errors.push("geocoder.cache_ttl_s: must be between 1 and 86400".to_owned());
+        }
+        if !(1000..=60000).contains(&self.min_request_interval_ms) {
+            errors.push(
+                "geocoder.min_request_interval_ms: must be between 1000 and 60000".to_owned(),
+            );
+        }
+        if !(1..=16).contains(&self.max_pending) {
+            errors.push("geocoder.max_pending: must be between 1 and 16".to_owned());
+        }
+        if self.attribution.as_ref().is_some_and(|text| {
+            text.trim().is_empty()
+                || text.chars().count() > 200
+                || text.chars().any(char::is_control)
+        }) {
+            errors.push(
+                "geocoder.attribution: must be 1–200 characters without control characters"
+                    .to_owned(),
+            );
+        }
+        errors
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -131,6 +224,30 @@ impl Default for UsgsConfig {
             base_url: url("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/"),
             summary: "2.5_day".to_owned(),
             cadence_s: 60,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct CyclonesConfig {
+    pub enabled: bool,
+    /// Root containing CurrentStorms.json; only fixed relative requests are used.
+    pub status_base_url: Url,
+    /// NHC/CPHC summary `MapServer` root ending with '/'.
+    pub gis_base_url: Url,
+    pub cadence_s: u64,
+}
+
+impl Default for CyclonesConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            status_base_url: url("https://www.nhc.noaa.gov/"),
+            gis_base_url: url(
+                "https://mapservices.weather.noaa.gov/tropical/rest/services/tropical/NHC_tropical_weather_summary/MapServer/",
+            ),
+            cadence_s: 600,
         }
     }
 }
@@ -229,7 +346,29 @@ impl CoreConfig {
         https("providers.usgs.base_url", &self.providers.usgs.base_url);
         https("providers.adsb_lol.base_url", &self.providers.adsb_lol.base_url);
         https("providers.celestrak.base_url", &self.providers.celestrak.base_url);
+        https("providers.cyclones.status_base_url", &self.providers.cyclones.status_base_url);
+        https("providers.cyclones.gis_base_url", &self.providers.cyclones.gis_base_url);
+        if let Some(base) = &self.geocoder.base_url {
+            https("geocoder.base_url", base);
+        }
+        errors.extend(self.geocoder.validation_errors());
 
+        let cyclones = &self.providers.cyclones;
+        if cyclones.cadence_s < 600 {
+            errors.push("providers.cyclones.cadence_s: must be at least 600".to_owned());
+        }
+        for (name, endpoint) in
+            [("status", &cyclones.status_base_url), ("gis", &cyclones.gis_base_url)]
+        {
+            if endpoint.host_str().is_none()
+                || !endpoint.username().is_empty()
+                || endpoint.password().is_some()
+                || endpoint.query().is_some()
+                || endpoint.fragment().is_some()
+            {
+                errors.push(format!("providers.cyclones.{name}_base_url: requires a host and no credentials, query or fragment"));
+            }
+        }
         let usgs = &self.providers.usgs;
         if !USGS_SUMMARIES.contains(&usgs.summary.as_str()) {
             errors.push(format!(
@@ -289,6 +428,48 @@ mod tests {
     #[test]
     fn defaults_are_valid() {
         CoreConfig::default().validate().unwrap();
+    }
+
+    #[test]
+    fn cyclone_roots_are_fixed_resources_with_a_ten_minute_floor() {
+        let mut config = CoreConfig::default();
+        assert_eq!(config.providers.cyclones.cadence_s, 600);
+        config.providers.cyclones.cadence_s = 599;
+        config.providers.cyclones.status_base_url =
+            Url::parse("https://user:password@www.nhc.noaa.gov/?token=secret").unwrap();
+        let errors = config.validate().unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("cadence_s")));
+        assert!(errors.iter().any(|e| e.contains("no credentials")));
+        assert!(errors.iter().all(|e| !e.contains("secret") && !e.contains("password")));
+    }
+
+    #[test]
+    fn place_lookup_requires_an_explicit_endpoint_and_pacing_floor() {
+        let mut config = CoreConfig::default();
+        assert!(!config.geocoder.enabled);
+        assert!(config.geocoder.base_url.is_none());
+        config.geocoder.enabled = true;
+        config.geocoder.min_request_interval_ms = 999;
+        config.geocoder.cache_max_entries = 0;
+        config.geocoder.cache_ttl_s = 0;
+        config.geocoder.max_pending = 0;
+        assert_eq!(config.validate().unwrap_err().len(), 5);
+    }
+
+    #[test]
+    fn geocoder_urls_and_attribution_cannot_carry_credentials_or_controls() {
+        for endpoint in [
+            "https://private:secret@example.com/",
+            "https://example.com/?token=secret",
+            "https://example.com/#secret",
+        ] {
+            let mut config = CoreConfig::default();
+            config.geocoder.base_url = Some(Url::parse(endpoint).unwrap());
+            config.geocoder.attribution = Some("private\ncredit".to_owned());
+            let errors = config.validate().unwrap_err();
+            assert_eq!(errors.len(), 2);
+            assert!(!errors.join(" ").contains("secret"));
+        }
     }
 
     #[test]

@@ -1,0 +1,47 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "idp_source": "al062026-006_5day_lin",
+        "advisnum": "006"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -60,
+              20
+            ],
+            [
+              -65,
+              24
+            ]
+          ],
+          [
+            [
+              179,
+              25
+            ],
+            [
+              180,
+              25
+            ]
+          ],
+          [
+            [
+              -180,
+              25
+            ],
+            [
+              -179,
+              25
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

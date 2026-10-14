@@ -97,6 +97,16 @@ export const COMMANDS: readonly Command[] = [
     run: (ctx) => globe(ctx)?.home(),
   },
   {
+    id: 'workspace.share',
+    title: 'Copy view link',
+    keywords: ['share', 'workspace', 'clipboard', 'link'],
+    inPalette: true,
+    isEnabled: hasGlobe,
+    run: (ctx) => {
+      void ctx.runtime.copyViewLink();
+    },
+  },
+  {
     id: 'panel.layers',
     title: 'Show layers',
     keywords: ['layers', 'explorer', 'feeds'],

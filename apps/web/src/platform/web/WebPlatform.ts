@@ -4,10 +4,13 @@
  * subscription falls back to polling snapshots and the transport state says `polling`.
  */
 import type {
+  AircraftTrack,
   Catalog,
   ClientFrame,
   FeedQuery,
   FeedSnapshot,
+  SatellitePasses,
+  SatellitePassRequest,
   SatelliteTrack,
   SatelliteTrackRequest,
   SearchQuery,
@@ -141,6 +144,7 @@ export class WebPlatform implements LavenderPlatform {
     const params = new URLSearchParams({ q: query.q });
     if (query.limit !== undefined) params.set('limit', String(query.limit));
     if (query.near) params.set('near', `${query.near.lat},${query.near.lon}`);
+    if (query.places !== undefined) params.set('places', String(query.places));
     return this.#get(`/search?${params.toString()}`, options);
   }
 
@@ -151,6 +155,22 @@ export class WebPlatform implements LavenderPlatform {
     if (request.from !== undefined) params.set('from', request.from);
     const qs = params.toString();
     return this.#get(`/satellites/${request.noradId}/track${qs ? `?${qs}` : ''}`, options);
+  }
+
+  aircraftTrack(hex: string, options?: CallOptions): Promise<AircraftTrack> {
+    return this.#get(`/aircraft/${encodeURIComponent(hex)}/track`, options);
+  }
+
+  satellitePasses(request: SatellitePassRequest, options?: CallOptions): Promise<SatellitePasses> {
+    const params = new URLSearchParams({
+      observer: `${request.observer.lat},${request.observer.lon}`,
+    });
+    if (request.observer.altM !== undefined) params.set('altM', String(request.observer.altM));
+    if (request.from !== undefined) params.set('from', request.from);
+    if (request.hours !== undefined) params.set('hours', String(request.hours));
+    if (request.minElevationDeg !== undefined)
+      params.set('minElevationDeg', String(request.minElevationDeg));
+    return this.#get(`/satellites/${request.noradId}/passes?${params.toString()}`, options);
   }
 
   // ── live stream ─────────────────────────────────────────────────────────────────────

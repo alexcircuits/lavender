@@ -16,6 +16,8 @@ import type {
   SatelliteTrack,
 } from '../contracts';
 
+import type { AnnotationDraft, MapAnnotation } from '../features/annotations/model';
+
 /** A selectable thing on the globe. */
 export interface EntityRef {
   readonly feed: FeedId;
@@ -31,6 +33,16 @@ export interface ViewState {
   readonly heightM: number;
 }
 
+/** Ellipsoid camera position in degrees/metres and orientation in radians. */
+export interface CameraPose {
+  readonly lon: number;
+  readonly lat: number;
+  readonly heightM: number;
+  readonly headingRad: number;
+  readonly pitchRad: number;
+  readonly rollRad: number;
+}
+
 export type FlyTarget =
   | { readonly kind: 'point'; readonly position: GeoPoint; readonly heightM?: number }
   | { readonly kind: 'bbox'; readonly bbox: BBox };
@@ -44,12 +56,23 @@ export interface GlobeController {
   setSelection(selection: EntityRef | null): void;
   /** Draws a satellite's ground track / orbit for the selected satellite, or clears it. */
   showTrack(track: SatelliteTrack | null): void;
+  setAnnotations(annotations: readonly MapAnnotation[], draft: AnnotationDraft | null): void;
+  /** Drawing owns clicks so a shape cannot accidentally select a feed entity. */
+  setDrawing(active: boolean): void;
+  onMapPoint(listener: (point: GeoPoint | null) => void): () => void;
   setImagery(imagery: ImageryDescriptor): void;
   flyTo(target: FlyTarget): void;
   home(): void;
   zoomIn(): void;
   zoomOut(): void;
   resetNorth(): void;
+  cameraPose(): CameraPose | null;
+  /** Ground under the viewport centre, or null when its ray misses the Earth. */
+  centrePosition(): GeoPoint | null;
+  /** Cuts to a validated shared view, cancelling any earlier flight. */
+  restoreCamera(pose: CameraPose): void;
+  /** Explicit commands and pointer/wheel input claim the camera before a delayed restore. */
+  onCameraIntent(listener: () => void): () => void;
   /** Called with the picked entity, or null when empty globe is clicked. */
   onPick(listener: (entity: EntityRef | null) => void): () => void;
   /** Called (debounced by the engine) after the camera settles. */

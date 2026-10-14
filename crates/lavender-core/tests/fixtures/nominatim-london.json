@@ -1,0 +1,15 @@
+[
+  {
+    "place_id": 100149,
+    "licence": "Data © OpenStreetMap contributors, ODbL 1.0. https://osm.org/copyright",
+    "osm_type": "node",
+    "osm_id": "107775",
+    "boundingbox": ["51.3473219", "51.6673219", "-0.2876474", "0.0323526"],
+    "lat": "51.5073219",
+    "lon": "-0.1276474",
+    "display_name": "London, Greater London, England, SW1A 2DU, United Kingdom",
+    "type": "city",
+    "importance": 0.9654895765402,
+    "address": { "city": "London", "state_district": "Greater London", "state": "England", "country": "United Kingdom" }
+  }
+]

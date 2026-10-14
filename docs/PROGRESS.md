@@ -18,7 +18,7 @@ what was verified, and where to resume. Update it when a task changes state.
 | WS1 Specs & decisions | ENG-922 | L01 ENG-936 · L02 ENG-937 · L03 ENG-938 |
 | WS2 Rust foundations | ENG-923 | L04 ENG-939 · L05 ENG-940 · L06 ENG-941 |
 | WS3 Providers & API | ENG-924 | L11 ENG-946 · L12 ENG-947 · L13 ENG-948 · L14 ENG-949 · L15 ENG-950 · L16 ENG-951 · L17 ENG-952 · L18 ENG-953 · L19 ENG-954 · L20 ENG-955 · L21 ENG-956 · L22 ENG-957 · L23 ENG-958 · L24 ENG-959 · L25 ENG-960 · L26 ENG-961 · L27 ENG-962 · L28 ENG-963 · L29 ENG-964 · L30 ENG-965 · L31 ENG-966 · L32 ENG-967 · L33 ENG-968 |
-| WS4 Shared core | ENG-925 | L07 ENG-942 · L08 ENG-943 · L09 ENG-944 · L10 ENG-945 |
+| WS4 Shared core | ENG-925 | L07 ENG-942 · L08 ENG-943 · L09 ENG-944 · L10 ENG-945 · readability ENG-1012 |
 | WS5 Frontend architecture | ENG-926 | L34 ENG-969 · L35 ENG-970 · L36 ENG-971 · L37 ENG-972 |
 | WS6 Rendering | ENG-927 | L38 ENG-973 · L39 ENG-974 · L40 ENG-975 · L41 ENG-976 · L42 ENG-977 · L43 ENG-978 · L44 ENG-979 · L45 ENG-980 |
 | WS7 Design system | ENG-928 | L46 ENG-981 · L47 ENG-982 |
@@ -154,6 +154,127 @@ what was verified, and where to resume. Update it when a task changes state.
   4/4 × 3 runs; browser check with satellites on (no console errors, no WASM requests).
 - Desktop self-check with the screen unlocked: `ok: true`, 53 live USGS earthquakes,
   36 fps, lit-pixel ratio 0.245 (evidence in `docs/architecture/evidence/`).
+
+### 2026-10-13 — Human-first engineering and contributor documentation
+- Continued from the clean nested Lavender Git repository at `8569c34`; created
+  local branch `improvement/human-first-engineering`. No unrelated product edits.
+- Kept the four cohesive crates and existing web/Tauri boundaries. Split hub
+  scheduling, region leases, snapshots and subscriber lifecycle into private modules;
+  separated test files and CelesTrak parsing; improved private operation names and
+  module purpose docs. Public contracts and scheduling/security behaviour preserved.
+- Added all ten contributor guides under `docs/development/`, glossary, task index
+  and verification record. `docs/README.md` is the accessible home. The roadmap now
+  has six readable milestones; `docs/roadmap-detail.md` preserves original L/WS/P scope.
+- Added `scripts/check.sh`, a safe development TOML example and working Nx dev/check
+  entry points. Nx frontend commands launch web pnpm 12.11.2 explicitly while the
+  monorepo keeps its own pin; the dev target starts Rust and Vite together.
+- Verified: full-workspace fmt/clippy, 217 original Rust tests plus one compiled
+  Rustdoc example, cargo-deny, unchanged TS contracts; 319 frontend tests, TypeScript,
+  Biome/build; four fixture E2E journeys; warning-free Rustdoc; custom-protocol native
+  build; Nx dev/proxy/check, configuration startup, fixture API requests and 198 local
+  documentation targets. Full detail and limitations: `development/verification.md`.
+- Flokzy: refined all 67 initially open descriptions/titles in place; read-back
+  confirmed discussion, metadata and dependency links were preserved. ENG-1012 closed
+  with evidence. Other statuses remain unchanged; 24 of 90 tasks are now Done.
+  ENG-996's later macOS evidence was reconciled in its description/comment, without
+  claiming a fresh GUI run or closing the task. No duplicate project/task/cycle.
+- Local changes remain uncommitted. Hosted monorepo integration (ENG-1004), remaining
+  provider parity, keychain/cross-platform releases, performance and licence/hosting
+  decisions remain separate open work. All verification servers stopped.
+
+## 2026-10-13 — browser developer documentation (ENG-1014)
+
+- Added `/docs/` as a separate Vite/React entry, using Lavender's existing Geist
+  fonts, dark surfaces, lavender accent, Base UI dialogs and command controls.
+- The browser reads the repository's 42 Markdown documents. Guides, source files,
+  the historical archive and Mermaid rendering load on demand. Reading docs does
+  not start feeds or load Cesium. The workspace has a documentation link.
+- Navigation, section permalinks, full-text keyboard search, highlighted/copied
+  examples, GFM tables, diagrams and a linked Rust/TypeScript source reader work in
+  the built app. Mobile navigation uses a focus-trapped dialog.
+- Verified TypeScript, lint, 325 frontend tests and seven production browser
+  journeys, including the four existing analyst journeys. The docs journeys check
+  CSP, console errors, source/Markdown reading, copied text, section reload/back,
+  keyboard search, missing-page recovery and 320/360 px reflow.
+- Initial compressed JavaScript remains below the 250 KiB budget for both entries;
+  the build check now enforces this for the docs too. Desktop, tablet, phone and
+  the narrow layout corresponding to 200% zoom were reviewed in the browser.
+- Vite's file scope explicitly includes the Lavender repository, so Markdown and
+  source files outside `apps/web` remain readable after hot reload. No monorepo
+  or unrelated product directories were added to the scope.
+- Work remains local and uncommitted on `improvement/human-first-engineering`.
+  The docs preview on port 5410 stays running for the browser handoff. Hosted
+  deployment and native desktop GUI verification remain separate work.
+
+## 2026-10-13–14 — autonomous feature execution
+
+- Continued on `improvement/human-first-engineering`, preserving the existing
+  readability and browser-docs changes and unrelated monorepo work. Three coding
+  agents owned aircraft/history, place search and share/UI work; general, Rust
+  and TypeScript reviewers checked integration and follow-up satellite/cache work.
+- **ENG-972 Done:** bounded v1 workspace links restore camera, imagery, layer
+  options and selection. Deferred catalog/globe work respects newer user actions;
+  browser back/forward restores the exact camera. Unsupported or oversized links
+  fail safely. Native deep-link registration and annotations remain separate scope.
+- **ENG-949 Done:** geometric observer passes now run through geo/core, HTTP,
+  Tauri and the inspector. Independent propagation/pass fixtures and narrow
+  window-edge regressions pass; ground tracks count their initial point in the
+  1,440-point cap. The observer uses the screen-centre ground point. CelesTrak's
+  bounded atomic cache preserves raw OMM, download/validation ages and conditional
+  validators across restart; redirects cannot rebind validators to the wrong URL.
+- **ENG-948 In Progress:** bounded session history is integrated through both
+  adapters and the inspector (4,096 aircraft, 256 points each, 65,536 globally,
+  30-minute idle TTL). Upstream document/position times control ordering; delayed
+  responses cannot reorder trails and unreliable times are excluded from history.
+  Optional licensed OpenSky, permitted enrichment and a longer live pacing soak remain.
+- **ENG-952 In Progress:** configured Nominatim/Photon geocoding is integrated with
+  bounded cached/coalesced lookups, host-wide pacing, cancellation, attribution and
+  licence gating. Place search is explicitly submitted and can retry unchanged
+  text; local coordinate/entity search stays local. Vessel/MMSI search awaits
+  ENG-953; production instance/terms choice remains ENG-938.
+- Final `scripts/check.sh` passed: 293 Rust unit/integration tests plus one Rustdoc
+  test, 382 frontend tests in 47 files, formatting, Clippy, dependency checks,
+  generated contracts, TypeScript, Biome and production builds. Native desktop
+  all-target Clippy passed. Eleven production Chrome journeys passed, including
+  share/restore, aircraft history and satellite passes; screenshots were inspected.
+  Provider HTTP mocks and recorded fixtures do not claim fresh live-source soaks,
+  production geocoder access, a native GUI run or Windows/Linux verification.
+- Flokzy read-back: **27/91 tasks Done**, 64 open. ENG-957 and ENG-989 now have all
+  recorded prerequisites Done; ENG-976 remains In Review for its separate renderer
+  and performance acceptance. Updated migration, API/module references, roadmap,
+  task index and verification record. No duplicate project/task/cycle or PR created.
+  Work remains local and uncommitted; the earlier docs preview was preserved.
+
+## 2026-10-14 — work-in-progress GitHub checkpoint
+
+The owner requested a commit and push before further implementation. This checkpoint
+includes the earlier verified work and the unfinished next batch on
+`improvement/human-first-engineering`; it is not a release-ready verification result.
+
+- ENG-951: the Rust cyclone feed, strict status/GIS parsing, source metadata,
+  coalesced quota-safe caching, typed contracts and fixture/API integration are
+  written; 23 focused checks passed. Cyclone rendering/inspection/legend and local
+  search are written under ENG-975, but final browser integration remains pending.
+- ENG-989: annotation editor, map drawing, spherical measurements, v2 workspace
+  migration and device/share persistence are written. The initial focused suite
+  and browser journey passed, but independent review found hydration data loss
+  before catalog readiness, near-antipodal Cesium exceptions, persistence ordering
+  and drawing-Escape ownership. These corrections remain required.
+- ENG-1002: captured-log regressions, safer request/panic logging, validated DNS
+  addresses used by the connector, explicit adapter panic hooks, build-check
+  negative fixtures and product advisory workflow source are written. Focused Rust,
+  Node and advisory checks passed. Review found missing prefixed secret-key names
+  and CSP element/attribute override checks; hosted CI wiring remains unverified.
+- Other known pending corrections: the cyclone healthy-refresh floor for configured
+  cadences above 600 seconds; exception isolation/bounded expansion for cyclone
+  arcs; neutral symbols for unreported cyclone wind; the Ion build transform must
+  match the installed SDK's indirect default-token declaration. The transform is
+  currently a known build blocker. One cyclone renderer test also needs its
+  public-geometry assertion corrected. Final full checks and distribution rescan
+  have not passed for this batch. Tasks remain In Progress.
+- No unrelated monorepo files, generated build output, local credentials or test
+  screenshots are intended for this checkpoint. Continue with these review findings
+  before closing tasks or treating the branch as deployable.
 
 ## Environment notes
 - Rust 1.99.0 pinned (installed, latest stable); `cargo-tauri` 2.11.3, `cargo-deny`, `cargo-nextest` available.

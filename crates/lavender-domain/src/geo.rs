@@ -1,3 +1,5 @@
+//! Validated geographic points and bounding boxes, including views across the antimeridian.
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 

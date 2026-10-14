@@ -3,6 +3,6 @@ import type { GeoPoint } from "./GeoPoint";
 
 export type TrackPoint = { time: string, 
 /**
- * Sub-satellite point with altitude in metres.
+ * Geographic position with altitude in metres when known.
  */
 position: GeoPoint, };

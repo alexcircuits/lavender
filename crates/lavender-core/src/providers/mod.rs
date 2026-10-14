@@ -7,6 +7,7 @@
 
 pub mod adsb_lol;
 pub mod celestrak;
+pub mod cyclones;
 pub mod fixture;
 pub mod usgs;
 
@@ -135,6 +136,12 @@ pub(crate) fn parse_rows<T: DeserializeOwned>(rows: Vec<serde_json::Value>) -> (
     (parsed, dropped)
 }
 
+/// One implemented data source. Providers fetch and normalize records; the hub owns
+/// refresh scheduling, shared results, viewport filtering and subscription cleanup.
+///
+/// Use the supplied fetcher and cancellation token for every upstream request. Return
+/// cached data with its original `as_of` time and a `degraded` reason after a failed
+/// refresh, so callers can tell cached records from current data.
 #[async_trait]
 pub trait FeedProvider: Send + Sync + std::fmt::Debug {
     fn feed(&self) -> FeedId;
@@ -146,6 +153,7 @@ pub trait FeedProvider: Send + Sync + std::fmt::Debug {
     /// The shortest wait before retrying after a failed or degraded fetch. The hub's
     /// exponential backoff never goes below it, so providers with strict usage policies
     /// (CelesTrak) are not hammered while they fail.
+    /// Healthy refresh jitter also respects this floor as minimum source spacing.
     fn retry_floor(&self) -> Duration {
         Duration::ZERO
     }

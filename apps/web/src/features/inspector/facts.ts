@@ -2,7 +2,14 @@
  * Per-kind fact sheets for the inspector, as plain data so they are testable without React.
  * Units are always written (design-system §15); unknown stays "Not reported", never zero.
  */
-import type { Aircraft, Earthquake, FeedId, GeoPoint, SatelliteElements } from '../../contracts';
+import type {
+  Aircraft,
+  Cyclone,
+  Earthquake,
+  FeedId,
+  GeoPoint,
+  SatelliteElements,
+} from '../../contracts';
 import { formatAge, formatCount } from '../../design';
 import { formatDecimal } from '../../lib/coordinates';
 import { lookup } from '../../lib/lookup';
@@ -199,6 +206,56 @@ export interface ProvenanceInput {
   readonly nowMs: number;
 }
 
+export function cycloneFacts(storm: Cyclone): Fact[] {
+  const at = (value: string) => {
+    const time = parseTime(value);
+    return time === null ? NOT_REPORTED : formatUtcDateTime(time);
+  };
+  const basin = lookup(
+    { AL: 'Atlantic', EP: 'Eastern Pacific', CP: 'Central Pacific' },
+    storm.basin.toUpperCase(),
+    storm.basin,
+  );
+  return [
+    { label: 'Storm ID', value: storm.id, mono: true },
+    { label: 'Classification', value: storm.classification },
+    { label: 'Basin', value: basin },
+    { label: 'Advisory', value: storm.advisoryNumber, mono: true },
+    { label: 'Issued', value: at(storm.issuedAt), mono: true },
+    { label: 'Position time', value: at(storm.positionAt), mono: true },
+    {
+      label: 'Maximum sustained wind',
+      value: storm.intensityKt === undefined ? NOT_REPORTED : `${storm.intensityKt} kn`,
+    },
+    {
+      label: 'Central pressure',
+      value: storm.pressureMb === undefined ? NOT_REPORTED : `${storm.pressureMb} mb`,
+    },
+    {
+      label: 'Movement direction',
+      value:
+        storm.movement.directionDegrees === undefined
+          ? NOT_REPORTED
+          : `${storm.movement.directionDegrees}°`,
+    },
+    {
+      label: 'Movement speed',
+      value: storm.movement.speedKt === undefined ? NOT_REPORTED : `${storm.movement.speedKt} kn`,
+    },
+    {
+      label: 'Forecast geometry',
+      value:
+        storm.geometryStatus === 'current'
+          ? `Current · advisory ${storm.geometryAdvisoryNumber ?? storm.advisoryNumber}`
+          : storm.geometryStatus === 'pending'
+            ? 'Pending'
+            : 'Unavailable',
+      tone: storm.geometryStatus === 'current' ? 'neutral' : 'warning',
+    },
+    ...positionFacts(storm.position),
+  ];
+}
+
 /** Source, observed, fetched and age: where a datum came from and how old it is (§1.5). */
 export function provenanceFacts({
   sources,
@@ -221,7 +278,8 @@ export function provenanceFacts({
 export type Inspected =
   | { readonly kind: 'aircraft'; readonly item: Aircraft }
   | { readonly kind: 'earthquakes'; readonly item: Earthquake }
-  | { readonly kind: 'satellites'; readonly item: SatelliteElements };
+  | { readonly kind: 'satellites'; readonly item: SatelliteElements }
+  | { readonly kind: 'cyclones'; readonly item: Cyclone };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -247,6 +305,13 @@ export function inspect(feed: FeedId, id: string, entity: unknown): Inspected | 
     case 'satellites':
       return String(entity.noradId) === id && typeof entity.meanMotion === 'number'
         ? { kind: 'satellites', item: entity as unknown as SatelliteElements }
+        : null;
+    case 'cyclones':
+      return entity.id === id &&
+        isPoint(entity.position) &&
+        typeof entity.name === 'string' &&
+        isRecord(entity.movement)
+        ? { kind: 'cyclones', item: entity as unknown as Cyclone }
         : null;
   }
 }

@@ -1,3 +1,5 @@
+//! Stable error categories and messages exchanged with the frontend.
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 

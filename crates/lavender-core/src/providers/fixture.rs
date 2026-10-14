@@ -19,7 +19,7 @@ use async_trait::async_trait;
 use lavender_domain::{FeedId, FeedItems, ProviderScope};
 
 use super::{
-    FeedProvider, FetchContext, Fetched, ProviderError, Region, adsb_lol, celestrak, usgs,
+    FeedProvider, FetchContext, Fetched, ProviderError, Region, adsb_lol, celestrak, cyclones, usgs,
 };
 use crate::sources;
 
@@ -45,6 +45,7 @@ impl FixtureProvider {
             (FeedId::Earthquakes, sources::USGS),
             (FeedId::Aircraft, sources::ADSB_LOL),
             (FeedId::Satellites, sources::CELESTRAK),
+            (FeedId::Cyclones, sources::NOAA_CYCLONES),
         ]
         .into_iter()
         .map(|(feed, source_id)| {
@@ -61,6 +62,29 @@ impl FixtureProvider {
             return Err(unavailable("too large"));
         }
         tokio::fs::read(path).await.map_err(|_| unavailable("unreadable"))
+    }
+
+    async fn cyclones(&self) -> Result<(FeedItems, usize), ProviderError> {
+        let status = Self::read(&self.dir.join("cyclones-status.json")).await?;
+        let document: serde_json::Value = serde_json::from_slice(&status)
+            .map_err(|_| ProviderError::parse("Cyclone fixture", &"invalid status document"))?;
+        // Replay keeps the advisory's recorded timestamps rather than claiming that the
+        // old forecast was issued now. Production never uses this fixture clock.
+        let fixture_clock = document["activeStorms"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|s| s["lastUpdate"].as_str()?.parse::<jiff::Timestamp>().ok())
+            .max()
+            .unwrap_or_else(jiff::Timestamp::now);
+        let mut storms = cyclones::parse_status(&status, fixture_clock)?;
+        if !storms.is_empty() {
+            let points = Self::read(&self.dir.join("cyclones-points.json")).await?;
+            let track = Self::read(&self.dir.join("cyclones-track.json")).await?;
+            let cone = Self::read(&self.dir.join("cyclones-cone.json")).await?;
+            cyclones::attach_geometry(&mut storms, [&points, &track, &cone])?;
+        }
+        Ok((FeedItems::Cyclones(storms), 0))
     }
 
     async fn satellites(&self) -> Result<(FeedItems, usize), ProviderError> {
@@ -130,8 +154,21 @@ impl FeedProvider for FixtureProvider {
                 (FeedItems::Aircraft(a), d)
             }
             FeedId::Satellites => self.satellites().await?,
+            FeedId::Cyclones => self.cyclones().await?,
         };
         let mut fetched = Fetched::fresh(items).with_dropped("Fixture", dropped);
+        if self.feed == FeedId::Aircraft {
+            // Fixture mode replays positions on the current clock; this is not their
+            // historical observation date, and never runs for production providers.
+            fetched.as_of = Some(jiff::Timestamp::now());
+            fetched
+                .notices
+                .push("Aircraft history timestamps use the fixture replay clock.".to_owned());
+        }
+        if self.feed == FeedId::Cyclones {
+            fetched.notices.push(cyclones::COVERAGE_NOTICE.to_owned());
+            fetched.notices.push(cyclones::CONE_NOTICE.to_owned());
+        }
         fetched.notices.insert(0, FIXTURE_NOTICE.to_owned());
         Ok(fetched)
     }
@@ -189,5 +226,21 @@ mod tests {
         let err = fetch(dir.path(), FeedId::Aircraft).await.unwrap_err();
         assert!(matches!(err, ProviderError::Unavailable(_)), "{err}");
         assert!(fetch(dir.path(), FeedId::Satellites).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn cyclone_replay_preserves_advisory_dates_and_explains_coverage() {
+        let dir = tempfile::tempdir().unwrap();
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+        for name in ["status", "points", "track", "cone"] {
+            let file = format!("cyclones-{name}.json");
+            std::fs::copy(fixtures.join(&file), dir.path().join(&file)).unwrap();
+        }
+        let answer = fetch(dir.path(), FeedId::Cyclones).await.unwrap();
+        assert_eq!(answer.notices.first().map(String::as_str), Some(FIXTURE_NOTICE));
+        assert!(answer.notices.iter().any(|n| n.contains("not worldwide")));
+        let FeedItems::Cyclones(storms) = answer.items else { panic!("cyclones") };
+        assert_eq!(storms[0].position_at.to_string(), "2026-10-14T00:00:00Z");
+        assert_eq!(storms[0].geometry_status, lavender_domain::CycloneGeometryStatus::Current);
     }
 }

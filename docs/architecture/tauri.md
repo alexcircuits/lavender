@@ -1,5 +1,8 @@
 # Lavender desktop — Tauri compatibility specification
 
+> A macOS prototype and its verification evidence now exist. Read [Web and Desktop](../development/web-and-desktop.md) for current commands and limitations; keychain storage, Windows/Linux readiness and packaging below remain planned.
+
+
 - Status: v1, 2026-10-11
 - Decisions: ADR 0002 (shared core), 0005 (platform/transport), 0006 (storage/secrets), 0008 (egress)
 - Evidence: `spikes/2026-10-11-tauri-cesium-macos.md` (measured), `../research/2026-10-technology-research.md` §B–C (cited)

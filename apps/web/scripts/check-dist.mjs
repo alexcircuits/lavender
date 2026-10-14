@@ -1,21 +1,10 @@
-// Post-build assertions on dist/ (runs as `postbuild`). Each check maps to a written rule:
-//
-// 1. index.html has no inline <script>, <style> or style= (CSP; Tauri hashes inline blocks,
-//    which would void style-src 'unsafe-inline' — docs/architecture/tauri.md §5.2).
-// 2. Nothing in dist/ carries a Google API key ("AIza…"): browser builds never embed keys
-//    (docs/architecture/security.md, ADR 0006).
-// 3. @cesium/engine is a separate lazily loaded chunk: the initial JS (entry + modulepreloads)
-//    contains no engine code, and some other chunk does (frontend.md §7).
-// 4. Initial JS (excluding the engine) is ≤ 250 KiB gzip (frontend.md §7 budget).
-// 5. Cesium's static directories were emitted (spike finding 1).
+// Post-build assertions on dist/ (runs as `postbuild`). See security.md §4 and frontend.md §7.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, extname, join, relative, resolve } from 'node:path';
+import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const dist = join(appRoot, 'dist');
-
 const INITIAL_JS_BUDGET_BYTES = 250 * 1024;
 /** Present in every Cesium build (GLSL built-ins are prefixed czm_) and nowhere else. */
 const ENGINE_MARKER = 'czm_';
@@ -31,11 +20,35 @@ const TEXT_EXTENSIONS = new Set([
   '.svg',
   '.glsl',
 ]);
-/** The full Google API key shape, used for binary files where 4 bytes can occur by chance. */
-const GOOGLE_KEY_PATTERN = /AIza[0-9A-Za-z_-]{35}/;
+// Recognisable credential values, not API names in the documentation. Explicit public
+// tile tokens belong in the runtime catalog (security.md §3), never in build artifacts.
+const KEY_SHAPES = [
+  /AIza[0-9A-Za-z_-]{35}/,
+  /\bsk-(?:(?:proj|svcacct)-)?[0-9A-Za-z_-]{48,}/,
+  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+];
+const SERVER_KEY_ASSIGNMENT =
+  /\b(?:FIRMS_MAP_KEY|AISSTREAM_API_KEY|OPENSKY_CLIENT_SECRET|TOMTOM_API_KEY|GOOGLE_MAPS_SERVER_KEY|OPENAI_API_KEY)\b["']?\s*[:=]\s*["']([0-9A-Za-z_-]{16,})["']/g;
 
-const failures = [];
-const fail = (message) => failures.push(message);
+function hasJwt(source) {
+  // A complete signed JWT has three base64url parts. Decode the JSON rather than
+  // flagging prose, placeholder examples or JavaScript member-expression names.
+  const shape = /\b(eyJ[0-9A-Za-z_-]{5,1021})\.([0-9A-Za-z_-]{10,65536})\.[0-9A-Za-z_-]{16,}/g;
+  return [...source.matchAll(shape)].some(([, head, claims]) => {
+    try {
+      const header = JSON.parse(Buffer.from(head, 'base64url').toString('utf8'));
+      const payload = JSON.parse(Buffer.from(claims, 'base64url').toString('utf8'));
+      return (
+        typeof header?.alg === 'string' &&
+        payload !== null &&
+        typeof payload === 'object' &&
+        !Array.isArray(payload)
+      );
+    } catch {
+      return false;
+    }
+  });
+}
 
 function walk(dir) {
   return readdirSync(dir).flatMap((name) => {
@@ -44,98 +57,170 @@ function walk(dir) {
   });
 }
 
-function checkIndexHtml(source) {
-  // Comments never execute; they are stripped so prose about the rule cannot trip it.
+/** Attribute values may themselves contain prose such as "style="; only real attributes count. */
+function attributes(source) {
+  return new Map(
+    [...source.matchAll(/([^\s=/'"<>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g)].map(
+      ([, name, quoted, single, bare]) => [name.toLowerCase(), quoted ?? single ?? bare ?? ''],
+    ),
+  );
+}
+
+function checkIndexHtml(source, label, fail) {
   const html = source.replace(/<!--[\s\S]*?-->/g, '');
-  const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
-  for (const [, attrs, body] of scripts) {
-    if (!/\bsrc\s*=/.test(attrs ?? '') || (body ?? '').trim() !== '') {
-      fail('dist/index.html contains an inline <script>');
+  // A quoted > is part of an attribute, not the end of a tag. Text/code samples use
+  // escaped markup, so they do not become executable tags during this scan.
+  for (const match of html.matchAll(/<([a-z][\w:-]*)\b((?:"[^"]*"|'[^']*'|[^'"<>])*)>/gi)) {
+    const [tag, name, raw] = match;
+    const attrs = attributes(raw);
+    if (name.toLowerCase() === 'script') {
+      const body = html.slice(match.index + tag.length).split(/<\/script\s*>/i)[0];
+      if (!attrs.has('src') || body.trim() !== '') fail(`${label} contains an inline <script>`);
+    }
+    if (name.toLowerCase() === 'style') fail(`${label} contains an inline <style>`);
+    if (attrs.has('style')) fail(`${label} contains a style= attribute`);
+    if ([...attrs.keys()].some((key) => /^on[a-z]+$/.test(key))) {
+      fail(`${label} contains an inline event handler`);
     }
   }
-  if (/<style\b/i.test(html)) fail('dist/index.html contains an inline <style>');
-  if (/\sstyle\s*=/i.test(html)) fail('dist/index.html contains a style= attribute');
-  if (/\son[a-z]+\s*=/i.test(html)) fail('dist/index.html contains an inline event handler');
 }
 
-function initialScripts(html) {
-  const entry = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/gi)].map((m) => m[1]);
-  const preloads = [...html.matchAll(/<link\b[^>]*rel="modulepreload"[^>]*href="([^"]+)"/gi)].map(
-    (m) => m[1],
-  );
-  return [...entry, ...preloads].map((href) => join(dist, href.replace(/^\//, '')));
+function initialScripts(html, dist) {
+  const paths = [];
+  for (const [, name, raw] of html.matchAll(/<(script|link)\b((?:"[^"]*"|'[^']*'|[^'"<>])*)>/gi)) {
+    const attrs = attributes(raw);
+    const href =
+      name.toLowerCase() === 'script'
+        ? attrs.get('src')
+        : attrs.get('rel') === 'modulepreload'
+          ? attrs.get('href')
+          : undefined;
+    if (href) paths.push(join(dist, href.replace(/^\//, '')));
+  }
+  return [...new Set(paths)];
 }
 
-function checkSecrets(files) {
+function checkSecrets(files, root, fail) {
   for (const file of files) {
     const buffer = readFileSync(file);
-    const isText = TEXT_EXTENSIONS.has(extname(file).toLowerCase());
-    const leaked = isText
-      ? buffer.toString('utf8').includes('AIza')
-      : GOOGLE_KEY_PATTERN.test(buffer.toString('latin1'));
-    if (leaked) fail(`${relative(appRoot, file)} contains "AIza" (a Google API key shape)`);
+    const source = buffer.toString(
+      TEXT_EXTENSIONS.has(extname(file).toLowerCase()) ? 'utf8' : 'latin1',
+    );
+    const namedKey = [...source.matchAll(SERVER_KEY_ASSIGNMENT)].some(
+      ([, value]) => !/^(YOUR_|EXAMPLE_|REPLACE_|PLACEHOLDER)/i.test(value),
+    );
+    if (KEY_SHAPES.some((shape) => shape.test(source)) || namedKey || hasJwt(source)) {
+      // Never include the matched credential in diagnostic output.
+      fail(`${relative(root, file)} contains a credential value`);
+    }
   }
 }
 
-function checkEngineSplit(html, files) {
-  const initial = initialScripts(html);
-  if (initial.length === 0) fail('dist/index.html loads no module script');
+function checkEngineSplit(html, files, dist, root, label, fail) {
+  const initial = initialScripts(html, dist);
+  if (initial.length === 0) fail(`${label} loads no module script`);
   let initialGzip = 0;
   for (const file of initial) {
     if (!existsSync(file)) {
-      fail(`dist/index.html references a missing file: ${relative(dist, file)}`);
+      fail(`${label} references a missing file: ${relative(dist, file)}`);
       continue;
     }
     const code = readFileSync(file);
     initialGzip += gzipSync(code).length;
     if (code.toString('utf8').includes(ENGINE_MARKER)) {
-      fail(`${relative(appRoot, file)} is loaded at startup but contains Cesium engine code`);
+      fail(`${relative(root, file)} is loaded at startup but contains Cesium engine code`);
     }
   }
   const lazyEngine = files.filter(
     (file) =>
       extname(file) === '.js' &&
       !initial.includes(file) &&
-      !file.includes(`${join(dist, 'cesium')}`) &&
+      !file.startsWith(`${join(dist, 'cesium')}${sep}`) &&
       readFileSync(file, 'utf8').includes(ENGINE_MARKER),
   );
   if (lazyEngine.length === 0) fail('No lazily loaded chunk contains the Cesium engine');
   if (initialGzip > INITIAL_JS_BUDGET_BYTES) {
-    fail(`Initial JS is ${(initialGzip / 1024).toFixed(1)} KiB gzip; the budget is 250 KiB`);
+    fail(
+      `${label} initial JS is ${(initialGzip / 1024).toFixed(1)} KiB gzip; the budget is 250 KiB`,
+    );
   }
   return { initialGzip, initialCount: initial.length, lazyEngine };
 }
 
-function checkCesiumStatic() {
+function checkDesktopCsp(path, fail) {
+  if (!existsSync(path)) {
+    fail('Desktop CSP configuration is missing');
+    return;
+  }
+  let csp;
+  try {
+    csp = JSON.parse(readFileSync(path, 'utf8')).app?.security?.csp;
+  } catch {
+    fail('Desktop CSP configuration is not valid JSON');
+    return;
+  }
+  if (!csp || typeof csp !== 'object' || Array.isArray(csp)) {
+    fail('Desktop CSP must be an explicit directive map');
+    return;
+  }
+  for (const value of Object.values(csp)) {
+    if (typeof value !== 'string' || value.split(/\s+/).includes("'unsafe-eval'")) {
+      fail('Desktop CSP contains unsafe-eval or an invalid directive');
+    }
+  }
+  const script = csp['script-src']?.split(/\s+/) ?? [];
+  if (
+    !script.includes("'self'") ||
+    script.some((value) => !["'self'", "'wasm-unsafe-eval'"].includes(value))
+  ) {
+    fail('Desktop script-src must allow only self and the explicit WASM exception');
+  }
+}
+
+/** Pure result for a supplied build tree; negative fixtures exercise the same checks as postbuild. */
+export function checkDist({
+  dist = join(appRoot, 'dist'),
+  root = appRoot,
+  desktopConfig = resolve(appRoot, '../desktop/src-tauri/tauri.conf.json'),
+} = {}) {
+  const failures = [];
+  const fail = (message) => failures.push(message);
+  const indexPath = join(dist, 'index.html');
+  if (!existsSync(indexPath))
+    return { failures: ['dist/index.html does not exist; run the build first'] };
+  const html = readFileSync(indexPath, 'utf8');
+  const files = walk(dist);
+  checkIndexHtml(html, 'dist/index.html', fail);
+  const docsPath = join(dist, 'docs/index.html');
+  let docsSplit;
+  if (!existsSync(docsPath)) fail('dist/docs/index.html is missing');
+  else {
+    const docsHtml = readFileSync(docsPath, 'utf8');
+    checkIndexHtml(docsHtml, 'dist/docs/index.html', fail);
+    docsSplit = checkEngineSplit(docsHtml, files, dist, root, 'Documentation', fail);
+  }
+  checkSecrets(files, root, fail);
+  checkDesktopCsp(desktopConfig, fail);
+  const split = checkEngineSplit(html, files, dist, root, 'Workspace', fail);
   for (const dir of ['Workers', 'ThirdParty', 'Assets']) {
     const path = join(dist, 'cesium', dir);
     if (!existsSync(path) || readdirSync(path).length === 0) fail(`dist/cesium/${dir} is missing`);
   }
+  return { failures, files, split, docsSplit };
 }
 
 function main() {
-  const indexPath = join(dist, 'index.html');
-  if (!existsSync(indexPath)) {
-    console.error('check-dist: dist/index.html does not exist; run the build first');
-    process.exit(1);
+  const result = checkDist();
+  if (result.failures.length > 0) {
+    console.error(`check-dist: ${result.failures.length} problem(s)`);
+    for (const message of result.failures) console.error(`  ✗ ${message}`);
+    process.exitCode = 1;
+    return;
   }
-  const html = readFileSync(indexPath, 'utf8');
-  const files = walk(dist);
-
-  checkIndexHtml(html);
-  checkSecrets(files);
-  const split = checkEngineSplit(html, files);
-  checkCesiumStatic();
-
-  if (failures.length > 0) {
-    console.error(`check-dist: ${failures.length} problem(s)`);
-    for (const message of failures) console.error(`  ✗ ${message}`);
-    process.exit(1);
-  }
-  const engine = split.lazyEngine.map((f) => relative(dist, f)).join(', ');
+  const engine = result.split.lazyEngine.map((f) => relative(join(appRoot, 'dist'), f)).join(', ');
   console.log(
-    `check-dist: ok — ${files.length} files; initial JS ${(split.initialGzip / 1024).toFixed(1)} KiB gzip in ${split.initialCount} file(s); engine chunk ${engine}`,
+    `check-dist: ok — ${result.files.length} files; workspace JS ${(result.split.initialGzip / 1024).toFixed(1)} KiB gzip; docs JS ${(result.docsSplit.initialGzip / 1024).toFixed(1)} KiB gzip; engine chunk ${engine}`,
   );
 }
 
-main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

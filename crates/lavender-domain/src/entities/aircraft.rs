@@ -1,3 +1,5 @@
+//! Validated aircraft records shared by providers, transports and the frontend.
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 

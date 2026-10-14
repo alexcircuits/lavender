@@ -1,0 +1,69 @@
+.stack,
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.stack p,
+.stack h3 {
+  margin: 0;
+}
+.stack h3 {
+  font: var(--type-title-sm);
+  font-weight: 600;
+}
+.help {
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.coordinates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.editor {
+  padding-block: 12px;
+  border-block: 1px solid var(--hairline);
+}
+.textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 80px;
+  max-height: 240px;
+  padding: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: var(--well);
+  color: var(--ink);
+  font: 12px var(--font-mono);
+}
+.error {
+  color: var(--warning);
+}
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.mark {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-block: 12px;
+  border-top: 1px solid var(--hairline);
+  overflow-wrap: anywhere;
+}
+.note {
+  white-space: pre-wrap;
+}
+.vertices {
+  padding-left: 24px;
+  font-size: 12px;
+}

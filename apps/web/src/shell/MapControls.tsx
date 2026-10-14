@@ -1,6 +1,7 @@
 import type { ImageryDescriptor } from '../contracts';
 import {
   CompassIcon,
+  CopyIcon,
   HouseIcon,
   type Icon,
   IconButton,
@@ -71,6 +72,15 @@ export function MapControls() {
           />
         );
       })}
+      <IconButton
+        label="Copy view link"
+        icon={CopyIcon}
+        tooltipSide="left"
+        disabled={disabled || catalog === null}
+        onClick={() => {
+          void ctx.runtime.copyViewLink();
+        }}
+      />
       <Menu>
         <MenuTrigger
           disabled={disabled || imagery.length === 0}

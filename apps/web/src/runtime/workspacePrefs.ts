@@ -4,6 +4,7 @@
  * app into a state the catalog cannot back, so everything read is validated against it.
  */
 import type { Catalog, FeedFilters, FeedId } from '../contracts';
+import { type MapAnnotation, validateAnnotations } from '../features/annotations/model';
 import type { LayerState } from '../state/stores';
 
 export const WORKSPACE_PREF_KEY = 'workspace';
@@ -13,6 +14,7 @@ export interface PersistedWorkspace {
   readonly version: typeof VERSION;
   readonly layers: Partial<Record<FeedId, LayerState>>;
   readonly imageryId: string | null;
+  readonly annotations: readonly MapAnnotation[];
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -46,7 +48,7 @@ export function defaultWorkspace(catalog: Catalog): PersistedWorkspace {
   for (const layer of catalog.layers) {
     if (layer.defaultOn) layers[layer.feed] = { enabled: true, filters: {} };
   }
-  return { version: VERSION, layers, imageryId: null };
+  return { version: VERSION, layers, imageryId: null, annotations: [] };
 }
 
 /** Reads a persisted workspace, keeping only what the current catalog can back. */
@@ -63,12 +65,19 @@ export function readWorkspace(value: unknown, catalog: Catalog): PersistedWorksp
     typeof value.imageryId === 'string' && catalog.imagery.some((i) => i.id === value.imageryId)
       ? value.imageryId
       : null;
-  return { version: VERSION, layers, imageryId };
+  let annotations: readonly MapAnnotation[] = [];
+  try {
+    annotations = validateAnnotations(value.annotations ?? []);
+  } catch {
+    /* Corrupt marks never reach the map. */
+  }
+  return { version: VERSION, layers, imageryId, annotations };
 }
 
 export function toPersisted(
   layers: Partial<Record<FeedId, LayerState>>,
   imageryId: string | null,
+  annotations: readonly MapAnnotation[] = [],
 ): PersistedWorkspace {
-  return { version: VERSION, layers, imageryId };
+  return { version: VERSION, layers, imageryId, annotations };
 }

@@ -47,7 +47,7 @@ struct Collection {
     features: Vec<serde_json::Value>,
 }
 
-// Every field is lenient: a wrong type reads as missing, and `normalise` drops the feature
+// Every field is lenient: a wrong type reads as missing, and `normalize_earthquake` drops the feature
 // only when a required field (id, magnitude, time, coordinates) is missing.
 #[derive(Debug, Deserialize)]
 struct Feature {
@@ -104,7 +104,7 @@ fn small_count(v: Option<f64>) -> Option<u32> {
 }
 
 /// Converts one GeoJSON feature; `None` when a required field is missing or invalid.
-fn normalise(f: Feature) -> Option<Earthquake> {
+fn normalize_earthquake(f: Feature) -> Option<Earthquake> {
     let id = clean(f.id.as_deref()?, 64);
     if id.is_empty() {
         return None;
@@ -146,7 +146,8 @@ pub fn parse(body: &[u8]) -> Result<(Vec<Earthquake>, usize), ProviderError> {
         serde_json::from_slice(body).map_err(|e| ProviderError::parse("USGS", &e))?;
     let total = collection.features.len();
     let (features, _) = parse_rows::<Feature>(collection.features);
-    let mut quakes: Vec<Earthquake> = features.into_iter().filter_map(normalise).collect();
+    let mut quakes: Vec<Earthquake> =
+        features.into_iter().filter_map(normalize_earthquake).collect();
     quakes.sort_by_key(|q| std::cmp::Reverse(q.time));
     let dropped = total - quakes.len();
     Ok((quakes, dropped))

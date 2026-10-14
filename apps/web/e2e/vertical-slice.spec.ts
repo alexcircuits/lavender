@@ -21,7 +21,7 @@ test('turn on aircraft, find a callsign, inspect it, and go to coordinates', asy
   const search = page.getByRole('combobox', { name: 'Search places, coordinates and callsigns' });
   await search.click();
   await search.fill('FIN7KV');
-  const hit = page.getByRole('option', { name: /FIN7KV/ });
+  const hit = page.getByRole('option', { name: /^FIN7KV / });
   await expect(hit).toBeVisible();
   await search.press('Enter');
   const inspector = page.getByRole('region', { name: 'FIN7KV' });
@@ -29,6 +29,11 @@ test('turn on aircraft, find a callsign, inspect it, and go to coordinates', asy
   await expect(inspector).toContainText('OH-LWA');
   await expect(inspector).toContainText('35VLG');
   await expect(inspector).toContainText('adsb.lol');
+
+  // History is captured by the same shared Rust refresh.
+  await inspector.getByRole('button', { name: 'Load recent history' }).click();
+  await expect(inspector.getByRole('table', { name: 'Aircraft history' })).toBeVisible();
+  await expect(inspector).toContainText('retained observations · adsb.lol');
 
   // Escape clears the selection (from the inspector; in the search field it belongs to search).
   await inspector.getByRole('button', { name: 'Fly to' }).focus();

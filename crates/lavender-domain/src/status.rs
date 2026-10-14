@@ -1,3 +1,5 @@
+//! Provider health and feed usage reported by the core to operators and the interface.
+
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

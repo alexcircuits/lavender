@@ -1,3 +1,5 @@
+//! Source licensing, attribution and privacy metadata displayed in the Sources panel.
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 

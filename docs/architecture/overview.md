@@ -1,5 +1,8 @@
 # Lavender — architecture specification
 
+> This is the detailed target specification, including not-yet-implemented components. Read [the current architecture guide](../development/architecture.md) and [migration status](../development/rust-rewrite.md) first. Desktop currently uses session-only secrets; keychain storage and many providers remain planned.
+
+
 - Status: v1, 2026-10-11
 - Decisions: `docs/adr/0001`–`0008`
 - Related: `rust-migration.md`, `frontend.md`, `tauri.md`, `security.md`, `../performance/specification.md`

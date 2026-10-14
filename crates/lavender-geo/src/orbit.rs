@@ -7,7 +7,7 @@
 //! pass prediction at map scale).
 
 use jiff::{SignedDuration, Timestamp};
-use lavender_domain::{GeoPoint, SatelliteElements, TrackPoint};
+use lavender_domain::{GeoPoint, SatelliteElements, SatellitePass, TrackPoint};
 use sgp4::{Constants, MinutesSinceEpoch, Orbit, WGS84, iau_epoch_to_sidereal_time};
 
 /// J2000.0 (2000-01-01T12:00:00Z) as Unix seconds.
@@ -16,8 +16,24 @@ const SECONDS_PER_JULIAN_YEAR: f64 = 365.25 * 86_400.0;
 const WGS84_A_KM: f64 = 6_378.137;
 const WGS84_F: f64 = 1.0 / 298.257_223_563;
 
+mod passes;
+pub use passes::{MAX_PASS_COARSE_SAMPLES, MAX_PASS_REFINEMENT_SAMPLES, MAX_SATELLITE_PASSES};
+
+/// Geometric look angles in the observer's WGS84 local east/north/up frame.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LookAngles {
+    pub elevation_deg: f64,
+    /// Clockwise from true north, in [0, 360).
+    pub azimuth_deg: f64,
+    pub range_km: f64,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum OrbitError {
+    #[error("invalid orbit request: {0}")]
+    InvalidRequest(String),
+    #[error("orbit calculation limit: {0}")]
+    Limit(String),
     #[error("orbital elements are invalid: {0}")]
     Elements(String),
     #[error("propagation failed: {0}")]
@@ -91,11 +107,46 @@ impl Propagator {
     /// # Errors
     /// Returns an error when propagation fails.
     pub fn position(&self, t: Timestamp) -> Result<GeoPoint, OrbitError> {
+        Ok(ecef_to_geodetic(self.ecef_km(t)?))
+    }
+
+    /// Geometric observer elevation/azimuth/range; altitude is metres above WGS84.
+    ///
+    /// # Errors
+    /// Rejects invalid observers and propagation failures. No refraction is applied.
+    pub fn look_angles(&self, observer: GeoPoint, at: Timestamp) -> Result<LookAngles, OrbitError> {
+        passes::ObserverFrame::new(observer)?.look(self.ecef_km(at)?)
+    }
+
+    /// Predicts geometric passes in a 1–24 hour window at a 0–89 degree threshold.
+    ///
+    /// Scans every 10 seconds (at most 8,641 points), then refines crossings to 0.1 s and
+    /// peaks to a 0.05 s bracket. Narrow passes can be found by refining local maxima
+    /// even when neither adjacent coarse sample reaches the threshold. At most 3,200
+    /// additional samples and 64 returned passes are allowed. Rise/set are clipped to
+    /// the requested window and flagged; peak is the maximum within that window.
+    ///
+    /// # Errors
+    /// Rejects invalid parameters, excessive work/output and any propagation failure;
+    /// failures are never interpreted as below-horizon observations.
+    pub fn passes(
+        &self,
+        observer: GeoPoint,
+        from: Timestamp,
+        hours: u32,
+        min_elevation_deg: f64,
+    ) -> Result<Vec<SatellitePass>, OrbitError> {
+        let frame = passes::ObserverFrame::new(observer)?;
+        passes::predict(from, hours, min_elevation_deg, |at| {
+            frame.look(self.ecef_km(at)?).map(|look| look.elevation_deg)
+        })
+    }
+
+    fn ecef_km(&self, t: Timestamp) -> Result<[f64; 3], OrbitError> {
         let [tx, ty, tz] = self.teme_km(t)?;
         let gmst = iau_epoch_to_sidereal_time(years_since_j2000(t));
         let (s, c) = gmst.sin_cos();
-        let ecef = [c * tx + s * ty, -s * tx + c * ty, tz];
-        Ok(ecef_to_geodetic(ecef))
+        Ok([c * tx + s * ty, -s * tx + c * ty, tz])
     }
 
     /// Positions from `from` for `minutes`, every `step_s` seconds. Points where SGP4

@@ -9,24 +9,27 @@
 //! old cache is reported as old (and as degraded when a refresh failed), never as live.
 //! Licence status is `Unknown` (ENG-938).
 
+mod cache;
+mod parsing;
+use cache::{load_cached_group, save_cached_group};
+pub use parsing::parse;
+
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Mutex, PoisonError};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use jiff::Timestamp;
-use jiff::civil::DateTime;
-use jiff::tz::TimeZone;
-use lavender_domain::text::{clean, clean_opt};
+use lavender_domain::text::clean;
 use lavender_domain::{FeedId, FeedItems, ProviderScope, SatelliteElements};
-use serde::Deserialize;
 use url::Url;
 
-use super::{FeedProvider, FetchContext, Fetched, ProviderError, Region, lenient, parse_rows};
+use super::{FeedProvider, FetchContext, Fetched, ProviderError, Region};
 use crate::config::CelestrakConfig;
-use crate::fetch::{FetchError, FetchOptions, HostPolicy};
+use crate::fetch::{CacheValidators, FetchError, FetchOptions, FetchResponse, HostPolicy};
 use crate::sources;
 
 const MAX_BODY: usize = 20 * 1024 * 1024;
@@ -41,12 +44,15 @@ struct Attempt {
     succeeded: bool,
 }
 
-/// A group's elements and when they were downloaded.
+/// A group's validated representation and its separate download/revalidation times.
 #[derive(Debug, Clone)]
 struct GroupData {
     elements: Vec<SatelliteElements>,
     dropped: usize,
-    as_of: Timestamp,
+    body: Bytes,
+    downloaded_at: Timestamp,
+    validated_at: Timestamp,
+    validators: Option<CacheValidators>,
 }
 
 #[derive(Debug)]
@@ -80,12 +86,23 @@ impl CelestrakProvider {
     }
 
     fn group_url(&self, group: &str) -> Result<Url, ProviderError> {
+        if group.is_empty()
+            || group.len() > 64
+            || !group.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        {
+            return Err(ProviderError::Unconfigured("CelesTrak group name is invalid.".into()));
+        }
         let mut url = self
             .config
             .base_url
             .join("gp.php")
             .map_err(|e| ProviderError::Unconfigured(format!("CelesTrak URL: {e}")))?;
         url.query_pairs_mut().append_pair("GROUP", group).append_pair("FORMAT", "json");
+        if !url.username().is_empty() || url.password().is_some() {
+            return Err(ProviderError::Unconfigured(
+                "CelesTrak URLs must not contain credentials.".into(),
+            ));
+        }
         Ok(url)
     }
 
@@ -126,49 +143,49 @@ impl CelestrakProvider {
     }
 
     /// The newest copy of `group` held in memory or on disk, whatever its age.
-    async fn cached(&self, dir: Option<&Path>, group: &str) -> Option<GroupData> {
+    async fn cached(&self, dir: Option<&Path>, group: &str, url: &Url) -> Option<GroupData> {
         let in_memory = {
             let memory = self.memory.lock().unwrap_or_else(PoisonError::into_inner);
             memory.get(group).cloned()
         };
-        let on_disk = read_cache(dir, group).await;
+        let on_disk = load_cached_group(dir, group, url).await;
         match (in_memory, on_disk) {
-            (Some(m), Some(d)) => Some(if d.as_of > m.as_of { d } else { m }),
+            (Some(m), Some(d)) => Some(if d.validated_at > m.validated_at { d } else { m }),
             (m, d) => m.or(d),
         }
     }
 
     async fn load_group(&self, ctx: &FetchContext<'_>, group: &str) -> GroupOutcome {
-        let cached = self.cached(ctx.cache_dir, group).await;
+        let url = match self.group_url(group) {
+            Ok(url) => url,
+            Err(error) => return GroupOutcome::Missing(error.public_message()),
+        };
+        let cached = self.cached(ctx.cache_dir, group, &url).await;
         let now = Timestamp::now();
         if let Some(data) = &cached
-            && age(now, data.as_of) <= self.cadence_duration()
+            && age(now, data.validated_at) <= self.cadence_duration()
         {
             return GroupOutcome::Fresh(data.clone());
         }
         if let Some(wait) = self.throttled_for(group) {
-            let reason = format!("next request allowed in {}", human(wait));
+            let reason = format!("next request allowed in {}", format_duration(wait));
             return stale_or_missing(cached, reason);
         }
-        let url = match self.group_url(group) {
-            Ok(url) => url,
-            Err(e) => return stale_or_missing(cached, e.public_message()),
-        };
         // One request per group per attempt: the throttle above, not fetcher retries,
         // decides when CelesTrak is asked again.
         let opts = FetchOptions {
             max_body_bytes: Some(MAX_BODY),
             cancel: Some(ctx.cancel.clone()),
             retries: Some(0),
+            conditional: cached.as_ref().and_then(|data| data.validators.clone()),
             ..FetchOptions::default()
         };
         let previous = self.record_attempt(group, false);
         let reason = match ctx.fetcher.get(&url, &self.policy, &opts).await {
-            Ok(response) => match parse(&response.body, group) {
-                Ok((elements, dropped)) => {
+            Ok(response) => match refreshed_group(response, cached.as_ref(), group) {
+                Ok(data) => {
                     self.record_attempt(group, true);
-                    store(ctx.cache_dir, group, &response.body).await;
-                    let data = GroupData { elements, dropped, as_of: Timestamp::now() };
+                    save_cached_group(ctx.cache_dir, group, &url, &data).await;
                     self.remember(group, &data);
                     return GroupOutcome::Fresh(data);
                 }
@@ -185,6 +202,41 @@ impl CelestrakProvider {
     }
 }
 
+/// A 304 validates the existing bytes; it never feeds an empty response into OMM parsing.
+fn refreshed_group(
+    response: FetchResponse,
+    cached: Option<&GroupData>,
+    group: &str,
+) -> Result<GroupData, ProviderError> {
+    let now = Timestamp::now();
+    if response.status == 304 {
+        let mut data = cached.cloned().ok_or_else(|| {
+            ProviderError::Unavailable(
+                "CelesTrak returned 304 without a cached representation.".into(),
+            )
+        })?;
+        let new = response.validators.as_ref();
+        let old = data.validators.as_ref();
+        data.validators = CacheValidators::new(
+            new.and_then(CacheValidators::etag).or_else(|| old.and_then(CacheValidators::etag)),
+            new.and_then(CacheValidators::last_modified)
+                .or_else(|| old.and_then(CacheValidators::last_modified)),
+        )
+        .ok();
+        data.validated_at = now;
+        return Ok(data);
+    }
+    let (elements, dropped) = parse(&response.body, group)?;
+    Ok(GroupData {
+        elements,
+        dropped,
+        body: response.body,
+        downloaded_at: now,
+        validated_at: now,
+        validators: response.validators,
+    })
+}
+
 fn stale_or_missing(cached: Option<GroupData>, reason: String) -> GroupOutcome {
     match cached {
         Some(data) => GroupOutcome::Stale(data, reason),
@@ -198,132 +250,13 @@ fn age(now: Timestamp, then: Timestamp) -> Duration {
 }
 
 /// A rough, readable duration: "45 s", "12 min", "5 h", "3 days".
-fn human(d: Duration) -> String {
+fn format_duration(d: Duration) -> String {
     let s = d.as_secs();
     match s {
         0..120 => format!("{s} s"),
         120..7_200 => format!("{} min", s / 60),
         7_200..172_800 => format!("{} h", s / 3_600),
         _ => format!("{} days", s / 86_400),
-    }
-}
-
-// Every field is lenient: a wrong type reads as missing, and `normalise` drops the element
-// set when a required field is missing (for example `"BSTAR": null`).
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-struct Omm {
-    #[serde(default, deserialize_with = "lenient")]
-    object_name: Option<String>,
-    #[serde(default, deserialize_with = "lenient")]
-    object_id: Option<String>,
-    #[serde(default, deserialize_with = "lenient")]
-    epoch: Option<String>,
-    #[serde(default, deserialize_with = "lenient")]
-    mean_motion: Option<f64>,
-    #[serde(default, deserialize_with = "lenient")]
-    eccentricity: Option<f64>,
-    #[serde(default, deserialize_with = "lenient")]
-    inclination: Option<f64>,
-    #[serde(default, deserialize_with = "lenient")]
-    ra_of_asc_node: Option<f64>,
-    #[serde(default, deserialize_with = "lenient")]
-    arg_of_pericenter: Option<f64>,
-    #[serde(default, deserialize_with = "lenient")]
-    mean_anomaly: Option<f64>,
-    #[serde(default, deserialize_with = "lenient")]
-    classification_type: Option<String>,
-    #[serde(default, deserialize_with = "lenient")]
-    norad_cat_id: Option<u32>,
-    #[serde(default, deserialize_with = "lenient")]
-    rev_at_epoch: Option<u32>,
-    #[serde(default, deserialize_with = "lenient")]
-    bstar: Option<f64>,
-    #[serde(default, deserialize_with = "lenient")]
-    mean_motion_dot: Option<f64>,
-    #[serde(default, deserialize_with = "lenient")]
-    mean_motion_ddot: Option<f64>,
-}
-
-fn parse_epoch(s: &str) -> Option<Timestamp> {
-    if let Ok(ts) = s.parse::<Timestamp>() {
-        return Some(ts);
-    }
-    s.parse::<DateTime>().ok()?.to_zoned(TimeZone::UTC).ok().map(|z| z.timestamp())
-}
-
-fn normalise(o: &Omm, group: &str) -> Option<SatelliteElements> {
-    let finite = |v: Option<f64>| v.filter(|x| x.is_finite());
-    let mean_motion = finite(o.mean_motion).filter(|m| *m > 0.0)?;
-    let eccentricity = finite(o.eccentricity).filter(|e| (0.0..1.0).contains(e))?;
-    let inclination = finite(o.inclination).filter(|i| (0.0..=180.0).contains(i))?;
-    let norad_id = o.norad_cat_id.filter(|n| *n != 0)?;
-    Some(SatelliteElements {
-        norad_id,
-        name: clean(o.object_name.as_deref().unwrap_or("Unnamed object"), 48),
-        intl_designator: clean_opt(o.object_id.as_deref(), 16),
-        group: group.to_owned(),
-        epoch: parse_epoch(o.epoch.as_deref()?)?,
-        mean_motion,
-        eccentricity,
-        inclination_deg: inclination,
-        raan_deg: finite(o.ra_of_asc_node)?,
-        arg_of_pericenter_deg: finite(o.arg_of_pericenter)?,
-        mean_anomaly_deg: finite(o.mean_anomaly)?,
-        bstar: finite(o.bstar)?,
-        mean_motion_dot: finite(o.mean_motion_dot)?,
-        mean_motion_ddot: finite(o.mean_motion_ddot)?,
-        rev_at_epoch: o.rev_at_epoch,
-        classification: clean_opt(o.classification_type.as_deref(), 1),
-    })
-}
-
-/// Parses one group's OMM JSON array. Invalid element sets are skipped; returns the valid
-/// ones and how many were skipped.
-///
-/// # Errors
-/// Returns an error when the document is not a JSON array (CelesTrak answers plain text
-/// for unknown groups and rate-limit refusals).
-pub fn parse(body: &[u8], group: &str) -> Result<(Vec<SatelliteElements>, usize), ProviderError> {
-    let rows: Vec<serde_json::Value> =
-        serde_json::from_slice(body).map_err(|e| ProviderError::parse("CelesTrak", &e))?;
-    let total = rows.len();
-    let (records, _) = parse_rows::<Omm>(rows);
-    let elements: Vec<SatelliteElements> =
-        records.iter().filter_map(|o| normalise(o, group)).collect();
-    let dropped = total - elements.len();
-    Ok((elements, dropped))
-}
-
-fn cache_path(dir: &Path, group: &str) -> PathBuf {
-    dir.join("celestrak").join(format!("{group}.json"))
-}
-
-/// The cached document for `group` with its modification time as its age.
-async fn read_cache(dir: Option<&Path>, group: &str) -> Option<GroupData> {
-    let path = cache_path(dir?, group);
-    let meta = tokio::fs::metadata(&path).await.ok()?;
-    let modified = meta.modified().ok().unwrap_or(SystemTime::UNIX_EPOCH);
-    let as_of = Timestamp::try_from(modified).unwrap_or(Timestamp::UNIX_EPOCH);
-    let body = tokio::fs::read(&path).await.ok()?;
-    let (elements, dropped) = parse(&body, group).ok()?;
-    Some(GroupData { elements, dropped, as_of })
-}
-
-async fn store(dir: Option<&Path>, group: &str, body: &[u8]) {
-    let Some(dir) = dir else { return };
-    let path = cache_path(dir, group);
-    let tmp = path.with_extension("json.tmp");
-    let result = async {
-        if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
-        tokio::fs::write(&tmp, body).await?;
-        tokio::fs::rename(&tmp, &path).await
-    }
-    .await;
-    if let Err(e) = result {
-        tracing::warn!(group, error = %e, "could not cache CelesTrak group");
     }
 }
 
@@ -335,7 +268,7 @@ fn degraded_reason(problems: &[(String, String)], oldest_stale: Option<Duration>
     let mut reason =
         format!("CelesTrak {noun} {} could not be refreshed ({first}).", names.join(", "));
     if let Some(age) = oldest_stale {
-        let _ = write!(reason, " Showing elements downloaded {} ago.", human(age));
+        let _ = write!(reason, " Showing elements last validated {} ago.", format_duration(age));
     }
     reason
 }
@@ -378,7 +311,7 @@ impl FeedProvider for CelestrakProvider {
                 GroupOutcome::Fresh(data) => data,
                 GroupOutcome::Stale(data, reason) => {
                     problems.push((group.clone(), reason));
-                    let stale_for = age(now, data.as_of);
+                    let stale_for = age(now, data.validated_at);
                     oldest_stale = Some(oldest_stale.map_or(stale_for, |o| o.max(stale_for)));
                     data
                 }
@@ -387,7 +320,7 @@ impl FeedProvider for CelestrakProvider {
                     continue;
                 }
             };
-            as_of = Some(as_of.map_or(data.as_of, |t| t.min(data.as_of)));
+            as_of = Some(as_of.map_or(data.validated_at, |t| t.min(data.validated_at)));
             dropped += data.dropped;
             all.extend(data.elements.into_iter().filter(|e| seen.insert(e.norad_id)));
         }
@@ -404,73 +337,4 @@ impl FeedProvider for CelestrakProvider {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const SAMPLE: &str = r#"[
-      {"OBJECT_NAME":"TEST STATION","OBJECT_ID":"1998-067A","EPOCH":"2026-10-10T12:00:00.000000","MEAN_MOTION":15.5,"ECCENTRICITY":0.0007,"INCLINATION":51.64,"RA_OF_ASC_NODE":247.46,"ARG_OF_PERICENTER":130.53,"MEAN_ANOMALY":325.03,"EPHEMERIS_TYPE":0,"CLASSIFICATION_TYPE":"U","NORAD_CAT_ID":25544,"ELEMENT_SET_NO":999,"REV_AT_EPOCH":44393,"BSTAR":0.0003,"MEAN_MOTION_DOT":0.00016,"MEAN_MOTION_DDOT":0},
-      {"OBJECT_NAME":"BROKEN","EPOCH":"2026-10-10T12:00:00","MEAN_MOTION":-1,"ECCENTRICITY":0.1,"INCLINATION":10,"RA_OF_ASC_NODE":0,"ARG_OF_PERICENTER":0,"MEAN_ANOMALY":0,"NORAD_CAT_ID":2,"BSTAR":0,"MEAN_MOTION_DOT":0,"MEAN_MOTION_DDOT":0}
-    ]"#;
-
-    #[test]
-    fn parses_omm_and_drops_invalid_sets() {
-        let (sats, dropped) = parse(SAMPLE.as_bytes(), "stations").unwrap();
-        assert_eq!((sats.len(), dropped), (1, 1));
-        let s = &sats[0];
-        assert_eq!(s.norad_id, 25544);
-        assert_eq!(s.group, "stations");
-        assert_eq!(s.epoch.to_string(), "2026-10-10T12:00:00Z");
-        lavender_geo::Propagator::new(s).unwrap();
-    }
-
-    #[test]
-    fn refuses_plain_text_answers() {
-        assert!(parse(b"Invalid query: GROUP", "x").is_err());
-    }
-
-    #[test]
-    fn a_null_field_drops_only_its_element_set() {
-        // Review finding 10: `"BSTAR": null` used to reject the whole group.
-        let body = SAMPLE.replacen(
-            r"[
-      {",
-            r#"[
-      {"OBJECT_NAME":"NO DRAG","EPOCH":"2026-10-10T12:00:00","MEAN_MOTION":15.0,"ECCENTRICITY":0.001,"INCLINATION":50,"RA_OF_ASC_NODE":0,"ARG_OF_PERICENTER":0,"MEAN_ANOMALY":0,"NORAD_CAT_ID":3,"BSTAR":null,"MEAN_MOTION_DOT":0,"MEAN_MOTION_DDOT":0},
-      "garbage",
-      {"#,
-            1,
-        );
-        let (sats, dropped) = parse(body.as_bytes(), "stations").unwrap();
-        assert_eq!(sats.iter().map(|s| s.norad_id).collect::<Vec<_>>(), vec![25544]);
-        assert_eq!(dropped, 3);
-    }
-
-    #[test]
-    fn builds_group_urls() {
-        let p = CelestrakProvider::new(CelestrakConfig::default());
-        assert_eq!(
-            p.group_url("gps-ops").unwrap().as_str(),
-            "https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=json"
-        );
-    }
-
-    #[test]
-    fn failed_groups_wait_a_twelfth_of_the_cadence_and_downloads_a_full_cadence() {
-        let p = CelestrakProvider::new(CelestrakConfig::default());
-        assert_eq!(p.retry_floor(), Duration::from_secs(600));
-        assert!(p.throttled_for("stations").is_none());
-        p.record_attempt("stations", false);
-        let wait = p.throttled_for("stations").unwrap();
-        assert!(wait > Duration::from_secs(590) && wait <= Duration::from_secs(600), "{wait:?}");
-        p.record_attempt("stations", true);
-        assert!(p.throttled_for("stations").unwrap() > Duration::from_secs(7_000));
-    }
-
-    #[test]
-    fn readable_ages() {
-        assert_eq!(human(Duration::from_secs(45)), "45 s");
-        assert_eq!(human(Duration::from_secs(600)), "10 min");
-        assert_eq!(human(Duration::from_hours(5)), "5 h");
-        assert_eq!(human(Duration::from_hours(72)), "3 days");
-    }
-}
+mod tests;

@@ -62,6 +62,71 @@ const selected = (dialog: HTMLElement) =>
     .find((o) => o.getAttribute('aria-selected') === 'true');
 
 describe('Command palette', () => {
+  it('retries a failed explicit place search without editing the query', async () => {
+    const { user, ...h } = await setup();
+    let attempts = 0;
+    h.platform.search.mockImplementation(async (query) => {
+      h.platform.searches.push(query);
+      if (!query.places) return { coordinates: [], places: [], entities: [], notices: [] };
+      attempts += 1;
+      if (attempts === 1) throw new Error('temporarily unavailable');
+      return {
+        coordinates: [],
+        places: [{ name: 'Helsinki', position: { lat: 60.17, lon: 24.94 }, sourceId: 'geonames' }],
+        entities: [],
+        notices: [],
+      };
+    });
+    const dialog = await openPalette(user);
+    await user.type(within(dialog).getByRole('combobox'), 'Helsinki');
+    await user.click(within(dialog).getByRole('option', { name: /Search places for/ }));
+    const retry = await within(dialog).findByRole('option', { name: /Search places again for/ });
+    await user.click(retry);
+    expect(await within(dialog).findByRole('option', { name: /Helsinki/ })).toBeVisible();
+    expect(attempts).toBe(2);
+  });
+
+  it('ignores an old submitted place response after the text changes', async () => {
+    const { user, ...h } = await setup();
+    let finish: ((result: SearchResults) => void) | undefined;
+    let oldSignal: AbortSignal | undefined;
+    h.platform.search.mockImplementation(async (query, options) => {
+      if (query.places) {
+        oldSignal = options?.signal;
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      }
+      return { coordinates: [], places: [], entities: [], notices: [] };
+    });
+    const dialog = await openPalette(user);
+    const input = within(dialog).getByRole('combobox');
+    await user.type(input, 'Helsinki');
+    await user.click(within(dialog).getByRole('option', { name: /Search places for/ }));
+    await waitFor(() => expect(finish).toBeDefined());
+    await user.clear(input);
+    await user.type(input, 'Berlin');
+    expect(oldSignal?.aborted).toBe(true);
+    act(() =>
+      finish?.({
+        coordinates: [],
+        places: [
+          {
+            name: 'Old Helsinki result',
+            position: { lat: 60.17, lon: 24.94 },
+            sourceId: 'geonames',
+          },
+        ],
+        entities: [],
+        notices: [],
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        within(dialog).queryByRole('option', { name: /Old Helsinki result/ }),
+      ).not.toBeInTheDocument(),
+    );
+  });
   it('opens with ⌘K, flies to typed coordinates on Enter, and returns focus', async () => {
     const { user, ...h } = await setup();
     const before = screen.getByRole('button', { name: 'Before' });
@@ -146,7 +211,7 @@ describe('Command palette', () => {
     );
   });
 
-  it('shows places, live entities and notices from the server, debounced', async () => {
+  it('submits place lookup explicitly while live-entity search remains debounced', async () => {
     const { user, ...h } = await setup();
     const results: SearchResults = {
       coordinates: [],
@@ -172,10 +237,19 @@ describe('Command palette', () => {
       notices: ['Place search is limited to 8 results.'],
     };
     h.platform.searchResult = results;
+    h.platform.search.mockImplementation(async (query) => {
+      h.platform.searches.push(query);
+      return query.places ? results : { ...results, places: [], notices: [] };
+    });
     const dialog = await openPalette(user);
     await user.type(within(dialog).getByRole('combobox'), 'hel');
+    await waitFor(() => expect(h.platform.search).toHaveBeenCalledTimes(1));
+    expect(h.platform.searches[0]?.places).toBe(false);
+    expect(within(dialog).queryByRole('option', { name: /Helsinki/ })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('option', { name: /Search places for/ }));
     expect(await within(dialog).findByRole('option', { name: /Helsinki/ })).toBeVisible();
-    expect(h.platform.search).toHaveBeenCalledTimes(1);
+    expect(h.platform.search).toHaveBeenCalledTimes(2);
+    expect(h.platform.searches[1]?.places).toBe(true);
     expect(h.platform.searches[0]?.q).toBe('hel');
     expect(within(dialog).getByText('© GeoNames, CC BY 4.0')).toBeInTheDocument();
     expect(within(dialog).getByText('Place search is limited to 8 results.')).toBeInTheDocument();
@@ -238,6 +312,7 @@ describe('Command palette', () => {
     const { user } = await setup();
     const dialog = await openPalette(user);
     await user.type(within(dialog).getByRole('combobox'), 'xyzzy');
+    await user.click(within(dialog).getByRole('option', { name: /Search places for/ }));
     expect(
       await within(dialog).findByText(
         "No matches for 'xyzzy'. Try a place name, coordinates or a callsign.",

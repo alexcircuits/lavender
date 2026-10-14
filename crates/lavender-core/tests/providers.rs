@@ -188,6 +188,32 @@ async fn celestrak_caches_groups_on_disk_and_tracks_satellites() {
 }
 
 #[tokio::test]
+async fn track_point_limit_counts_the_inclusive_starting_point() {
+    let server = MockServer::start().await;
+    Mock::given(path("/celestrak/gp.php"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(OMM))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let core = LavenderCore::builder(config_for(&server)).build().unwrap();
+    let request = |minutes| SatelliteTrackRequest {
+        norad_id: 25544,
+        from: Some("2026-10-10T12:00:00Z".parse().unwrap()),
+        minutes: Some(minutes),
+        step_s: Some(60),
+    };
+    let error = core.satellite_track(request(1440)).await.unwrap_err();
+    assert_eq!(ApiError::from(error).code, ErrorCode::InvalidRequest);
+    assert!(
+        server.received_requests().await.unwrap().is_empty(),
+        "bad parameters are rejected before loading elements"
+    );
+    let track = core.satellite_track(request(1439)).await.unwrap();
+    assert_eq!(track.points.len(), 1440);
+    core.shutdown();
+}
+
+#[tokio::test]
 async fn commercial_mode_refuses_unlicensed_feeds() {
     let server = MockServer::start().await;
     let mut config = config_for(&server);

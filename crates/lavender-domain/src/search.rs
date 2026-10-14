@@ -1,3 +1,5 @@
+//! Search inputs and typed coordinate, entity and place results shared with the frontend.
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -16,6 +18,10 @@ pub struct SearchQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub limit: Option<u32>,
+    // Place lookup requires deliberate submission: public Nominatim forbids autocomplete.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub places: Option<bool>,
 }
 
 /// Coordinates recognised in the query without any network request.

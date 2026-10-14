@@ -136,6 +136,7 @@ describe('readWorkspace', () => {
       version: 1,
       layers: { earthquakes: { enabled: true, filters: { groups: ['ok'] } } },
       imageryId: null,
+      annotations: [],
     });
   });
 

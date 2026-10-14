@@ -23,3 +23,11 @@ export function usgsEventUrl(raw: string | null | undefined): string | null {
   const host = new URL(href).hostname.toLowerCase();
   return host === 'usgs.gov' || host.endsWith('.usgs.gov') ? href : null;
 }
+
+/** Official NOAA/NHC advisory and outlook records only. */
+export function noaaRecordUrl(raw: string | null | undefined): string | null {
+  const href = safeHttpsUrl(raw);
+  if (!href) return null;
+  const host = new URL(href).hostname.toLowerCase();
+  return host === 'noaa.gov' || host.endsWith('.noaa.gov') ? href : null;
+}

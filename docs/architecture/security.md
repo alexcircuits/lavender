@@ -132,19 +132,51 @@ See `tauri.md` §5.
 
 ## 4. Verification
 
-- Unit tests for the fetch policy: redirect to non-allowlisted host refused;
-  oversized body truncated with error; non-HTTPS refused.
-- Server tests: foreign `Host` → 403 with security headers; host taken from
-  the request target when there is no `Host` header; cross-site or
-  scheme-downgraded `Origin` on `/api` → 403; WebSocket from a foreign origin
-  refused; rate limit returns 429 with `Retry-After` and resists rotating
-  `X-Forwarded-For`; every error path returns the JSON envelope; WebSocket
-  floods, idle clients and excess connections are closed or refused.
-- Core tests: one linger timer per region; capacity and budget shortfalls
-  reported as partial coverage and retried; provider errors capped; CelesTrak
-  cache age, degradation and retry floor; malformed rows dropped one by one.
-- Build test: built `index.html` contains no inline scripts or styles; the CSP
-  contains no `unsafe-eval`.
-- `cargo deny` (licences, bans, sources) in lint; advisories daily (monorepo
-  pattern).
-- Secret scanning: monorepo gitleaks pre-commit hook and CI.
+The canonical local gate is `scripts/check.sh`. Rust tests run against real router,
+fetcher and WebSocket paths; build fixtures exercise the same exported checker as
+`postbuild`. The existing tests below are retained rather than duplicated.
+
+| Control | Executable regression coverage |
+|---|---|
+| HTTPS and host/redirect allowlist; fetch body ceiling and timeouts | Core `fetch::tests::{refuses_hosts_outside_the_policy_and_plain_http, refuses_redirects_to_other_hosts, caps_body_size, per_request_body_caps_are_authoritative_within_the_ceiling, times_out}` |
+| Public address validation, DNS rebinding and mixed answers | Core `fetch::dns::tests::{refuses_private_reserved_and_embedded_private_addresses, rejects_mixed_answers_and_rebinding_then_passes_exact_validated_set}`; `tests/fetch_public_dns.rs::private_literals_and_localhost_dns_cannot_reach_the_socket` |
+| Query secrets excluded from upstream failure text | Core `fetch::tests::does_not_retry_404_and_reports_host_only`; HTTP `security_regression_tests::request_logs_and_error_envelopes_exclude_query_and_authorization_secrets` captures DEBUG tracing output and checks the error envelope |
+| Host authority and security headers on refusals | Server `api::{foreign_hosts_and_cross_site_origins_are_refused, requests_without_a_host_header_use_the_target_authority, host_refusals_carry_the_security_headers}` |
+| Same-origin scheme and WebSocket upgrades | Server `api::{scheme_downgraded_origin_is_refused_through_the_router, websocket_from_a_foreign_origin_is_refused}` plus `security::tests::same_origin_checks_the_scheme` |
+| Rate limits, positive Retry-After, rotating X-Forwarded-For, IPv6 /64 | Server `api::{rate_limit_returns_429_with_retry_after, rotating_untrusted_forwarded_for_cannot_bypass_router_rate_limit}`; `security::tests::{forwarded_for_is_read_right_to_left_from_trusted_proxies_only, ipv6_clients_are_keyed_by_their_slash_64, the_bucket_table_is_bounded}` |
+| JSON envelopes, body limits, caught panic privacy | Server `api::{query_and_path_rejections_use_the_api_envelope, method_mismatches_and_oversized_bodies_use_the_api_envelope, timeouts_use_the_api_envelope}`; `security_regression_tests::caught_panic_response_and_logs_exclude_panic_payload` checks the actual panic response factory without invoking the process panic hook |
+| WebSocket total/per-client admission, headers, subscription limit | Server `api::{websocket_total_capacity_refusal_has_retry_after_and_security_headers, websocket_connections_are_capped_per_client, websocket_subscription_limit_does_not_evict_an_existing_subscription}` |
+| WebSocket flood, malformed, single-frame and fragmented-message budgets | Server `api::{websocket_message_floods_are_closed, websocket_unreadable_message_budget_closes_with_policy_violation, websocket_oversized_frame_is_disconnected_before_application_parsing, websocket_fragmented_message_is_capped_across_individually_small_frames}` |
+| WebSocket idle and slow consumer cleanup | Server `api::idle_websockets_are_closed`; `ws::tests::a_client_that_stops_reading_ends_the_writer` uses a sink that never becomes ready |
+| Region capacity, restart, provider error bounds and row isolation | Core `tests/hub.rs` capacity/budget/linger/restart regressions and `provider_errors_are_capped_before_frames_health_and_logs`; provider parser row tests. The error-bound test checks stream/health content, while captured-log tests above specifically check request and panic diagnostics |
+| Conditional cache, restart persistence, stale failure and retry floor | Core `tests/celestrak_revalidation.rs` and CelesTrak provider tests |
+| Built HTML, desktop CSP, secret shapes, engine split and entry budget | `node --test apps/web/scripts/check-dist.test.mjs` plants violations into passing disposable builds; `apps/web/scripts/check-dist.mjs` checks both actual workspace and docs entry pages during `postbuild` |
+| Server CSP | `security::tests::csp_has_no_unsafe_eval_and_lists_tile_hosts` and `api::static_files_spa_fallback_caching_and_security_headers` check the real HTTP header |
+
+Build checks reject actual inline scripts, style elements, style attributes and event
+handlers in entry HTML. They inspect the desktop CSP directive map for the exact
+`unsafe-eval` permission; the separate WASM exception and runtime inline styles remain
+explicitly permitted by the architecture. Documentation text and code samples naming
+forbidden APIs do not trip the checks. Recognisable Google/OpenAI/private-key/JWT shapes
+and labelled server credential assignments are scanned in emitted assets; diagnostics
+name the file without repeating a credential. This is a regression backstop, not a
+complete detector for arbitrary opaque credentials. Explicit public tile tokens stay governed by
+§3 and the runtime catalog policy rather than being embedded in build artifacts.
+
+`cargo deny --locked check` runs locally; the monorepo lint target checks licences, bans
+and sources. `.github/workflows/security-advisories.yml` adds an uncached daily RustSec
+check and dependency-change/manual triggers to the product repository, with read-only
+permissions, an immutable checkout action and pinned cargo-deny 0.20.2. The workflow has
+not been published or observed on a hosted runner. A nested product workflow is not
+executed by the host monorepo: that wiring remains ENG-1004.
+
+The host monorepo contains `.githooks/pre-commit` and a checksum-pinned gitleaks 8.30.1
+CI job with a planted-private-key control and full-history scan. Its configured hook
+path applies to the host checkout; the nested Lavender Git repository currently has no
+hook override. The hook explicitly skips scanning when gitleaks is unavailable. Neither
+hosted job execution nor coverage of the nested Lavender history is inferred from the
+presence of these files; secret-scanning integration remains an explicit release check. A local gitleaks 8.30.1 planted-key control was exercised during
+the regression work. Scanning the built distribution reported the Cesium SDK vendor
+default JWT, byte-for-byte equal to `@cesium/engine/Source/Core/Ion.js`; the globe clears
+`Ion.defaultAccessToken` at startup. This known public SDK value is recorded rather than
+a generic clean-scan claim or an unreviewed scanner suppression.
