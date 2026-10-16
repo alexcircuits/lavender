@@ -33,10 +33,17 @@ test('the shell paints, connects, streams the default layer and starts the globe
 });
 
 test('an idle globe draws nothing (request-render mode)', async ({ page }) => {
-  // Count WebGL draw calls from the first frame on.
+  // Count WebGL draw calls, and the animation frames that contain any, from the first frame on.
   await page.addInitScript(() => {
-    const counter = window as Window & { __draws?: number };
+    const counter = window as Window & { __draws?: number; __frames?: number };
     counter.__draws = 0;
+    counter.__frames = 0;
+    let frameCounted = false;
+    const tick = () => {
+      frameCounted = false;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
     for (const proto of [WebGLRenderingContext.prototype, WebGL2RenderingContext.prototype]) {
       for (const name of [
         'drawArrays',
@@ -53,6 +60,10 @@ test('an idle globe draws nothing (request-render mode)', async ({ page }) => {
           ...args: unknown[]
         ) {
           counter.__draws = (counter.__draws ?? 0) + 1;
+          if (!frameCounted) {
+            frameCounted = true;
+            counter.__frames = (counter.__frames ?? 0) + 1;
+          }
           return original.apply(this, args);
         };
       }
@@ -82,9 +93,13 @@ test('an idle globe draws nothing (request-render mode)', async ({ page }) => {
       { message: 'the globe stops drawing once loaded', timeout: 15_000, intervals: [1_000] },
     )
     .toBe(true);
-  const before = await draws();
+  // A feed refresh (fixture earthquakes, every minute) or a late imagery tile may legitimately
+  // render one frame; a globe drawing continuously would render about 120 in this window.
+  const frames = () =>
+    page.evaluate(() => (window as Window & { __frames?: number }).__frames ?? 0);
+  const before = await frames();
   await page.waitForTimeout(2000);
-  expect(await draws()).toBe(before);
+  expect(await frames(), 'frames drawn by an idle globe in 2 s').toBeLessThanOrEqual(before + 1);
 });
 
 test('the server sends the security headers and the content security policy', async ({
