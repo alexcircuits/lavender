@@ -8,7 +8,7 @@ incremental feature migration, not a new architecture for every provider.
 The new application already runs without the legacy Node server. That does **not**
 mean all upstream functionality has migrated: many layers exist only in `legacy/`.
 
-## Migration status — checked 2026-10-13
+## Migration status — checked 2026-10-14
 
 These are capability assessments from source and evidence, alongside the actual
 Flokzy workflow values. A task can remain open after its basic feed works because
@@ -23,7 +23,10 @@ its acceptance criteria also require tracks, additional sources or measurements.
 | Satellites | **Completed provider/track/pass scope** | `providers/celestrak.rs`, atomic conditional cache, `lavender-geo/src/orbit.rs`, browser propagation, track/pass APIs and inspector | ENG-949: Done. ETag/Last-Modified revalidation, restart and redirect safety, quotas, inclusive track cap and geometric reference tests pass. ENG-976 remains In Review for renderer/performance scope; commercial permissions remain ENG-938. |
 | Search | **In progress** | `core/src/search.rs`, opt-in `search/geocoder.rs`, explicit place action in search/palette | ENG-952: In Progress; future vessel search and production endpoint choice remain. Nominatim/Photon contracts, bounded cache, attribution and process-wide pacing are implemented. ENG-986: Done for interface work. |
 | Desktop transport | **In progress** in tracker | Tauri commands/channels, `TauriPlatform`, recorded macOS self-check | ENG-995: Done; ENG-996: In Progress. Unlocked rendering evidence exists from 2026-10-12; reconcile it with the task before closure. |
-| Fires and cyclones | **Not started** providers | No Rust feed/entity yet | ENG-950/951: Todo. ENG-975: In Progress contains the implemented earthquake renderer and missing fire/cyclone renderers. |
+| Cyclones | **Implemented; final journey verification pending** | `providers/cyclones.rs`, typed forecast points/tracks/cones, search, inspector and keyed Cesium renderer | ENG-951: In Progress. NOAA NHC/CPHC coverage, strict whole-document validation, advisory matching, ten-minute minimum cadence and bounded stale fallback are implemented; no live NOAA soak is recorded. ENG-975 remains In Progress for fire rendering and wider hazard acceptance. |
+| Fires | **Not started** provider | No production Rust feed/entity yet | ENG-950: Todo; FIRMS credentials, permitted fixtures and renderer work remain. |
+| Annotations and measurements | **Implemented; final verification pending** | `features/annotations`, bounded renderers, device persistence and workspace v2 with v1 migration | ENG-989: In Progress. Pins, distance arrows, areas, editable vertices/notes and keyboard controls are implemented. Measurements are approximate; native deep-link registration remains separate. |
+| Security regressions | **Local coverage implemented** | Public-address DNS resolver, adapter panic redaction, HTTP/WS and build-policy regressions | ENG-1002: In Progress pending final reconciliation. Hosted advisory workflow activation and CI integration remain unverified in ENG-1004. |
 | Vessels, weather, wind, perimeters, launches, static context, terrain | **Not started** | No production Rust provider yet | ENG-953–959: Todo. Source licensing and GRIB decoding need their own decisions/tests. |
 | Traffic, transit, bike-share, directions, CCTV, Mapillary, installations, cables, recent imagery | **Not started** | Legacy reference only | ENG-960–968: Todo; readiness also depends on terms and feature-specific inputs. |
 | Keychain, Windows/Linux, installers, updates | **Not started** | Desktop currently uses session-only secrets | ENG-997–999: Todo. A macOS prototype is not a distributable desktop release. |
@@ -44,7 +47,8 @@ Planned paths in those documents are not existing modules.
 | [`aircraft/opensky.js`](../../legacy/server/providers/aircraft/opensky.js), [`enrichment.js`](../../legacy/server/providers/aircraft/enrichment.js) | Not implemented; finish the licensed optional sources in ENG-948. |
 | [`server/providers/space/celestrak.js`](../../legacy/server/providers/space/celestrak.js) | [`celestrak.rs`](../../crates/lavender-core/src/providers/celestrak.rs); [`orbit/passes.rs`](../../crates/lavender-geo/src/orbit/passes.rs) predicts geometric observer passes. |
 | [`src/layers/earthquakes/source.js`](../../legacy/src/layers/earthquakes/source.js) | [`usgs.rs`](../../crates/lavender-core/src/providers/usgs.rs) replaces the upstream browser-side USGS request. |
-| [`server/providers/firms.js`](../../legacy/server/providers/firms.js), [`cyclones.js`](../../legacy/server/providers/cyclones.js) | ENG-950/951; no corresponding provider exists yet. |
+| [`server/providers/cyclones.js`](../../legacy/server/providers/cyclones.js) | [`cyclones.rs`](../../crates/lavender-core/src/providers/cyclones.rs) and [`cyclones/parsing.rs`](../../crates/lavender-core/src/providers/cyclones/parsing.rs): status positions and geometry from the exact advisory, with healthy empty seasons and degraded geometry reported explicitly. |
+| [`server/providers/firms.js`](../../legacy/server/providers/firms.js) | ENG-950; no corresponding production provider exists yet. |
 | [`server/providers/vessels/`](../../legacy/server/providers/vessels/), [`weather.js`](../../legacy/server/providers/weather.js), [`wind/`](../../legacy/server/providers/wind/) | ENG-953–955. |
 | [`server/providers/`](../../legacy/server/providers/), [`server/mcp/`](../../legacy/server/mcp/) | Remaining source/automation migrations in the task index. |
 

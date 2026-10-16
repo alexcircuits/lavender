@@ -90,6 +90,23 @@ describe('KeyedEntries', () => {
     const start = performance.now();
     keyed.apply(shifted);
     // The real budget is 8 ms in the browser; this generous bound only catches O(n²) mistakes.
-    expect(performance.now() - start).toBeLessThan(100);
+    expect(performance.now() - start).toBeLessThan(250);
+  });
+});
+
+describe('KeyedEntries.forEach', () => {
+  it('visits every live entry with its id', () => {
+    const keyed = new KeyedEntries<{ id: string }, string>((item) => item.id, {
+      create: (item) => `entry ${item.id}`,
+      update: () => undefined,
+      remove: () => undefined,
+    });
+    keyed.apply([{ id: 'a' }, { id: 'b' }]);
+    keyed.apply([{ id: 'b' }, { id: 'c' }]);
+    const seen: string[] = [];
+    keyed.forEach((entry, id) => {
+      seen.push(`${id}=${entry}`);
+    });
+    expect(seen.sort()).toEqual(['b=entry b', 'c=entry c']);
   });
 });

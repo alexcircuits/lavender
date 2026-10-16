@@ -16,6 +16,7 @@ pub mod status;
 pub mod stream;
 pub mod text;
 pub mod track;
+pub mod wind;
 
 pub use catalog::{
     Availability, Catalog, ImageryDescriptor, ImageryKind, LayerDescriptor, LayerFamily,
@@ -23,8 +24,11 @@ pub use catalog::{
 };
 pub use entities::{
     Aircraft, Cyclone, CycloneConeGeometry, CycloneForecastPoint, CycloneGeometryStatus,
-    CycloneMovement, CycloneTrackGeometry, Earthquake, SatelliteElements,
+    CycloneMovement, CycloneTrackGeometry, Earthquake, FireCell, FireCluster, FireDetection,
+    Launch, LaunchPad, SatelliteElements, Vessel, VesselDimensions, VesselEta, VesselTrackResponse,
+    VesselTrackSample, VesselVoyage,
 };
+pub use entities::{FirePerimeter, PerimeterDetail};
 pub use error::{ApiError, DomainError, ErrorCode};
 pub use feed::{Coverage, FeedFilters, FeedId, FeedItems, FeedQuery, FeedSnapshot, Freshness};
 pub use geo::{BBox, GeoPoint};
@@ -35,6 +39,10 @@ pub use stream::{ClientFrame, ServerFrame};
 pub use track::{
     AircraftTrack, SatellitePass, SatellitePassRequest, SatellitePasses, SatelliteTrack,
     SatelliteTrackRequest, TrackPoint,
+};
+pub use wind::{
+    WeatherOverlay, WeatherScalarMetadata, WindCycle, WindGridDef, WindManifest, WindModel,
+    WindStatus,
 };
 
 /// Timestamps on the wire are RFC 3339 strings in UTC.

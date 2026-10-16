@@ -55,6 +55,16 @@ Lavender renders the globe with `@cesium/engine` and `@cesium/core` (CesiumJS), 
 License 2.0, https://github.com/CesiumGS/cesium. Cesium's own third-party notices ship with the
 package (`ThirdParty.json`).
 
+## NOAA NHC / CPHC data
+
+Cyclone status, forecast tracks and cones use NOAA/NWS NHC / CPHC products
+([National Hurricane Center](https://www.nhc.noaa.gov/),
+[Central Pacific Hurricane Center](https://www.nhc.noaa.gov/?cpac)). These U.S.
+Government products are public domain under the
+[National Weather Service disclaimer](https://www.weather.gov/disclaimer).
+Lavender's use does not imply NOAA or NWS endorsement. Data-source notice updated
+2026-10-14; rights to basemap imagery are governed separately.
+
 ## Rust dependencies
 
 Rust dependencies are checked by `cargo deny` against a permissive allow-list

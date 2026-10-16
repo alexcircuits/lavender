@@ -1,0 +1,278 @@
+import { Cartesian3, Event as CesiumEvent, Rectangle } from '@cesium/core';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { GlobeEngine } from './GlobeEngine';
+
+const fixtures = vi.hoisted(() => {
+  /** Which renderers relaid out, in order: each mock records its own name. */
+  const relayouts: string[] = [];
+  const renderer = (name: string) =>
+    class {
+      viewChanged() {
+        relayouts.push(name);
+      }
+      destroy() {}
+    };
+  /** What the vessels renderer was asked to draw as the selected ship's track. */
+  const vesselTracks: unknown[] = [];
+  const vessels = class extends renderer('vessels') {
+    showTrack(track: unknown) {
+      vesselTracks.push(track);
+    }
+  };
+  /** Screen point → globe point; null picks the centre for every point. */
+  const pick = {
+    at: null as null | ((x: number, y: number) => { lat: number; lon: number } | null),
+  };
+  return {
+    widget: null as unknown,
+    centre: { lat: 20, lon: -60 },
+    relayouts,
+    renderer,
+    vessels,
+    vesselTracks,
+    pick,
+  };
+});
+
+vi.mock('@cesium/engine', () => ({
+  // Called with `new`: Vitest 5 requires a constructible (function or class) implementation.
+  CesiumWidget: class {
+    constructor() {
+      Object.assign(this, fixtures.widget);
+    }
+  },
+  CreditDisplay: {},
+  EllipsoidTerrainProvider: class {},
+  ImageryLayer: { fromProviderAsync: () => ({}) },
+  Ion: {},
+}));
+vi.mock('./imagery', () => ({
+  BaseImagery: class {
+    destroy() {}
+  },
+  bundledProvider: () => ({}),
+}));
+vi.mock('./interaction', () => ({
+  Interaction: class {
+    destroy() {}
+  },
+  geoPointAt: (_widget: unknown, at: { x: number; y: number }) =>
+    fixtures.pick.at ? fixtures.pick.at(at.x, at.y) : fixtures.centre,
+}));
+vi.mock('./tokens', () => ({ cssTokenReader: () => () => '', readPalette: () => ({}) }));
+vi.mock('./renderers/types', () => ({ toMapColors: () => ({}) }));
+vi.mock('./renderers/aircraft', () => ({ AircraftRenderer: fixtures.renderer('aircraft') }));
+vi.mock('./renderers/annotations', () => ({
+  AnnotationRenderer: fixtures.renderer('annotations'),
+}));
+vi.mock('./renderers/cyclones', () => ({ CycloneRenderer: fixtures.renderer('cyclones') }));
+vi.mock('./renderers/earthquakes', () => ({
+  EarthquakeRenderer: fixtures.renderer('earthquakes'),
+}));
+vi.mock('./renderers/fires', () => ({ FireRenderer: fixtures.renderer('fires') }));
+vi.mock('./renderers/launches', () => ({ LaunchPadRenderer: fixtures.renderer('launches') }));
+vi.mock('./renderers/satellites', () => ({ SatelliteRenderer: fixtures.renderer('satellites') }));
+vi.mock('./renderers/vessels', () => ({ VesselRenderer: fixtures.vessels }));
+vi.mock('./renderers/selection', () => ({
+  SelectionHalo: class {
+    destroy() {}
+  },
+}));
+
+interface MockFlight {
+  readonly duration: number;
+  readonly complete: () => void;
+  readonly cancel: () => void;
+}
+
+function setup() {
+  const canvas = document.createElement('canvas');
+  let rectangle = Rectangle.fromDegrees(-70, 10, -50, 30);
+  let flight: MockFlight | null = null;
+  const scene = {
+    canvas,
+    screenSpaceCameraController: {},
+    primitives: {},
+    ellipsoid: {},
+    requestRender: vi.fn(),
+    isDestroyed: () => false,
+    renderError: new CesiumEvent(),
+    postRender: new CesiumEvent(),
+    camera: {
+      positionCartographic: { height: 400_000 },
+      positionWC: new Cartesian3(1, 2, 3),
+      heading: 0,
+      pitch: -Math.PI / 2,
+      roll: 0,
+      setView: vi.fn(),
+      // Like Cesium: cancelling runs the flight's cancel callback synchronously, and a
+      // flight of duration <= 0 completes synchronously.
+      cancelFlight: vi.fn(() => {
+        const cancelled = flight;
+        flight = null;
+        cancelled?.cancel();
+      }),
+      computeViewRectangle: () => rectangle,
+      moveEnd: new CesiumEvent(),
+      flyTo: vi.fn((options: MockFlight) => {
+        if (options.duration <= 0) options.complete();
+        else flight = options;
+      }),
+    },
+  };
+  const widget = { scene, canvas, destroy: vi.fn(), isDestroyed: () => false };
+  fixtures.widget = widget;
+  fixtures.centre = { lat: 20, lon: -60 };
+  fixtures.relayouts.splice(0);
+  fixtures.vesselTracks.splice(0);
+  fixtures.pick.at = null;
+  const engine = new GlobeEngine({
+    host: document.createElement('div'),
+    credits: document.createElement('div'),
+    onRenderError: vi.fn(),
+  });
+  engine.mount();
+  const listener = vi.fn();
+  engine.onViewChange(listener);
+  return {
+    engine,
+    scene,
+    canvas,
+    listener,
+    setRectangle: (next: Rectangle) => {
+      rectangle = next;
+    },
+    completeFlight: () => {
+      const completed = flight;
+      flight = null;
+      completed?.complete();
+    },
+  };
+}
+
+const POSE = { lon: -40, lat: 30, heightM: 900_000, headingRad: 0, pitchRad: -1.5, rollRad: 0 };
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
+describe('GlobeEngine settled view publication', () => {
+  it('publishes a settled flight once across completion, first frame and native moveEnd', () => {
+    const { engine, scene, listener, completeFlight } = setup();
+    engine.flyTo({ kind: 'point', position: { lat: 20, lon: -60 } });
+    expect(listener).not.toHaveBeenCalled();
+    completeFlight();
+    expect(listener).toHaveBeenCalledTimes(1);
+    scene.postRender.raiseEvent();
+    scene.camera.moveEnd.raiseEvent();
+    scene.camera.moveEnd.raiseEvent();
+    expect(listener).toHaveBeenCalledTimes(1);
+    engine.destroy();
+  });
+
+  it('still publishes changed native mouse views and relayouts equal query views', () => {
+    const { engine, scene, listener, setRectangle } = setup();
+    scene.camera.moveEnd.raiseEvent();
+    expect(listener).toHaveBeenCalledTimes(1);
+    setRectangle(Rectangle.fromDegrees(-69, 10, -49, 30));
+    fixtures.centre = { lat: 20, lon: -59 };
+    scene.camera.moveEnd.raiseEvent();
+    expect(listener).toHaveBeenCalledTimes(2);
+    // A pure rotation: the normalised query view is unchanged, so nothing is published, but
+    // every feed renderer and the annotations still relayout (glyph rotation, label budget).
+    fixtures.relayouts.splice(0);
+    scene.camera.moveEnd.raiseEvent();
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect([...fixtures.relayouts].sort()).toEqual([
+      'aircraft',
+      'annotations',
+      'cyclones',
+      'earthquakes',
+      'fires',
+      'launches',
+      'satellites',
+      'vessels',
+    ]);
+    engine.destroy();
+  });
+
+  it('does not publish the mid-flight pose of a flight cancelled by a camera restore', () => {
+    const { engine, scene, listener, setRectangle } = setup();
+    engine.flyTo({ kind: 'point', position: { lat: 20, lon: -60 } });
+    // Somewhere along the flight path when the restore cancels it.
+    setRectangle(Rectangle.fromDegrees(-80, 0, -60, 20));
+    fixtures.centre = { lat: 10, lon: -70 };
+    scene.camera.setView.mockImplementation(() => {
+      setRectangle(Rectangle.fromDegrees(-50, 20, -30, 40));
+      fixtures.centre = { lat: 30, lon: -40 };
+    });
+    engine.restoreCamera(POSE);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener.mock.calls[0]?.[0]).toMatchObject({ centre: { lat: 30, lon: -40 } });
+    engine.destroy();
+  });
+
+  it('coalesces wheel and pointerup settle renders and never fires one after destroy', () => {
+    vi.useFakeTimers();
+    const { engine, scene, canvas } = setup();
+    canvas.dispatchEvent(new Event('wheel'));
+    canvas.dispatchEvent(new Event('wheel'));
+    canvas.dispatchEvent(new Event('pointerup'));
+    scene.requestRender.mockClear();
+    vi.advanceTimersByTime(549);
+    expect(scene.requestRender).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(scene.requestRender).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+
+    canvas.dispatchEvent(new Event('wheel'));
+    expect(vi.getTimerCount()).toBe(1);
+    engine.destroy();
+    expect(vi.getTimerCount()).toBe(0);
+    canvas.dispatchEvent(new Event('pointerup'));
+    canvas.dispatchEvent(new Event('wheel'));
+    vi.advanceTimersByTime(2_000);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(scene.requestRender).toHaveBeenCalledTimes(1);
+  });
+
+  it('widens the published bbox to the screen edges, not only the corners (ENG-980 review)', () => {
+    const { engine, scene, canvas, listener, setRectangle } = setup();
+    Object.defineProperty(canvas, 'clientWidth', { value: 1280, configurable: true });
+    Object.defineProperty(canvas, 'clientHeight', { value: 720, configurable: true });
+    // 5 000 km over the Gulf of Finland: Cesium's corner box ends at 50.9° N, south of the
+    // view's own centre; the top edge shows 72° N.
+    setRectangle(Rectangle.fromDegrees(-61.76, 24.05, 111.12, 50.9));
+    fixtures.centre = { lat: 59.94, lon: 24.68 };
+    fixtures.pick.at = (x, y) => {
+      if (x === 640 && y === 0) return { lat: 72.07, lon: 24.68 };
+      if (x === 640 && y === 360) return fixtures.centre;
+      return { lat: 40, lon: 24.68 };
+    };
+    scene.camera.moveEnd.raiseEvent();
+    const bbox = listener.mock.calls.at(-1)?.[0]?.bbox;
+    expect(bbox).toMatchObject({ south: 24.05, north: 72.07 });
+    engine.destroy();
+  });
+
+  it('hands the selected vessel track to the vessels renderer and clears it', () => {
+    const { engine } = setup();
+    const track = { mmsi: '230990001', samples: [], source: 'aisstream', retainedSec: 1_800 };
+    engine.showVesselTrack(track);
+    engine.showVesselTrack(null);
+    expect(fixtures.vesselTracks).toEqual([track, null]);
+    engine.destroy();
+    engine.showVesselTrack(track);
+    expect(fixtures.vesselTracks).toHaveLength(2);
+  });
+
+  it('removes every scene and camera listener it added, including the camera port frame hook', () => {
+    const { engine, scene } = setup();
+    expect(scene.postRender.numberOfListeners).toBeGreaterThan(0);
+    engine.destroy();
+    expect(scene.postRender.numberOfListeners).toBe(0);
+    expect(scene.renderError.numberOfListeners).toBe(0);
+    expect(scene.camera.moveEnd.numberOfListeners).toBe(0);
+  });
+});

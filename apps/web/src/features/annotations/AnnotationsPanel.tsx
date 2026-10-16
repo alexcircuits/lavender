@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { GeoPoint } from '../../contracts';
 import { Button, IconButton, Panel, TextField, XIcon } from '../../design';
-import { useGlobe, useUi, useWorkspace } from '../../runtime';
+import { useGlobe, useRuntime, useUi, useWorkspace } from '../../runtime';
+import { GLOBE_REGION_ID } from '../commands';
 import styles from './annotations.module.css';
 import { annotationCentre, geometryError, greatCircleM, measurement } from './geometry';
+import { visiblePopupOwnsKeys } from './keyboardOwnership';
 import {
   type AnnotationDraft,
   MAX_ANNOTATIONS,
@@ -28,8 +30,11 @@ const coordinates = (points: readonly GeoPoint[]) =>
 /** The list provides every geometry and measurement without requiring pointer map input. */
 export function AnnotationsPanel({ className }: { readonly className?: string | undefined }) {
   const globe = useGlobe();
+  const runtime = useRuntime();
   const annotations = useWorkspace((s) => s.annotations);
   const storageError = useWorkspace((s) => s.annotationStorageError);
+  const renderError = useWorkspace((s) => s.annotationRenderError);
+  const setRenderError = useWorkspace((s) => s.setAnnotationRenderError);
   const setAnnotations = useWorkspace((s) => s.setAnnotations);
   const claim = useWorkspace((s) => s.claimAnnotations);
   const close = useUi((s) => s.setSidePanel);
@@ -83,13 +88,25 @@ export function AnnotationsPanel({ className }: { readonly className?: string | 
 
   useEffect(() => {
     if (!globe) return;
-    globe.setAnnotations(annotations, draft);
-    globe.setDrawing(draft !== null);
+    try {
+      globe.setAnnotations(annotations, draft);
+      globe.setDrawing(draft !== null);
+      setRenderError(null);
+    } catch (error) {
+      console.error('Globe could not preview annotations', error);
+      setRenderError(
+        'Some annotations could not be drawn. Their saved geometry remains available in this list.',
+      );
+    }
     return () => {
-      globe.setDrawing(false);
-      globe.setAnnotations(annotations, null);
+      try {
+        globe.setDrawing(false);
+        globe.setAnnotations(annotations, null);
+      } catch (error) {
+        console.error('Globe could not clear annotation preview', error);
+      }
     };
-  }, [globe, annotations, draft]);
+  }, [globe, annotations, draft, setRenderError]);
   useEffect(() => globe?.onMapPoint(addPoint), [globe, addPoint]);
 
   const finish = useCallback(() => {
@@ -132,29 +149,39 @@ export function AnnotationsPanel({ className }: { readonly className?: string | 
   useEffect(() => {
     if (!draft) return;
     const key = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing) return;
+      const ui = runtime.stores.ui.getState();
+      if (ui.paletteOpen || ui.shortcutsOpen) return;
+      // Popups own Escape even when their trigger still holds focus.
+      if (visiblePopupOwnsKeys()) return;
       if (event.key === 'Escape') {
         event.preventDefault();
+        event.stopPropagation();
         setDraft(null);
         setError(null);
         return;
       }
       if (
-        event.target instanceof HTMLElement &&
-        (event.target.matches('input, textarea, button, select') || event.target.isContentEditable)
+        !(event.target instanceof HTMLElement) ||
+        !event.target.closest(`#${GLOBE_REGION_ID}`) ||
+        event.target.isContentEditable ||
+        event.target.closest('input, textarea, button, select, a, summary, [role="button"]')
       )
         return;
       if (event.key === 'Enter') {
         event.preventDefault();
+        event.stopPropagation();
         finish();
       }
       if (event.key === 'Backspace') {
         event.preventDefault();
+        event.stopPropagation();
         undo();
       }
     };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, [draft, finish, undo]);
+    window.addEventListener('keydown', key, { capture: true });
+    return () => window.removeEventListener('keydown', key, { capture: true });
+  }, [draft, finish, undo, runtime]);
 
   const begin = (kind: MapAnnotation['kind'], existing?: MapAnnotation) => {
     claim();
@@ -204,6 +231,11 @@ export function AnnotationsPanel({ className }: { readonly className?: string | 
           Your marks stay on this device and travel in copied view links. Measurements are
           approximate surface estimates on a sphere, without terrain.
         </p>
+        {renderError ? (
+          <p role="alert" className={styles.error}>
+            {renderError}
+          </p>
+        ) : null}
         {storageError ? (
           <p role="alert" className={styles.error}>
             {storageError}

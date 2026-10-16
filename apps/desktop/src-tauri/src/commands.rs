@@ -8,9 +8,10 @@ use lavender_core::LavenderCore;
 use lavender_domain::{
     AircraftTrack, ApiError, Catalog, FeedQuery, FeedSnapshot, SatellitePassRequest,
     SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults,
-    ServerFrame, SystemStatus,
+    ServerFrame, SystemStatus, VesselTrackResponse, WeatherOverlay, WindManifest, WindModel,
+    WindStatus,
 };
-use tauri::ipc::Channel;
+use tauri::ipc::{Channel, Response};
 use tauri::{State, WebviewWindow};
 
 use crate::subscriptions::Subscriptions;
@@ -83,6 +84,14 @@ pub fn aircraft_track(
 }
 
 #[tauri::command]
+pub fn vessel_track(
+    core: State<'_, LavenderCore>,
+    mmsi: String,
+) -> Result<VesselTrackResponse, ApiError> {
+    core.vessel_track(&mmsi).map_err(ApiError::from)
+}
+
+#[tauri::command]
 pub async fn satellite_track(
     core: State<'_, LavenderCore>,
     request: SatelliteTrackRequest,
@@ -96,6 +105,40 @@ pub async fn satellite_passes(
     request: SatellitePassRequest,
 ) -> Result<SatellitePasses, ApiError> {
     core.satellite_passes(request).await.map_err(ApiError::from)
+}
+
+/// The wind manifest, as `GET /api/v1/wind/manifest?model=…&overlay=…`.
+#[tauri::command]
+pub async fn wind_manifest(
+    core: State<'_, LavenderCore>,
+    model: WindModel,
+    overlay: Option<WeatherOverlay>,
+) -> Result<WindManifest, ApiError> {
+    core.wind_manifest(model, overlay.unwrap_or_default()).await.map_err(ApiError::from)
+}
+
+/// The wind status (manifest without grid reference), as `GET /api/v1/wind/status`.
+#[tauri::command]
+pub async fn wind_status(
+    core: State<'_, LavenderCore>,
+    model: WindModel,
+    overlay: Option<WeatherOverlay>,
+) -> Result<WindStatus, ApiError> {
+    core.wind_status(model, overlay.unwrap_or_default()).await.map_err(ApiError::from)
+}
+
+/// One binary wind grid (little-endian f32, `WindGridDef` layout), as
+/// `GET /api/v1/wind/grid/{id}.bin`. Raw bytes reach the WebView as an `ArrayBuffer`.
+#[tauri::command]
+pub async fn wind_grid(
+    core: State<'_, LavenderCore>,
+    model: WindModel,
+    overlay: Option<WeatherOverlay>,
+    id: String,
+) -> Result<Response, ApiError> {
+    let bytes =
+        core.wind_grid(model, overlay.unwrap_or_default(), &id).await.map_err(ApiError::from)?;
+    Ok(Response::new(bytes))
 }
 
 /// Writes the frontend's self-measured smoke report when `LAVENDER_SMOKE_OUT` is set

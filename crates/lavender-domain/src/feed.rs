@@ -4,7 +4,9 @@ use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::entities::{Aircraft, Cyclone, Earthquake, SatelliteElements};
+use crate::entities::{
+    Aircraft, Cyclone, Earthquake, FireCell, FirePerimeter, Launch, SatelliteElements, Vessel,
+};
 use crate::{BBox, DomainError};
 
 /// A live data feed, which the interface shows as a layer.
@@ -16,12 +18,24 @@ pub enum FeedId {
     Earthquakes,
     Satellites,
     Cyclones,
+    Fires,
+    Launches,
+    Vessels,
+    Perimeters,
 }
 
 impl FeedId {
     /// Every feed, in catalog order.
-    pub const ALL: [Self; 4] =
-        [Self::Aircraft, Self::Earthquakes, Self::Satellites, Self::Cyclones];
+    pub const ALL: [Self; 8] = [
+        Self::Aircraft,
+        Self::Earthquakes,
+        Self::Satellites,
+        Self::Cyclones,
+        Self::Fires,
+        Self::Launches,
+        Self::Vessels,
+        Self::Perimeters,
+    ];
 
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -30,6 +44,10 @@ impl FeedId {
             Self::Earthquakes => "earthquakes",
             Self::Satellites => "satellites",
             Self::Cyclones => "cyclones",
+            Self::Fires => "fires",
+            Self::Launches => "launches",
+            Self::Vessels => "vessels",
+            Self::Perimeters => "perimeters",
         }
     }
 }
@@ -69,6 +87,10 @@ pub struct FeedFilters {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub groups: Option<Vec<String>>,
+    // Fires: smallest fire radiative power (MW) to include.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub min_frp: Option<f64>,
 }
 
 /// What a subscriber wants from a feed.
@@ -133,6 +155,10 @@ pub enum FeedItems {
     Earthquakes(Vec<Earthquake>),
     Satellites(Vec<SatelliteElements>),
     Cyclones(Vec<Cyclone>),
+    Fires(Vec<FireCell>),
+    Launches(Vec<Launch>),
+    Vessels(Vec<Vessel>),
+    Perimeters(Vec<FirePerimeter>),
 }
 
 impl FeedItems {
@@ -143,6 +169,10 @@ impl FeedItems {
             Self::Earthquakes(v) => v.len(),
             Self::Satellites(v) => v.len(),
             Self::Cyclones(v) => v.len(),
+            Self::Fires(v) => v.len(),
+            Self::Launches(v) => v.len(),
+            Self::Vessels(v) => v.len(),
+            Self::Perimeters(v) => v.len(),
         }
     }
 
@@ -159,6 +189,10 @@ impl FeedItems {
             FeedId::Earthquakes => Self::Earthquakes(Vec::new()),
             FeedId::Satellites => Self::Satellites(Vec::new()),
             FeedId::Cyclones => Self::Cyclones(Vec::new()),
+            FeedId::Fires => Self::Fires(Vec::new()),
+            FeedId::Launches => Self::Launches(Vec::new()),
+            FeedId::Vessels => Self::Vessels(Vec::new()),
+            FeedId::Perimeters => Self::Perimeters(Vec::new()),
         }
     }
 }

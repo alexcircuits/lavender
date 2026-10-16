@@ -4,7 +4,11 @@
 mod aircraft;
 mod cyclone;
 mod earthquake;
+mod fire;
+mod launch;
+mod perimeter;
 mod satellite;
+mod vessel;
 
 pub use aircraft::Aircraft;
 pub use cyclone::{
@@ -12,4 +16,11 @@ pub use cyclone::{
     CycloneTrackGeometry,
 };
 pub use earthquake::Earthquake;
+pub use fire::{FireCell, FireCluster, FireDetection};
+pub use launch::{Launch, LaunchPad};
+pub use perimeter::{FirePerimeter, PerimeterDetail};
 pub use satellite::SatelliteElements;
+pub use vessel::{
+    Vessel, VesselDimensions, VesselEta, VesselTrackResponse, VesselTrackSample, VesselVoyage,
+    normalize_course, normalize_heading, normalize_speed,
+};

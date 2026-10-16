@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { aircraft, aircraftSnapshot, satellite, satelliteSnapshot } from '../../app/testing';
 import type { FeedId, FeedSnapshot } from '../../contracts';
 import { quakeSnapshot } from '../../test/fakes';
+import { vessel, vesselSnapshot } from '../../test/vessel';
 import { searchLiveEntities } from './entitySearch';
 
 function source(snapshots: FeedSnapshot[]) {
@@ -41,5 +42,31 @@ describe('searchLiveEntities', () => {
   it('ignores one-letter queries and caps the result count', () => {
     expect(searchLiveEntities(feeds, 's')).toEqual([]);
     expect(searchLiveEntities(feeds, 'ss', 1)).toHaveLength(1);
+  });
+
+  it('matches loaded vessels by MMSI, IMO and case-insensitive name', () => {
+    const loaded = source([
+      vesselSnapshot([
+        vessel({ name: ' TEST SHIP ', imo: '7654321' }),
+        vessel({ mmsi: '987654321', name: 'TEST SHIP' }),
+        vessel({ mmsi: '234567890', name: ' ' }),
+      ]),
+    ]);
+    expect(searchLiveEntities(loaded, '123456789')).toEqual([
+      {
+        feed: 'vessels',
+        id: '123456789',
+        label: 'TEST SHIP',
+        detail: 'MMSI 123456789',
+        position: { lat: 60.1, lon: 24.9 },
+      },
+    ]);
+    expect(searchLiveEntities(loaded, '7654321')[0]?.id).toBe('123456789');
+    expect(searchLiveEntities(loaded, 'test ship').map((hit) => hit.id)).toEqual([
+      '123456789',
+      '987654321',
+    ]);
+    expect(searchLiveEntities(loaded, '234567890')[0]?.label).toBe('234567890');
+    expect(searchLiveEntities(loaded, 'test ship', 8, ['aircraft'])).toEqual([]);
   });
 });

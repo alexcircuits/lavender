@@ -13,10 +13,11 @@ import { defineConfig, devices } from '@playwright/test';
  * Without the download, use an installed Chrome: `PLAYWRIGHT_CHANNEL=chrome pnpm run e2e`.
  * The Rust toolchain from `rust-toolchain.toml` must be available (`cargo`).
  */
-const PORT = 7412;
+/** Override with LAVENDER_E2E_PORT when several checkouts run the suite at once. */
+const PORT = Number(process.env.LAVENDER_E2E_PORT ?? 7412);
 const channel = process.env.PLAYWRIGHT_CHANNEL;
 const WEB = fileURLToPath(new URL('.', import.meta.url));
-const SCRATCH = join(tmpdir(), 'lavender-e2e');
+const SCRATCH = join(tmpdir(), `lavender-e2e-${PORT}`);
 
 export default defineConfig({
   testDir: './e2e',

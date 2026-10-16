@@ -89,6 +89,10 @@ pub(super) fn compose_snapshot(
         coverage =
             Coverage::Partial { reason: crate::providers::cyclones::COVERAGE_NOTICE.to_owned() };
     }
+    if query.feed == FeedId::Perimeters {
+        coverage =
+            Coverage::Partial { reason: crate::providers::perimeters::COVERAGE_NOTICE.to_owned() };
+    }
     if let Some(short) = shortfall {
         notices.push(short.notice().to_owned());
         if coverage == Coverage::Complete {
@@ -114,7 +118,10 @@ pub(super) fn compose_snapshot(
 
     let lists: Vec<&FeedItems> = states.iter().filter_map(|s| s.items.as_deref()).collect();
     let (items, source_count, truncated) = filter_items(query, &lists, meta.max_items);
-    if truncated {
+    if truncated && query.feed == FeedId::Perimeters {
+        // Perimeters keep the largest fires when a view's size limits cut it short.
+        notices.push(crate::providers::perimeters::TRUNCATED_NOTICE.to_owned());
+    } else if truncated {
         notices.push(format!(
             "Showing the first {} items. Zoom in or add filters to see the rest.",
             meta.max_items
@@ -137,6 +144,7 @@ pub(super) fn compose_snapshot(
 /// Concatenates lists, drops duplicate ids (overlapping regional queries), applies the
 /// query's spatial and attribute filters and the item cap. Returns (items, count before
 /// filtering, whether the cap truncated).
+#[allow(clippy::too_many_lines)]
 fn filter_items(
     query: &FeedQuery,
     lists: &[&FeedItems],
@@ -209,6 +217,67 @@ fn filter_items(
                 .collect();
             let (v, t) = cap(filtered, max_items);
             (FeedItems::Satellites(v), u32::try_from(count).unwrap_or(u32::MAX), t)
+        }
+        FeedId::Fires => {
+            let all = lists
+                .iter()
+                .filter_map(|l| if let FeedItems::Fires(v) = l { Some(v) } else { None })
+                .flatten();
+            // Exact copies (overlapping regions, repeated rows) count once; distinct
+            // detections and pre-weighted cells at one place are merged by the grid.
+            let merged = crate::providers::firms::distinct_cells(all);
+            let count = merged.len();
+            let (cells, truncated) = crate::providers::firms::aggregate_fires(
+                merged,
+                query.bbox.as_ref(),
+                f.min_frp,
+                max_items,
+            );
+            (FeedItems::Fires(cells), u32::try_from(count).unwrap_or(u32::MAX), truncated)
+        }
+        FeedId::Launches => {
+            let all: Vec<&Vec<_>> = lists
+                .iter()
+                .filter_map(|l| if let FeedItems::Launches(v) = l { Some(v) } else { None })
+                .collect();
+            let merged = dedup_by(&all, |l| l.id.clone());
+            let count = merged.len();
+            let filtered = merged
+                .into_iter()
+                .filter(|l| {
+                    l.pad.as_ref().is_none_or(|p| {
+                        lavender_domain::GeoPoint::new(p.latitude, p.longitude)
+                            .is_ok_and(|pos| in_view(&pos))
+                    })
+                })
+                .collect();
+            let (v, t) = cap(filtered, max_items);
+            (FeedItems::Launches(v), u32::try_from(count).unwrap_or(u32::MAX), t)
+        }
+        FeedId::Vessels => {
+            let all: Vec<&Vec<_>> = lists
+                .iter()
+                .filter_map(|l| if let FeedItems::Vessels(v) = l { Some(v) } else { None })
+                .collect();
+            let merged = dedup_by(&all, |v| v.mmsi.clone());
+            let count = merged.len();
+            let filtered = merged.into_iter().filter(|v| in_view(&v.position)).collect();
+            let (v, t) = cap(filtered, max_items);
+            (FeedItems::Vessels(v), u32::try_from(count).unwrap_or(u32::MAX), t)
+        }
+        FeedId::Perimeters => {
+            let all: Vec<&Vec<_>> = lists
+                .iter()
+                .filter_map(|l| if let FeedItems::Perimeters(v) = l { Some(v) } else { None })
+                .collect();
+            // Providers publish every detail level; the view picks one of them.
+            let merged = dedup_by(&all, |p| format!("{}:{}", p.id, p.detail.level));
+            let (v, count, t) = crate::providers::perimeters::select_for_view(
+                &merged,
+                query.bbox.as_ref(),
+                max_items,
+            );
+            (FeedItems::Perimeters(v), count, t)
         }
     }
 }

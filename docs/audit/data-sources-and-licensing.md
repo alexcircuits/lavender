@@ -333,6 +333,14 @@ Findings:
 | **InciWeb** (`inciweb.wildfire.gov`) | Links to incident pages; catalogue matched by name | HTML/JSON metadata | None | Catalogue cached 1 h; publication metadata 30 min | U.S. Government public incident information | **Yes** (links; page content stays InciWeb's) | "Incident information: InciWeb (inciweb.wildfire.gov)" | — | `server/providers/firePerimeters.js`, `src/layers/perimeters/inciweb.js` | **Core** | **LOW** |
 | **Open-Meteo** (`api.open-meteo.com/v1/forecast`) | Cockpit Local Info current conditions; dynamic weather effects | JSON | None (free endpoint) | 5-min cache per 0.1° cell; stale ≤30 min | https://open-meteo.com/en/terms · https://open-meteo.com/en/licence | **No on the free endpoint:** "You may only use the free API services for non-commercial purposes". **Paid plan (Standard/Professional/Enterprise) required** | Data CC BY 4.0; **"You must include a link next to any location Open-Meteo data are displayed"**: `<a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a>` | Free tier: <10,000/day, 5,000/h, 600/min | `server/providers/regional/weather.js`, `server/providers/regional/weather-effects.js` | **Core** (paid customer endpoint and key, or replace) | **HIGH** |
 
+Implementation note, 2026-10-14: the Rust NHC/CPHC provider now uses JSON status
+and ArcGIS GeoJSON queries, a ten-minute minimum refresh/retry cadence and
+twelve-hour bounded stale fallback. The five-minute row above records the audited
+legacy behavior. Current attribution is `NOAA/NWS NHC / CPHC`, with the existing
+public-domain/no-endorsement conditions; this does not grant rights to unrelated
+Esri basemap imagery or resolve other providers' commercial restrictions.
+Verification uses synthetic/mock cyclone fixtures; no live NOAA soak is recorded.
+
 ### 5.5 News, traffic, mobility, radio, AI
 
 | Provider | Purpose | Data format | API key / auth | Refresh used | Licence / terms | Commercial use | Attribution | Rate limits / usage policy | Legacy location | Target | Risk |

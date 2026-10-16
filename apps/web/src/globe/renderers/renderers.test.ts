@@ -24,7 +24,9 @@ import { DEFAULT_PALETTE } from '../tokens';
 import fixture from './__fixtures__/iss-omm.json';
 import { AircraftRenderer } from './aircraft';
 import { EarthquakeRenderer } from './earthquakes';
-import { AIRCRAFT_GLYPH_PX } from './glyphs';
+import { AIRCRAFT_GLYPH_PX, GLYPH_SUPERSAMPLE } from './glyphs';
+import { pickWashGlyphId, quakeRingGlyphId } from './hazardGlyphs';
+import { HAZARD_EDGE_PX } from './hazardShapes';
 import { SatelliteRenderer } from './satellites';
 import { SelectionHalo } from './selection';
 import { STALE_ALPHA } from './symbology';
@@ -80,6 +82,12 @@ const quake = (id: string, magnitude: number): Earthquake => ({
 
 function billboardsOf(primitives: PrimitiveCollection): Billboard[] {
   const collection = primitives.get(0) as BillboardCollection;
+  return Array.from({ length: collection.length }, (_, i) => collection.get(i));
+}
+
+/** The wash billboards of a renderer's pick assists (open centres). */
+function washesOf(renderer: { readonly pickAssists?: unknown }): Billboard[] {
+  const collection = renderer.pickAssists as BillboardCollection;
   return Array.from({ length: collection.length }, (_, i) => collection.get(i));
 }
 
@@ -197,19 +205,35 @@ describe('AircraftRenderer', () => {
 });
 
 describe('EarthquakeRenderer', () => {
-  it('sizes and colours points by magnitude with a ground outline', () => {
+  it('draws batched rings sized and coloured by magnitude, inside the hazard edge', () => {
     const primitives = new PrimitiveCollection();
     const { ctx } = context();
     const renderer = new EarthquakeRenderer(primitives, ctx);
     renderer.apply(snapshot({ kind: 'earthquakes', items: [quake('small', 2), quake('big', 7)] }));
-    const [small, big] = pointsOf(primitives);
-    expect(small?.pixelSize).toBe(9);
-    expect(big?.pixelSize).toBe(21.5);
-    expect(Color.equals(small?.color, ctx.colors.hazardRamp[0])).toBe(true);
-    expect(Color.equals(big?.color, ctx.colors.hazardRamp[4])).toBe(true);
-    expect(big?.outlineWidth).toBe(1);
-    expect(Color.equals(big?.outlineColor, ctx.colors.outline)).toBe(true);
+    expect(primitives.length).toBe(2);
+    const [small, big] = billboardsOf(primitives);
+    // Ring diameter 4 px + 2.5 px per unit of magnitude in whole pixels (M2 → 9, M7 → 22);
+    // ramp step < 3 → 0, ≥ 6 → 4. The glyph carries its colours; the billboard is untinted.
+    expect(small?.image).toBe(quakeRingGlyphId(9, 0));
+    expect(big?.image).toBe(quakeRingGlyphId(22, 4));
+    expect(Color.equals(big?.color, Color.WHITE)).toBe(true);
+    expect(big?.scale).toBe(1 / GLYPH_SUPERSAMPLE);
     expect(big?.id).toEqual({ feed: 'earthquakes', id: 'big' });
+    // Picking and the selection halo: the halo clears the ring and its edge.
+    expect(renderer.locate('big')).toEqual({
+      position: Cartesian3.fromDegrees(139, 35, 0),
+      symbolPx: 22 + 2 * HAZARD_EDGE_PX,
+    });
+    // The open centres pick through one wash per ring over its whole glyph, kept apart from
+    // the rings in the layer's pick assists so a wash never covers another drawn ring.
+    expect(renderer.pickAssists).toBe(primitives.get(1));
+    const [smallWash, bigWash] = washesOf(renderer);
+    expect(smallWash?.id).toBe(small?.id);
+    expect(bigWash?.id).toBe(big?.id);
+    expect(smallWash?.image).toBe(pickWashGlyphId(9 + 2 * HAZARD_EDGE_PX));
+    expect(bigWash?.image).toBe(pickWashGlyphId(22 + 2 * HAZARD_EDGE_PX));
+    expect(bigWash?.position).toEqual(big?.position);
+    expect(bigWash?.scale).toBe(1 / GLYPH_SUPERSAMPLE);
   });
 
   it('re-styles an updated magnitude in place and dims when stale', () => {
@@ -217,14 +241,39 @@ describe('EarthquakeRenderer', () => {
     const { ctx } = context();
     const renderer = new EarthquakeRenderer(primitives, ctx);
     renderer.apply(snapshot({ kind: 'earthquakes', items: [quake('q', 4.2)] }));
-    const [point] = pointsOf(primitives);
+    const [ring] = billboardsOf(primitives);
+    expect(ring?.image).toBe(quakeRingGlyphId(15, 2));
     renderer.apply(
       snapshot({ kind: 'earthquakes', items: [quake('q', 6.1)] }, { state: 'stale', ageS: 4000 }),
     );
-    expect(pointsOf(primitives)).toEqual([point]);
-    expect(point?.pixelSize).toBeCloseTo(19.25, 9);
-    expect(point?.color.alpha).toBeCloseTo(STALE_ALPHA, 9);
-    expect(point?.outlineColor.alpha).toBeCloseTo(STALE_ALPHA, 9);
+    expect(billboardsOf(primitives)).toEqual([ring]);
+    expect(ring?.image).toBe(quakeRingGlyphId(19, 4));
+    expect(ring?.color.alpha).toBeCloseTo(STALE_ALPHA, 9);
+    // The wash follows its ring in place: size and stale alpha.
+    const [wash] = washesOf(renderer);
+    expect(washesOf(renderer)).toHaveLength(1);
+    expect(wash?.image).toBe(pickWashGlyphId(19 + 2 * HAZARD_EDGE_PX));
+    expect(wash?.color.alpha).toBeCloseTo(STALE_ALPHA, 9);
+    renderer.apply(snapshot({ kind: 'earthquakes', items: [quake('q', 6.1)] }));
+    expect(ring?.color.alpha).toBe(1);
+    expect(wash?.color.alpha).toBe(1);
+  });
+
+  it('skips unusable positions, clears and destroys its collection', () => {
+    const primitives = new PrimitiveCollection();
+    const { ctx, requestRender } = context();
+    const renderer = new EarthquakeRenderer(primitives, ctx);
+    const bad = { ...quake('bad', 3), position: { lat: Number.NaN, lon: 0 } };
+    renderer.apply(snapshot({ kind: 'earthquakes', items: [quake('ok', 3), bad] }));
+    expect(renderer.size).toBe(1);
+    expect(renderer.locate('bad')).toBeUndefined();
+    expect(washesOf(renderer)).toHaveLength(1);
+    renderer.clear();
+    expect(billboardsOf(primitives)).toHaveLength(0);
+    expect(washesOf(renderer)).toHaveLength(0);
+    expect(requestRender).toHaveBeenCalled();
+    renderer.destroy();
+    expect(primitives.length).toBe(0);
   });
 });
 

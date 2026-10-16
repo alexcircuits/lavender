@@ -1,5 +1,6 @@
 import { Button, ErrorState, Panel, Skeleton } from '../design';
 import { AnnotationsPanel } from '../features/annotations/AnnotationsPanel';
+import { LaunchesPanel } from '../features/launches';
 import { LayerExplorer } from '../features/layers';
 import { SourcesPanel } from '../features/sources';
 import { useRuntime, useSystem, useUi } from '../runtime';
@@ -37,7 +38,8 @@ export function SidePanel({ className }: SidePanelProps) {
   const runtime = useRuntime();
   if (!panel) return null;
   if (panel === 'annotations') return <AnnotationsPanel className={className} />;
-  const title = panel === 'layers' ? 'Layers' : 'Sources';
+  const title =
+    panel === 'layers' ? 'Layers' : panel === 'launches' ? 'Rocket launches' : 'Sources';
 
   if (!catalog) {
     return (
@@ -60,6 +62,7 @@ export function SidePanel({ className }: SidePanelProps) {
       </Panel>
     );
   }
+  if (panel === 'launches') return <LaunchesPanel catalog={catalog} className={className} />;
   return panel === 'layers' ? (
     <LayerExplorer catalog={catalog} className={className} />
   ) : (

@@ -2,12 +2,28 @@
 import type { FeedId } from '../contracts';
 import type { EntityRef } from './index';
 
-const FEEDS: ReadonlySet<string> = new Set<FeedId>([
-  'aircraft',
-  'earthquakes',
-  'satellites',
-  'cyclones',
-]);
+/**
+ * Whether each feed's primitives carry pickable entity refs. A record over every `FeedId`,
+ * so a new feed does not compile until it is listed here: a hand-kept list once left out
+ * `vessels`, and clicking a ship did nothing (ENG-980).
+ */
+const PICKABLE = {
+  aircraft: true,
+  earthquakes: true,
+  satellites: true,
+  cyclones: true,
+  fires: true,
+  launches: true,
+  vessels: true,
+  // No perimeter renderer is merged yet; the perimeters layer change makes these pickable.
+  perimeters: false,
+} as const satisfies Record<FeedId, boolean>;
+
+const FEEDS: ReadonlySet<string> = new Set(
+  Object.entries(PICKABLE)
+    .filter(([, pickable]) => pickable)
+    .map(([feed]) => feed),
+);
 
 export function isEntityRef(value: unknown): value is EntityRef {
   if (typeof value !== 'object' || value === null) return false;

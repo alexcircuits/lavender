@@ -86,6 +86,8 @@ enum Wake {
     Retry,
     /// Time to re-judge freshness.
     Recheck,
+    /// A throttled subscription may send the slot updates it held back.
+    Flush,
 }
 
 impl Subscriber {
@@ -136,6 +138,11 @@ pub(super) async fn run_subscription(sub: Subscriber, mut query_rx: watch::Recei
     let mut plan = sub.hub.plan(&query);
     // The freshness of the last snapshot sent, for the recheck timer.
     let mut sent: Option<Freshness> = None;
+    // Push-based feeds: after a complete snapshot, slot updates are held until the
+    // provider's interval has passed, then sent as one snapshot of the latest state.
+    let throttle = sub.provider.snapshot_interval();
+    let mut throttled_until: Option<tokio::time::Instant> = None;
+    let mut held_back = false;
     let mut wake = Wake::Query;
 
     loop {
@@ -145,24 +152,38 @@ pub(super) async fn run_subscription(sub: Subscriber, mut query_rx: watch::Recei
                 let shortfall = sub.acquire_missing(p, &mut leases);
                 // A retry that leased nothing new changes nothing worth sending.
                 let emit = wake != Wake::Retry || leases.len() != held;
-                if emit {
+                let coalesce = wake == Wake::Slot
+                    && throttled_until.is_some_and(|until| tokio::time::Instant::now() < until);
+                if coalesce {
+                    // Mark the updates seen; the flush deadline sends the latest state.
+                    for lease in leases.values_mut() {
+                        lease.rx.borrow_and_update();
+                    }
+                    held_back = true;
+                } else if emit {
+                    held_back = false;
                     if let Some(short) = shortfall.filter(|_| leases.is_empty()) {
                         sent = None;
+                        throttled_until = None;
                         sub.send(SubscriptionEvent::Error(ApiError::from(&short.error())));
                     } else if let Some(snapshot) =
                         compose_snapshot(&query, p, &mut leases, &meta, shortfall)
                     {
                         sent = Some(snapshot.freshness.clone());
+                        throttled_until = throttle
+                            .filter(|_| snapshot.pending_regions == 0)
+                            .map(|interval| tokio::time::Instant::now() + interval);
                         sub.send(SubscriptionEvent::Snapshot(Arc::new(snapshot)));
                     }
                 }
                 // Absolute deadline, so rechecks that change nothing do not postpone it.
                 let retry_at = shortfall.map(|_| tokio::time::Instant::now() + retry);
+                let flush_at = throttled_until.filter(|_| held_back);
                 wake = loop {
                     let recheck_at = sent.as_ref().map(|_| tokio::time::Instant::now() + recheck);
-                    let next =
-                        wait_for_change(&mut leases, &mut query_rx, &sub, retry_at, recheck_at)
-                            .await;
+                    let deadlines =
+                        Deadlines { retry: retry_at, recheck: recheck_at, flush: flush_at };
+                    let next = wait_for_change(&mut leases, &mut query_rx, &sub, deadlines).await;
                     if next == Wake::Recheck && !freshness_changed(&leases, &meta, sent.as_ref()) {
                         continue;
                     }
@@ -171,8 +192,10 @@ pub(super) async fn run_subscription(sub: Subscriber, mut query_rx: watch::Recei
             }
             Err(err) => {
                 sent = None;
+                throttled_until = None;
                 sub.send(SubscriptionEvent::Error(ApiError::from(err)));
-                wake = wait_for_change(&mut leases, &mut query_rx, &sub, None, None).await;
+                wake =
+                    wait_for_change(&mut leases, &mut query_rx, &sub, Deadlines::default()).await;
             }
         }
         match wake {
@@ -197,21 +220,30 @@ pub(super) async fn run_subscription(sub: Subscriber, mut query_rx: watch::Recei
                     Err(_) => leases.clear(),
                 }
             }
-            Wake::Slot | Wake::Retry | Wake::Recheck => {}
+            Wake::Slot | Wake::Retry | Wake::Recheck | Wake::Flush => {}
         }
     }
 }
 
-/// Waits for whatever changes this subscription's answer. `retry_at` is set while some
-/// regions are missing (capacity freeing up also wakes it); `recheck_at` while a snapshot
-/// has been sent.
+/// When a waiting subscription should wake without a slot or query change.
+#[derive(Debug, Clone, Copy, Default)]
+struct Deadlines {
+    /// Set while some regions are missing (capacity freeing up also wakes it).
+    retry: Option<tokio::time::Instant>,
+    /// Set while a snapshot has been sent.
+    recheck: Option<tokio::time::Instant>,
+    /// Set while a throttled subscription holds back slot updates.
+    flush: Option<tokio::time::Instant>,
+}
+
+/// Waits for whatever changes this subscription's answer.
 async fn wait_for_change(
     leases: &mut HashMap<SlotKey, Lease>,
     query_rx: &mut watch::Receiver<FeedQuery>,
     sub: &Subscriber,
-    retry_at: Option<tokio::time::Instant>,
-    recheck_at: Option<tokio::time::Instant>,
+    deadlines: Deadlines,
 ) -> Wake {
+    let Deadlines { retry: retry_at, recheck: recheck_at, flush: flush_at } = deadlines;
     let slot_changed = async {
         if leases.is_empty() {
             std::future::pending::<bool>().await
@@ -236,12 +268,19 @@ async fn wait_for_change(
             None => std::future::pending::<()>().await,
         }
     };
+    let flush_due = async {
+        match flush_at {
+            Some(at) => tokio::time::sleep_until(at).await,
+            None => std::future::pending::<()>().await,
+        }
+    };
     tokio::select! {
         // Cancellation (unsubscribe or shutdown) wins over everything else.
         biased;
         () = sub.cancel.cancelled() => Wake::Stop,
         r = query_rx.changed() => if r.is_ok() { Wake::Query } else { Wake::Stop },
         alive = slot_changed => if alive { Wake::Slot } else { Wake::SlotClosed },
+        () = flush_due => Wake::Flush,
         () = retry_due => Wake::Retry,
         () = recheck_due => Wake::Recheck,
     }

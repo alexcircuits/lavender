@@ -36,6 +36,8 @@ fn config_for(server: &MockServer) -> CoreConfig {
     c.providers.adsb_lol.base_url = base.join("adsb/").unwrap();
     c.providers.celestrak.base_url = base.join("celestrak/").unwrap();
     c.providers.celestrak.groups = vec!["stations".into()];
+    c.providers.firms.base_url = base.join("firms/").unwrap();
+    c.providers.launches.base_url = base.join("launches/").unwrap();
     c
 }
 
@@ -340,4 +342,72 @@ async fn celestrak_does_not_re_request_a_failed_group_before_its_retry_floor() {
     assert!(first.to_string().contains("503"), "{first}");
     let second = provider.fetch(&ctx, Region::Global).await.unwrap_err();
     assert!(second.to_string().contains("next request allowed in"), "{second}");
+}
+
+#[tokio::test]
+async fn firms_missing_key_returns_unconfigured_with_zero_requests_made() {
+    let server = MockServer::start().await;
+    let config = config_for(&server);
+    let secrets = std::sync::Arc::new(MemorySecretStore::default());
+    let core = LavenderCore::builder(config).secrets(secrets).build().unwrap();
+    let err = core.snapshot(FeedQuery::new(FeedId::Fires)).await.unwrap_err();
+    match err {
+        lavender_core::CoreError::Unconfigured { feed, missing } => {
+            assert_eq!(feed, FeedId::Fires);
+            assert!(missing.contains("NASA FIRMS map key"), "{missing}");
+        }
+        other => panic!("expected Unconfigured error, got {other:?}"),
+    }
+    assert_eq!(server.received_requests().await.unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn firms_with_mock_csv_snapshot_and_aggregation() {
+    let server = MockServer::start().await;
+    let now = Timestamp::now();
+    let date_str = now.strftime("%Y-%m-%d").to_string();
+    let time_str = now.strftime("%H%M").to_string();
+    let mock_csv = format!(
+        "latitude,longitude,brightness,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_t31,frp,daynight\n\
+-35.123,149.456,320.5,1.0,1.0,{date_str},{time_str},NOAA-20,VIIRS,nominal,2.0NRT,290.0,45.2,D\n\
+-35.125,149.458,315.0,1.0,1.0,{date_str},{time_str},NOAA-20,VIIRS,nominal,2.0NRT,285.0,30.1,D\n\
+10.0,20.0,310.0,1.0,1.0,{date_str},{time_str},NOAA-20,VIIRS,nominal,2.0NRT,280.0,15.0,D\n"
+    );
+
+    Mock::given(method("GET"))
+        .and(path_regex(r"^/firms/secret-key/.*"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(mock_csv))
+        .mount(&server)
+        .await;
+
+    let mut config = config_for(&server);
+    config.providers.firms.sources = vec!["VIIRS_NOAA20_NRT".into()];
+    let secrets = std::sync::Arc::new(MemorySecretStore::with([(
+        lavender_core::SecretKey::FirmsMapKey,
+        "secret-key",
+    )]));
+
+    let core = LavenderCore::builder(config).secrets(secrets).build().unwrap();
+
+    // 1. Worldwide snapshot: aggregated into cells
+    let s = core.snapshot(FeedQuery::new(FeedId::Fires)).await.unwrap();
+    assert_eq!(s.freshness, Freshness::Live);
+    let FeedItems::Fires(cells) = &s.items else { panic!() };
+    let total_count: u32 = cells.iter().map(|c| c.count).sum();
+    assert_eq!(total_count, 3, "total fire count conserved across cells");
+
+    // 2. Small viewport snapshot: preserves individual detections
+    let small_view = BBox::new(149.0, -36.0, 150.0, -35.0).unwrap();
+    let s_local = core.snapshot(FeedQuery::new(FeedId::Fires).with_bbox(small_view)).await.unwrap();
+    let FeedItems::Fires(local_cells) = &s_local.items else { panic!() };
+    assert_eq!(local_cells.len(), 2);
+    assert!(local_cells.iter().all(|c| c.count == 1));
+
+    // 3. Filter min_frp
+    let mut query = FeedQuery::new(FeedId::Fires);
+    query.filters.min_frp = Some(40.0);
+    let s_filtered = core.snapshot(query).await.unwrap();
+    let FeedItems::Fires(filtered_cells) = &s_filtered.items else { panic!() };
+    let filtered_count: u32 = filtered_cells.iter().map(|c| c.count).sum();
+    assert_eq!(filtered_count, 1);
 }

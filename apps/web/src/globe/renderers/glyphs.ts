@@ -1,7 +1,8 @@
 /**
- * Runtime-drawn symbols (no image files): aircraft silhouettes and the selection halo. Glyphs
- * are drawn at 2× in white and tinted by the billboard colour, so one texture serves live and
- * stale states; the 1 px `--map-outline` stays dark under any tint (design-system §4).
+ * Runtime-drawn symbols (no image files): aircraft silhouettes and the selection halo; the
+ * hazard glyphs live in hazardGlyphs.ts. Glyphs are drawn at 2× in white and tinted by the
+ * billboard colour, so one texture serves every tint and the stale state; the 1 px
+ * `--map-outline` stays dark under any tint (design-system §4).
  *
  * Civil aircraft are a filled airliner; military contacts a hollow delta-wing jet, so identity
  * is carried by shape and fill, never by colour alone.

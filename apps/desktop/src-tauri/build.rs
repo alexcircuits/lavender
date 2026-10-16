@@ -10,8 +10,12 @@ const COMMANDS: &[&str] = &[
     "feed_unsubscribe",
     "search",
     "aircraft_track",
+    "vessel_track",
     "satellite_track",
     "satellite_passes",
+    "wind_manifest",
+    "wind_status",
+    "wind_grid",
     "smoke_report",
 ];
 

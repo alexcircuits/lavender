@@ -94,30 +94,9 @@ fn entities(q: &str, hub: &FeedHub, limit: usize) -> Vec<EntityHit> {
     for feed in FeedId::ALL {
         for items in hub.current_items(feed) {
             match items.as_ref() {
-                FeedItems::Aircraft(list) => hits.extend(list.iter().filter_map(|a| {
-                    let callsign = a.callsign.as_deref().unwrap_or_default().to_lowercase();
-                    let reg = a.registration.as_deref().unwrap_or_default().to_lowercase();
-                    let matches = a.hex == needle
-                        || (!callsign.is_empty() && callsign.starts_with(&needle))
-                        || reg == needle;
-                    matches.then(|| EntityHit {
-                        feed,
-                        id: a.hex.clone(),
-                        label: a.callsign.clone().unwrap_or_else(|| a.hex.to_uppercase()),
-                        detail: Some(
-                            [
-                                a.type_code.clone(),
-                                a.altitude_baro_ft.map(|ft| format!("{ft:.0} ft")),
-                            ]
-                            .into_iter()
-                            .flatten()
-                            .collect::<Vec<_>>()
-                            .join(" · "),
-                        )
-                        .filter(|d| !d.is_empty()),
-                        position: Some(a.position),
-                    })
-                })),
+                FeedItems::Aircraft(list) => {
+                    hits.extend(list.iter().filter_map(|a| aircraft_hit(a, &needle, feed)));
+                }
                 FeedItems::Satellites(list) => hits.extend(list.iter().filter_map(|s| {
                     let matches =
                         s.norad_id.to_string() == needle || s.name.to_lowercase().contains(&needle);
@@ -158,6 +137,37 @@ fn entities(q: &str, hub: &FeedHub, limit: usize) -> Vec<EntityHit> {
                         position: Some(e.position),
                     })
                 })),
+                FeedItems::Fires(_) => {}
+                FeedItems::Launches(list) => hits.extend(list.iter().filter_map(|l| {
+                    let matches = l.id.to_lowercase() == needle
+                        || l.name.to_lowercase().contains(&needle)
+                        || l.mission.as_deref().is_some_and(|m| m.to_lowercase().contains(&needle));
+                    matches.then(|| EntityHit {
+                        feed,
+                        id: l.id.clone(),
+                        label: l.name.clone(),
+                        detail: l.provider.clone(),
+                        position: l.pad.as_ref().and_then(|p| {
+                            lavender_domain::GeoPoint::new(p.latitude, p.longitude).ok()
+                        }),
+                    })
+                })),
+                FeedItems::Perimeters(list) => {
+                    hits.extend(list.iter().filter_map(|p| perimeter_hit(p, &needle, feed)));
+                }
+                FeedItems::Vessels(list) => hits.extend(list.iter().filter_map(|v| {
+                    let name = v.name.as_deref().unwrap_or_default().to_lowercase();
+                    let matches = v.mmsi == needle
+                        || v.mmsi.starts_with(&needle)
+                        || (!name.is_empty() && name.contains(&needle));
+                    matches.then(|| EntityHit {
+                        feed,
+                        id: v.mmsi.clone(),
+                        label: v.name.clone().unwrap_or_else(|| format!("MMSI {}", v.mmsi)),
+                        detail: v.vessel_type.clone(),
+                        position: Some(v.position),
+                    })
+                })),
             }
             if hits.len() >= limit * 3 {
                 break;
@@ -168,4 +178,55 @@ fn entities(q: &str, hub: &FeedHub, limit: usize) -> Vec<EntityHit> {
     hits.retain(|h| seen.insert((h.feed, h.id.clone())));
     hits.truncate(limit);
     hits
+}
+
+/// Every detail level of a perimeter shares its facts; only the full-detail copy is searched.
+fn perimeter_hit(
+    perimeter: &lavender_domain::FirePerimeter,
+    needle: &str,
+    feed: FeedId,
+) -> Option<EntityHit> {
+    let name = perimeter.name.as_deref().unwrap_or_default().to_lowercase();
+    let matches = perimeter.detail.level == 0
+        && (perimeter.id.to_lowercase() == needle || (needle.len() >= 3 && name.contains(needle)));
+    matches.then(|| EntityHit {
+        feed,
+        id: perimeter.id.clone(),
+        label: perimeter.name.clone().unwrap_or_else(|| perimeter.id.clone()),
+        detail: Some(
+            [perimeter.state.clone(), perimeter.acres.map(|a| format!("{a:.0} acres"))]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(" · "),
+        )
+        .filter(|detail| !detail.is_empty()),
+        position: Some(perimeter.anchor),
+    })
+}
+
+fn aircraft_hit(
+    aircraft: &lavender_domain::Aircraft,
+    needle: &str,
+    feed: FeedId,
+) -> Option<EntityHit> {
+    let callsign = aircraft.callsign.as_deref().unwrap_or_default().to_lowercase();
+    let registration = aircraft.registration.as_deref().unwrap_or_default().to_lowercase();
+    let matches = aircraft.hex == needle
+        || (!callsign.is_empty() && callsign.starts_with(needle))
+        || registration == needle;
+    matches.then(|| EntityHit {
+        feed,
+        id: aircraft.hex.clone(),
+        label: aircraft.callsign.clone().unwrap_or_else(|| aircraft.hex.to_uppercase()),
+        detail: Some(
+            [aircraft.type_code.clone(), aircraft.altitude_baro_ft.map(|ft| format!("{ft:.0} ft"))]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(" · "),
+        )
+        .filter(|detail| !detail.is_empty()),
+        position: Some(aircraft.position),
+    })
 }

@@ -2,6 +2,8 @@ import type { GeoPoint } from '../../contracts';
 
 /** Authalic sphere: surface estimates, without terrain or ellipsoid correction. */
 export const EARTH_RADIUS_M = 6_371_007.1809;
+/** Cesium Vincenty solver rejects angles within 0.0125 rad of π; keep a wider margin. */
+export const MAX_EDGE_ANGLE_RAD = Math.PI - 0.02;
 type Vector = readonly [number, number, number];
 const radians = (degrees: number) => (degrees * Math.PI) / 180;
 const dot = (a: Vector, b: Vector) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -78,7 +80,7 @@ export function geometryError(
     const distance =
       angle(vertices[i] as Vector, vertices[(i + 1) % vertices.length] as Vector) * EARTH_RADIUS_M;
     if (distance < 0.5) return 'Adjacent points must be at least 0.5 m apart.';
-    if (distance > Math.PI * EARTH_RADIUS_M - 1_000)
+    if (distance >= MAX_EDGE_ANGLE_RAD * EARTH_RADIUS_M)
       return 'Near-antipodal edges are ambiguous. Add an intermediate point.';
   }
   if (kind === 'line')

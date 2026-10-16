@@ -28,6 +28,12 @@ test('pins, distance lines and areas survive edit, reload and shared workspace r
   if (!bounds) throw new Error('Globe canvas missing.');
   await canvas.click({ position: { x: bounds.width * 0.6, y: bounds.height * 0.5 } });
   await expect(page.getByRole('button', { name: 'Save annotation' })).toBeEnabled();
+  await expect(page.getByRole('main', { name: 'Globe' })).toBeFocused();
+  await page.getByLabel('Label', { exact: true }).click();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Draw pin' })).toBeVisible();
+  await canvas.click({ position: { x: bounds.width * 0.6, y: bounds.height * 0.5 } });
+  await expect(page.getByRole('main', { name: 'Globe' })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Field pin' })).toBeVisible();
 

@@ -7,9 +7,12 @@
 
 export interface MapPalette {
   readonly air: string;
+  readonly maritime: string;
   readonly space: string;
   readonly selection: string;
   readonly outline: string;
+  /** Light neutral keyline just inside the outline of hazard symbols (§4). */
+  readonly keyline: string;
   readonly ink: string;
   /** Hazard magnitude ramp, low → high (five ordinal steps). */
   readonly hazardRamp: readonly [string, string, string, string, string];
@@ -21,9 +24,11 @@ export const DEFAULT_FONT_SANS = "'Geist Variable', 'Geist', ui-sans-serif, syst
 
 export const DEFAULT_PALETTE: MapPalette = {
   air: '#3987e5',
+  maritime: '#199e70',
   space: '#d6d3e6',
   selection: '#b9a6ff',
   outline: '#0a0a0b',
+  keyline: '#bcbcc4',
   ink: '#fafafa',
   hazardRamp: ['#8f3c19', '#b9471d', '#d95926', '#ef7a45', '#f8a57a'],
   labelFont: `500 12px ${DEFAULT_FONT_SANS}`,
@@ -45,9 +50,11 @@ export function readPalette(read: TokenReader): MapPalette {
   const ramp = DEFAULT_PALETTE.hazardRamp;
   return {
     air: token(read, '--map-air', DEFAULT_PALETTE.air),
+    maritime: token(read, '--map-maritime', DEFAULT_PALETTE.maritime),
     space: token(read, '--map-space', DEFAULT_PALETTE.space),
     selection: token(read, '--map-selection', DEFAULT_PALETTE.selection),
     outline: token(read, '--map-outline', DEFAULT_PALETTE.outline),
+    keyline: token(read, '--map-keyline', DEFAULT_PALETTE.keyline),
     ink: token(read, '--ink', DEFAULT_PALETTE.ink),
     hazardRamp: [
       token(read, '--hazard-1', ramp[0]),

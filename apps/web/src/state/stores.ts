@@ -29,6 +29,8 @@ export interface WorkspaceState {
   readonly selection: EntityRef | null;
   readonly imageryId: string | null;
   readonly annotations: readonly MapAnnotation[];
+  readonly annotationRenderError: string | null;
+  setAnnotationRenderError(error: string | null): void;
   readonly annotationStorageError: string | null;
   setAnnotationStorageError(error: string | null): void;
   setAnnotations(annotations: readonly MapAnnotation[]): void;
@@ -60,6 +62,8 @@ export const createWorkspaceStore = () =>
     selection: null,
     imageryId: null,
     annotations: [],
+    annotationRenderError: null,
+    setAnnotationRenderError: (annotationRenderError) => set({ annotationRenderError }),
     annotationStorageError: null,
     setAnnotationStorageError: (annotationStorageError) => set({ annotationStorageError }),
     revisions: { layers: 0, imagery: 0, selection: 0, annotations: 0 },
@@ -186,7 +190,7 @@ export const createSystemStore = () =>
 
 // ── ui: panels, palette and the mounted globe (never persisted) ───────────────────────────
 
-export type SidePanel = 'layers' | 'sources' | 'annotations';
+export type SidePanel = 'layers' | 'sources' | 'annotations' | 'launches';
 
 export interface UiState {
   /** The mounted globe's command interface, or null while it loads or after it failed. */

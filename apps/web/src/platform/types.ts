@@ -18,6 +18,10 @@ import type {
   SearchQuery,
   SearchResults,
   SystemStatus,
+  VesselTrackResponse,
+  WeatherOverlay,
+  WindManifest,
+  WindModel,
 } from '../contracts';
 
 /** What a live subscription delivers. */
@@ -53,6 +57,17 @@ export interface CallOptions {
   readonly signal?: AbortSignal;
 }
 
+/** One wind forecast variant: a model and an optional same-cycle overlay (default none). */
+export interface WindRequest {
+  readonly model: WindModel;
+  readonly overlay?: WeatherOverlay;
+}
+
+/** A retained wind grid of a variant; `id` is the manifest's `gridId`. */
+export interface WindGridRequest extends WindRequest {
+  readonly id: string;
+}
+
 export interface LavenderPlatform {
   readonly kind: 'web' | 'desktop';
   catalog(options?: CallOptions): Promise<Catalog>;
@@ -67,6 +82,23 @@ export interface LavenderPlatform {
   aircraftTrack(hex: string, options?: CallOptions): Promise<AircraftTrack>;
   satelliteTrack(request: SatelliteTrackRequest, options?: CallOptions): Promise<SatelliteTrack>;
   satellitePasses(request: SatellitePassRequest, options?: CallOptions): Promise<SatellitePasses>;
+  /**
+   * The recent track this backend kept for a vessel from the live AIS stream (bounded, oldest
+   * first). `notFound` when it has no retained positions; never fetched from upstream.
+   */
+  vesselTrack(mmsi: string, options?: CallOptions): Promise<VesselTrackResponse>;
+  /**
+   * The current wind forecast manifest. Upstream trouble is not an error: the manifest says
+   * `stale` or `unavailable`. Errors mean the variant cannot be served (disabled, licence).
+   */
+  windManifest(request: WindRequest, options?: CallOptions): Promise<WindManifest>;
+  /** The same manifest without `gridUrl` and `gridId`, for status displays. */
+  windStatus(request: WindRequest, options?: CallOptions): Promise<WindManifest>;
+  /**
+   * The binary grid named by a manifest's `gridId`: little-endian f32 blocks U, V and the
+   * optional scalar (layout on `WindGridDef`; read it with `decodeWindGrid`).
+   */
+  windGrid(request: WindGridRequest, options?: CallOptions): Promise<ArrayBuffer>;
   /** Reports transport changes; calls the listener immediately with the current state. */
   onTransportState(listener: (state: TransportState) => void): () => void;
   readonly preferences: PreferenceStore;

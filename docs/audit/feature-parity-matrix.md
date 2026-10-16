@@ -10,15 +10,26 @@
 
 ## How to read it
 
-### Implemented slices checked 2026-10-13
+### Implemented slices checked 2026-10-14
 
 The rows below remain the full target inventory. Current additions are bounded
 aircraft session history (F-023, no upstream backfill or follow yet), geometric
 observer satellite passes (F-031, no sunlight/refraction/optical visibility model),
 configured Nominatim/Photon place search through the core (search rows F-073 onward),
-and v1 workspace links with camera/layer/filter/imagery/selection restoration
-(F-108/109). Unknown layers and unavailable selections are ignored safely.
-Populated annotations and native deep-link registration remain separate tasks.
+and workspace links with camera/layer/filter/imagery/selection restoration
+(F-108/109). Workspace v2 now carries validated pins, distance arrows, areas,
+labels and notes, with strict v1 migration and bounded local persistence.
+Unknown layers and unavailable selections are ignored safely. Native deep-link
+registration and server-stored workspaces remain separate tasks.
+
+The cyclone slice (F-043) now uses `providers/cyclones.rs` and
+`cyclones/parsing.rs`, generated domain types, search, inspector facts/forecast
+table, wind legends and keyed track/cone rendering with holes. Current positions
+survive unavailable geometry; geometry must match the exact advisory. The Rust
+provider has a ten-minute minimum cadence, compared with the legacy five-minute
+cache recorded in the row below. ENG-951/989 final acceptance verification is
+still pending; ENG-975 also requires fire rendering and wider hazard acceptance.
+Synthetic fixtures do not constitute an active-storm comparison or live NOAA soak.
 See [the migration status](../development/rust-rewrite.md) and
 [verification records](../PROGRESS.md) for scope and tests; this does not sign off
 all upstream parity or commercial source terms.

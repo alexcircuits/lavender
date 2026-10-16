@@ -72,16 +72,24 @@ impl PublicResolver {
         }
         Ok(Box::new(addresses.into_iter()))
     }
+
+    /// Resolves `host` once and returns the validated addresses with `port`; used by the
+    /// HTTP client and by streaming connections alike.
+    pub(super) async fn lookup(
+        &self,
+        host: &str,
+        port: u16,
+    ) -> Result<Vec<SocketAddr>, Box<dyn Error + Send + Sync>> {
+        let addresses = tokio::net::lookup_host((host, port)).await?.take(65).collect();
+        Ok(self.validate(host, addresses)?.collect())
+    }
 }
 
 impl Resolve for PublicResolver {
     fn resolve(&self, name: Name) -> Resolving {
         let host = name.as_str().to_owned();
         let resolver = Self::new(self.development_hosts.clone());
-        Box::pin(async move {
-            let addresses = tokio::net::lookup_host((host.as_str(), 0)).await?.take(65).collect();
-            resolver.validate(&host, addresses)
-        })
+        Box::pin(async move { Ok(Box::new(resolver.lookup(&host, 0).await?.into_iter()) as Addrs) })
     }
 }
 

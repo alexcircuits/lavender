@@ -35,6 +35,10 @@ use crate::security::{ClientIp, is_same_origin};
 
 const MAX_MESSAGE_BYTES: usize = 64 * 1024;
 const MAX_INVALID_FRAMES: u32 = 10;
+/// How long a server that closed the stream waits for the client's own close frame (the
+/// RFC 6455 §7.1.1 closing handshake) before dropping the socket. Dropping it at once lets a
+/// client that is still reading queued pings hit a reset before it sees the close reason.
+const CLOSE_GRACE: Duration = Duration::from_secs(3);
 /// Frames queued for one connection's writer.
 const OUTBOUND_QUEUE: usize = 16;
 /// `Retry-After` seconds when the server is full.
@@ -362,8 +366,25 @@ async fn connection(
         Ended::Close(code, reason) => {
             let _ = close_tx.send((code, reason));
             let _ = writer.await;
+            await_client_close(&mut incoming).await;
         }
     }
+}
+
+/// Keeps reading, for at most [`CLOSE_GRACE`], until the client answers the server's close
+/// frame or the connection ends. Anything else the client sends meanwhile is discarded.
+async fn await_client_close<S, E>(incoming: &mut S)
+where
+    S: futures::Stream<Item = Result<Message, E>> + Unpin,
+{
+    let _ = tokio::time::timeout(CLOSE_GRACE, async {
+        while let Some(Ok(message)) = incoming.next().await {
+            if matches!(message, Message::Close(_)) {
+                break;
+            }
+        }
+    })
+    .await;
 }
 
 #[cfg(test)]

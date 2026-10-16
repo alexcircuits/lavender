@@ -11,9 +11,18 @@ import {
   source,
   startHarness,
 } from '../../app/testing';
-import type { Earthquake, FeedId, SatelliteTrack } from '../../contracts';
+import type {
+  Earthquake,
+  FeedId,
+  FeedSnapshot,
+  FireCell,
+  SatelliteTrack,
+  VesselTrackResponse,
+} from '../../contracts';
 import { clearToasts, formatCount } from '../../design';
+import { PlatformError } from '../../platform';
 import { catalogOf, type FakePlatform, layer, quakeSnapshot } from '../../test/fakes';
+import { vessel, vesselSnapshot } from '../../test/vessel';
 import { useCommandContext, useGlobalShortcuts } from '../commands';
 import { Inspector } from './Inspector';
 
@@ -68,6 +77,176 @@ afterEach(() => {
 });
 
 describe('Inspector', () => {
+  it('shows a loaded vessel without inventing observation times or tracking actions', async () => {
+    harness = await startHarness({
+      catalog: catalogOf([layer('vessels', { family: 'maritime' })]),
+      globe: true,
+    });
+    const h = harness;
+    act(() => h.runtime.stores.workspace.getState().setLayerEnabled('vessels', true));
+    renderWithRuntime(h.runtime, <Inspector />);
+    h.platform.live('vessels')?.onEvent({
+      kind: 'snapshot',
+      snapshot: vesselSnapshot([vessel({ name: 'TEST SHIP', speedKnots: 12.4 })]),
+    });
+    select(h, 'vessels', '123456789');
+    const region = screen.getByRole('region', { name: 'TEST SHIP' });
+    expect(fact('Facts', 'MMSI')).toBe('123456789');
+    expect(fact('Facts', 'Speed over ground')).toBe('12.4 kn');
+    expect(fact('Facts', 'Heading')).toBe('Not reported');
+    expect(fact('Facts', 'Position time')).toBe('Not reported');
+    expect(fact('Facts', 'Position age')).toBe('Not reported');
+    expect(fact('Provenance', 'Observed')).toBe('Not reported');
+    // The recent track is the platform's retained data; no follow action is offered.
+    expect(within(region).queryByRole('button', { name: /Follow/ })).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(h.platform.vesselTrack).toHaveBeenCalledWith('123456789', expect.anything()),
+    );
+  });
+
+  it('loads the selected vessel track, draws it on the globe and clears it with the sheet', async () => {
+    harness = await startHarness({
+      catalog: catalogOf([layer('vessels', { family: 'maritime', sourceIds: ['aisstream'] })], {
+        sources: [source('aisstream', { name: 'AISStream' })],
+      }),
+      globe: true,
+    });
+    const h = harness;
+    const track: VesselTrackResponse = {
+      mmsi: '230990001',
+      source: 'aisstream',
+      retainedSec: 1_800,
+      samples: [
+        { lat: 60.1, lon: 24.9, epochSec: Date.parse('2026-10-15T11:50:00Z') / 1000 },
+        { lat: 60.1, lon: 24.91, epochSec: Date.parse('2026-10-15T11:51:00Z') / 1000 },
+        { lat: 60.1, lon: 24.95, epochSec: Date.parse('2026-10-15T11:55:00Z') / 1000 },
+      ],
+    };
+    h.platform.vesselTrack.mockResolvedValue(track);
+    act(() => h.runtime.stores.workspace.getState().setLayerEnabled('vessels', true));
+    renderWithRuntime(h.runtime, <Inspector />);
+    h.platform.live('vessels')?.onEvent({
+      kind: 'snapshot',
+      snapshot: {
+        ...vesselSnapshot([
+          vessel({
+            mmsi: '230990001',
+            name: 'TEST TRADER',
+            lastPositionUtc: '2026-10-15T11:55:00Z',
+          }),
+        ]),
+        sources: ['aisstream'],
+        notices: ['Recorded fixture data, not live.', 'Synthetic AIS replay.'],
+      },
+    });
+    select(h, 'vessels', '230990001');
+    const status = await screen.findByText('3 positions over 5 min · AISStream');
+    expect(status).toHaveAttribute('role', 'status');
+    const rows = within(screen.getByRole('table', { name: 'Vessel track' })).getAllByRole('row');
+    // Header, then newest first.
+    expect(rows[1]).toHaveTextContent('11:55:00 UTC');
+    expect(h.globe?.globe.showVesselTrack).toHaveBeenLastCalledWith(track);
+    expect(fact('Provenance', 'Source')).toBe('AISStream');
+    expect(fact('Provenance', 'Notices')).toBe(
+      'Recorded fixture data, not live. Synthetic AIS replay.',
+    );
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Refresh track' }));
+    await waitFor(() => expect(h.platform.vesselTrack).toHaveBeenCalledTimes(2));
+
+    select(h, 'vessels', '230990002');
+    expect(h.globe?.globe.showVesselTrack).toHaveBeenLastCalledWith(null);
+  });
+
+  it('says when the server has kept no positions for the vessel', async () => {
+    harness = await startHarness({
+      catalog: catalogOf([layer('vessels', { family: 'maritime' })]),
+      globe: true,
+    });
+    const h = harness;
+    h.platform.vesselTrack.mockRejectedValue(
+      new PlatformError({
+        code: 'notFound',
+        message: 'No retained track is available for vessel 123456789.',
+        retryable: false,
+      }),
+    );
+    act(() => h.runtime.stores.workspace.getState().setLayerEnabled('vessels', true));
+    renderWithRuntime(h.runtime, <Inspector />);
+    h.platform.live('vessels')?.onEvent({
+      kind: 'snapshot',
+      snapshot: vesselSnapshot([vessel()]),
+    });
+    select(h, 'vessels', '123456789');
+    expect(
+      await screen.findByText('This server has kept no positions for this vessel yet.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: 'Vessel track' })).not.toBeInTheDocument();
+    expect(h.globe?.globe.showVesselTrack).not.toHaveBeenCalledWith(
+      expect.objectContaining({ mmsi: '123456789' }),
+    );
+  });
+
+  it('describes fire cells with malformed fields and never crashes on undrawable ones', async () => {
+    harness = await startHarness({
+      catalog: catalogOf([layer('fires', { name: 'Active fires' })]),
+      globe: true,
+    });
+    const h = harness;
+    act(() => h.runtime.stores.workspace.getState().setLayerEnabled('fires', true));
+    renderWithRuntime(h.runtime, <Inspector />);
+    const fire: FireCell = {
+      lat: 34.05,
+      lon: -118.25,
+      brightness: 0,
+      frp: 18.2,
+      confidence: 'nominal',
+      satellite: 'N20',
+      acquiredAt: '2026-10-15T12:00:00Z',
+      dayNight: 'D',
+      count: 1,
+      maxFrp: 18.2,
+      latestAcquiredAt: '2026-10-15T12:00:00Z',
+    };
+    // Wire data a broken or newer server could send (JSON carries NaN as null).
+    const items = [
+      { ...fire, satellite: null, confidence: 3 },
+      { ...fire, lat: 10, count: 0 },
+      { ...fire, lat: 11, frp: null },
+      { ...fire, lat: 12, maxFrp: -2 },
+    ] as unknown as FireCell[];
+    const snapshot: FeedSnapshot = {
+      feed: 'fires',
+      sources: ['fires-source'],
+      fetchedAt: '2026-10-15T12:00:00Z',
+      generatedAt: '2026-10-15T12:00:01Z',
+      freshness: { state: 'live' },
+      coverage: { kind: 'complete' },
+      sourceCount: 1,
+      pendingRegions: 0,
+      items: { kind: 'fires', items },
+      notices: [],
+    };
+    h.platform.live('fires')?.onEvent({ kind: 'snapshot', snapshot });
+
+    select(h, 'fires', '34.0500,-118.2500');
+    expect(screen.getByRole('region', { name: 'Active fire detection' })).toBeInTheDocument();
+    expect(fact('Facts', 'Radiative power')).toBe('18.2 MW');
+    expect(fact('Facts', 'Brightness')).toBe('Not reported');
+    expect(fact('Facts', 'Satellite')).toBe('Not reported');
+    expect(fact('Facts', 'Confidence')).toBe('Not reported');
+    expect(screen.getByText('FRP 18.2 MW · Satellite')).toBeInTheDocument();
+
+    for (const id of ['10.0000,-118.2500', '11.0000,-118.2500', '12.0000,-118.2500']) {
+      select(h, 'fires', id);
+      expect(
+        screen.getByText(
+          `${id} is not in the latest Active fires data for the area the globe shows.`,
+        ),
+      ).toBeVisible();
+    }
+  });
+
   it('loads observed aircraft history on demand with source and timestamps', async () => {
     const h = await setup('aircraft');
     h.platform

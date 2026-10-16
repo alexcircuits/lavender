@@ -43,7 +43,7 @@ pub fn layers() -> Vec<LayerDef> {
         LayerDef {
             feed: FeedId::Satellites,
             name: "Satellites",
-            description: "Space stations, bright and navigation satellites, propagated live.",
+            description: "Space stations, bright, navigation and recently launched satellites, propagated live.",
             family: LayerFamily::Space,
             sources: vec![sources::CELESTRAK],
             default_on: false,
@@ -54,6 +54,38 @@ pub fn layers() -> Vec<LayerDef> {
             description: "NHC/CPHC advisory positions, forecast tracks and uncertainty cones for the Atlantic and eastern/central North Pacific.",
             family: LayerFamily::Hazards,
             sources: vec![sources::NOAA_CYCLONES],
+            default_on: false,
+        },
+        LayerDef {
+            feed: FeedId::Launches,
+            name: "Rocket launches",
+            description: "Recent and upcoming rocket launches (30 days either side): launch sites, status and the tracked satellites each launch carried.",
+            family: LayerFamily::Space,
+            sources: vec![sources::LAUNCH_LIBRARY_2],
+            default_on: false,
+        },
+        LayerDef {
+            feed: FeedId::Fires,
+            name: "Wildfires",
+            description: "NASA FIRMS thermal anomalies and active fire detections (MODIS/VIIRS).",
+            family: LayerFamily::Hazards,
+            sources: vec![sources::NASA_FIRMS],
+            default_on: false,
+        },
+        LayerDef {
+            feed: FeedId::Vessels,
+            name: "Vessels",
+            description: "Live AIS ship positions relayed by AISStream receivers, with recent tracks.",
+            family: LayerFamily::Maritime,
+            sources: vec![sources::AISSTREAM],
+            default_on: false,
+        },
+        LayerDef {
+            feed: FeedId::Perimeters,
+            name: "Wildfire perimeters",
+            description: "NIFC WFIGS outlines of current US wildland fires, simplified for the view, with containment and InciWeb incident links.",
+            family: LayerFamily::Hazards,
+            sources: vec![sources::NIFC_WFIGS, sources::INCIWEB],
             default_on: false,
         },
     ]
@@ -252,6 +284,26 @@ mod tests {
         );
         let with = MemorySecretStore::with([(crate::secrets::SecretKey::FirmsMapKey, "k")]);
         assert_eq!(r.availability(FeedId::Earthquakes, &with, true), Availability::Available);
+    }
+
+    #[test]
+    fn vessels_need_a_key_and_unknown_terms_stay_off_in_commercial_mode() {
+        let none = MemorySecretStore::default();
+        let r = Registry::new(LicenceMode::Evaluation, &[]);
+        assert_eq!(
+            r.availability(FeedId::Vessels, &none, true),
+            Availability::Unconfigured { missing: vec!["AISStream API key".to_owned()] }
+        );
+        let key = MemorySecretStore::with([(crate::secrets::SecretKey::AisStreamApiKey, "k")]);
+        assert_eq!(r.availability(FeedId::Vessels, &key, true), Availability::Available);
+        let commercial = Registry::new(LicenceMode::Commercial, &[]);
+        assert_eq!(
+            commercial.availability(FeedId::Vessels, &key, true),
+            Availability::DisabledByLicence
+        );
+        let info = commercial.source(sources::AISSTREAM).unwrap().info.clone();
+        assert_eq!(info.commercial, CommercialUse::Unknown);
+        assert!(info.requires_key && info.notes.unwrap().contains("ENG-938"));
     }
 
     #[test]

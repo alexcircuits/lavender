@@ -17,14 +17,16 @@ pub mod health;
 pub mod hub;
 pub mod providers;
 pub mod registry;
+pub mod satellite_catalog;
 pub mod search;
 pub mod secrets;
 pub mod settings;
 pub mod sources;
+pub mod vessel_store;
 
 pub use crate::core::{LavenderCore, LavenderCoreBuilder};
 pub use config::CoreConfig;
 pub use error::CoreError;
 pub use hub::{FeedSubscription, RegionBudget, SubscriptionEvent};
-pub use secrets::{EnvSecretStore, MemorySecretStore, SecretKey, SecretStore};
+pub use secrets::{EnvSecretStore, FixtureSecretStore, MemorySecretStore, SecretKey, SecretStore};
 pub use settings::{FileSettingsStore, MemorySettingsStore, SettingsStore};

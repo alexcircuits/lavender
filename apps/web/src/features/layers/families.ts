@@ -2,7 +2,15 @@
  * How layers are grouped, named and drawn in the explorer (design-system §4, §6).
  */
 import type { FeedId, LayerFamily } from '../../contracts';
-import { AirplaneIcon, type Icon, PlanetIcon, WaveformIcon } from '../../design';
+import {
+  AirplaneIcon,
+  BoatIcon,
+  FireIcon,
+  type Icon,
+  PlanetIcon,
+  RocketLaunchIcon,
+  WaveformIcon,
+} from '../../design';
 import { lookup } from '../../lib/lookup';
 
 /** Explorer group order. Only families present in the catalog are shown. */
@@ -50,6 +58,10 @@ export const FEED_GLYPH: Readonly<Record<FeedId, Icon>> = {
   earthquakes: WaveformIcon,
   satellites: PlanetIcon,
   cyclones: WaveformIcon,
+  fires: FireIcon,
+  launches: RocketLaunchIcon,
+  vessels: BoatIcon,
+  perimeters: FireIcon,
 };
 
 const NOUNS: Readonly<Record<FeedId, readonly [string, string]>> = {
@@ -57,6 +69,10 @@ const NOUNS: Readonly<Record<FeedId, readonly [string, string]>> = {
   earthquakes: ['event', 'events'],
   satellites: ['satellite', 'satellites'],
   cyclones: ['storm', 'storms'],
+  fires: ['fire', 'fires'],
+  launches: ['launch', 'launches'],
+  vessels: ['vessel', 'vessels'],
+  perimeters: ['perimeter', 'perimeters'],
 };
 
 /** "contact" / "contacts", the word a count of this feed's items is read with. */

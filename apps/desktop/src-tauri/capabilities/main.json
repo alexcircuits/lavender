@@ -13,8 +13,12 @@
     "allow-feed-unsubscribe",
     "allow-search",
     "allow-aircraft-track",
+    "allow-vessel-track",
     "allow-satellite-track",
     "allow-satellite-passes",
+    "allow-wind-manifest",
+    "allow-wind-status",
+    "allow-wind-grid",
     "allow-smoke-report"
   ]
 }

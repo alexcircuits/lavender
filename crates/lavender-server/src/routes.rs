@@ -9,11 +9,12 @@ use axum::extract::{FromRequestParts, Path, Query, State};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
+use lavender_core::CoreError;
 use lavender_domain::text::clean;
 use lavender_domain::{
     AircraftTrack, BBox, Catalog, ErrorCode, FeedFilters, FeedId, FeedQuery, GeoPoint,
     SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery,
-    SearchResults, SystemStatus, Timestamp,
+    SearchResults, SystemStatus, Timestamp, VesselTrackResponse, WeatherOverlay, WindModel,
 };
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -79,6 +80,7 @@ pub struct FeedParams {
     min_magnitude: Option<String>,
     military_only: Option<String>,
     groups: Option<String>,
+    min_frp: Option<String>,
 }
 
 fn parse_query(feed: &str, params: &FeedParams) -> Result<FeedQuery, HttpError> {
@@ -110,7 +112,17 @@ fn parse_query(feed: &str, params: &FeedParams) -> Result<FeedQuery, HttpError> 
     if groups.as_ref().is_some_and(|g| g.len() > 20) {
         return Err(bad("at most 20 groups"));
     }
-    query.filters = FeedFilters { min_magnitude, military_only, groups };
+    let min_frp = params
+        .min_frp
+        .as_deref()
+        .map(|m| {
+            m.parse::<f64>()
+                .ok()
+                .filter(|v| v.is_finite() && *v >= 0.0)
+                .ok_or_else(|| bad("minFrp must be a non-negative number"))
+        })
+        .transpose()?;
+    query.filters = FeedFilters { min_magnitude, military_only, groups, min_frp };
     Ok(query)
 }
 
@@ -204,6 +216,18 @@ pub async fn aircraft_track(
     Ok(Json(state.core.aircraft_track(&hex)?))
 }
 
+/// `GET /api/v1/vessels/{mmsi}/track` — the positions this core has accumulated from the
+/// live stream; never initiates an upstream request.
+///
+/// # Errors
+/// An MMSI that is not nine digits (400), an unavailable feed, or no retained track (404).
+pub async fn vessel_track(
+    State(state): State<AppState>,
+    ApiPath(mmsi): ApiPath<String>,
+) -> Result<Json<VesselTrackResponse>, HttpError> {
+    Ok(Json(state.core.vessel_track(&mmsi)?))
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TrackParams {
@@ -270,6 +294,132 @@ pub async fn satellite_passes(
     Ok(Json(state.core.satellite_passes(request).await?))
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct WindParams {
+    pub model: Option<String>,
+    pub overlay: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WindErrorEnvelope {
+    error: &'static str,
+    code: ErrorCode,
+    message: &'static str,
+    retryable: bool,
+}
+
+fn wind_error(status: StatusCode, code: ErrorCode, key: &'static str) -> Response {
+    (status, Json(WindErrorEnvelope { error: key, code, message: key, retryable: false }))
+        .into_response()
+}
+
+fn parse_wind_model(model: Option<&str>) -> Result<WindModel, &'static str> {
+    match model.unwrap_or("gfs") {
+        "gfs" => Ok(WindModel::Gfs),
+        "ifs" => Ok(WindModel::Ifs),
+        _ => Err("unknown_model"),
+    }
+}
+
+fn parse_weather_overlay(overlay: Option<&str>) -> Result<WeatherOverlay, &'static str> {
+    match overlay.unwrap_or("none") {
+        "none" => Ok(WeatherOverlay::None),
+        "temperature" => Ok(WeatherOverlay::Temperature),
+        "pressure" => Ok(WeatherOverlay::Pressure),
+        _ => Err("unknown_overlay"),
+    }
+}
+
+/// `GET /api/v1/wind` and `GET /api/v1/wind/manifest`
+///
+/// # Errors
+/// Returns a transport error when the core cannot serve this forecast variant.
+pub async fn wind_manifest(
+    State(state): State<AppState>,
+    Query(params): Query<WindParams>,
+) -> Result<Response, HttpError> {
+    let model = match parse_wind_model(params.model.as_deref()) {
+        Ok(m) => m,
+        Err(key) => {
+            return Ok(wind_error(StatusCode::BAD_REQUEST, ErrorCode::InvalidRequest, key));
+        }
+    };
+    let overlay = match parse_weather_overlay(params.overlay.as_deref()) {
+        Ok(o) => o,
+        Err(key) => {
+            return Ok(wind_error(StatusCode::BAD_REQUEST, ErrorCode::InvalidRequest, key));
+        }
+    };
+    let manifest = state.core.wind_manifest(model, overlay).await?;
+    let mut resp = Json(manifest).into_response();
+    resp.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    Ok(resp)
+}
+
+/// `GET /api/v1/wind/status`
+///
+/// # Errors
+/// Returns a transport error when the core cannot serve this forecast variant.
+pub async fn wind_status(
+    State(state): State<AppState>,
+    Query(params): Query<WindParams>,
+) -> Result<Response, HttpError> {
+    let model = match parse_wind_model(params.model.as_deref()) {
+        Ok(m) => m,
+        Err(key) => {
+            return Ok(wind_error(StatusCode::BAD_REQUEST, ErrorCode::InvalidRequest, key));
+        }
+    };
+    let overlay = match parse_weather_overlay(params.overlay.as_deref()) {
+        Ok(o) => o,
+        Err(key) => {
+            return Ok(wind_error(StatusCode::BAD_REQUEST, ErrorCode::InvalidRequest, key));
+        }
+    };
+    let status = state.core.wind_status(model, overlay).await?;
+    let mut resp = Json(status).into_response();
+    resp.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    Ok(resp)
+}
+
+/// `GET /api/v1/wind/grid/{id}`: little-endian f32 blocks U, V and the optional scalar
+/// (layout on `lavender_domain::WindGridDef`).
+///
+/// # Errors
+/// Returns a transport error when the core cannot serve this forecast variant.
+pub async fn wind_grid(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(params): Query<WindParams>,
+) -> Result<Response, HttpError> {
+    let model = match parse_wind_model(params.model.as_deref()) {
+        Ok(m) => m,
+        Err(key) => {
+            return Ok(wind_error(StatusCode::BAD_REQUEST, ErrorCode::InvalidRequest, key));
+        }
+    };
+    let overlay = match parse_weather_overlay(params.overlay.as_deref()) {
+        Ok(o) => o,
+        Err(key) => {
+            return Ok(wind_error(StatusCode::BAD_REQUEST, ErrorCode::InvalidRequest, key));
+        }
+    };
+    let bytes = match state.core.wind_grid(model, overlay, &id).await {
+        Ok(b) => b,
+        Err(CoreError::NotFound(_)) => {
+            return Ok(wind_error(StatusCode::NOT_FOUND, ErrorCode::NotFound, "unknown_grid"));
+        }
+        Err(e) => return Err(HttpError::from(e)),
+    };
+    let mut resp = bytes.into_response();
+    resp.headers_mut()
+        .insert(header::CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
+    resp.headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=3600, immutable"));
+    Ok(resp)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,11 +431,13 @@ mod tests {
             min_magnitude: Some("4.5".into()),
             military_only: None,
             groups: Some("stations, gps-ops,".into()),
+            min_frp: Some("25.5".into()),
         };
         let q = parse_query("earthquakes", &p).unwrap();
         assert!(q.bbox.unwrap().crosses_antimeridian());
         assert_eq!(q.filters.min_magnitude, Some(4.5));
         assert_eq!(q.filters.groups, Some(vec!["stations".into(), "gps-ops".into()]));
+        assert_eq!(q.filters.min_frp, Some(25.5));
         assert_eq!(
             parse_query("ufos", &FeedParams::default()).unwrap_err().0.code,
             ErrorCode::NotFound
@@ -295,6 +447,8 @@ mod tests {
             parse_query("earthquakes", &bad_mag).unwrap_err().0.code,
             ErrorCode::InvalidRequest
         );
+        let bad_frp = FeedParams { min_frp: Some("-5.0".into()), ..FeedParams::default() };
+        assert_eq!(parse_query("fires", &bad_frp).unwrap_err().0.code, ErrorCode::InvalidRequest);
         let bad_box = FeedParams { bbox: Some("0,95,1,96".into()), ..FeedParams::default() };
         assert_eq!(
             parse_query("aircraft", &bad_box).unwrap_err().0.code,

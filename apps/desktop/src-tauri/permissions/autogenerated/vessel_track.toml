@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-vessel-track"
+description = "Enables the vessel_track command without any pre-configured scope."
+commands.allow = ["vessel_track"]
+
+[[permission]]
+identifier = "deny-vessel-track"
+description = "Denies the vessel_track command without any pre-configured scope."
+commands.deny = ["vessel_track"]

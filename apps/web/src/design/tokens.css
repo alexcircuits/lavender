@@ -104,6 +104,7 @@
   --map-context: #9a98a8; /* infrastructure, boundaries, cables (neutral) */
   --map-selection: var(--accent-ink); /* any selected or tracked entity: 2 px halo */
   --map-outline: var(--ground); /* 1 px outline on every point symbol; 2 px label halo */
+  --map-keyline: #bcbcc4; /* hazard symbols: 1 px inside --map-outline; together ≥ 3:1 on any imagery */
   /* Hazard magnitude ramp, ordinal, low → high (brighter = more severe on dark imagery). */
   --hazard-1: #8f3c19;
   --hazard-2: #b9471d;

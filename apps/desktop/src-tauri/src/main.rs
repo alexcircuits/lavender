@@ -68,8 +68,12 @@ fn main() {
             commands::feed_unsubscribe,
             commands::search,
             commands::aircraft_track,
+            commands::vessel_track,
             commands::satellite_track,
             commands::satellite_passes,
+            commands::wind_manifest,
+            commands::wind_status,
+            commands::wind_grid,
             commands::smoke_report,
         ])
         .build(tauri::generate_context!());
@@ -82,6 +86,40 @@ fn main() {
         Err(e) => {
             eprintln!("Lavender failed to start: {e}");
             std::process::exit(1);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// The command names `build.rs` registers in the app manifest.
+    fn registered_commands() -> Vec<String> {
+        let build = include_str!("../build.rs");
+        let start = build.find("const COMMANDS").unwrap();
+        let list = &build[start..start + build[start..].find("];").unwrap()];
+        list.split('"').skip(1).step_by(2).map(str::to_owned).collect()
+    }
+
+    #[test]
+    fn the_main_window_is_granted_exactly_the_registered_commands() {
+        let capability: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/main.json")).unwrap();
+        let mut granted: Vec<String> = capability["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p.as_str().unwrap().to_owned())
+            .filter(|p| p != "core:default")
+            .collect();
+        let mut expected: Vec<String> = registered_commands()
+            .iter()
+            .map(|command| format!("allow-{}", command.replace('_', "-")))
+            .collect();
+        granted.sort();
+        expected.sort();
+        assert_eq!(granted, expected);
+        for wind in ["wind_manifest", "wind_status", "wind_grid"] {
+            assert!(registered_commands().iter().any(|c| c == wind), "{wind}");
         }
     }
 }

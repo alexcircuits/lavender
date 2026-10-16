@@ -23,7 +23,8 @@ describe('cyclone inspection', () => {
     expect(screen.getByText('90 kn')).toBeInTheDocument();
   });
   it('keeps missing intensity unknown and never displays unconfirmed forecasts', () => {
-    const storm = cyclone({ geometryStatus: 'pending', intensityKt: undefined });
+    const storm = cyclone({ geometryStatus: 'pending' });
+    delete storm.intensityKt;
     expect(cycloneFacts(storm).find((f) => f.label === 'Maximum sustained wind')?.value).toBe(
       'Not reported',
     );

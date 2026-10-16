@@ -141,4 +141,3 @@ Start with the [roadmap's next tasks](../roadmap.md#what-to-work-on-next). “Al
 ## Keeping the index useful
 
 Update this dated snapshot when task states change. Add evidence to the existing Flokzy task, including commands and measurements; update [PROGRESS](../PROGRESS.md) when implementation or migration status changes. A completed basic feed does not imply all optional sources, history, release packaging or commercial permissions are finished.
-

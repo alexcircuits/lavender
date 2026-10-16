@@ -36,8 +36,11 @@ The production build also serves `/docs/` through `lavender-server`.
 
 ## Develop
 
-Current feeds: USGS earthquakes, adsb.lol aircraft, CelesTrak satellites. Other upstream
-features are still being migrated; see the [status table](docs/development/rust-rewrite.md).
+Current feeds (implementation checked 2026-10-14): USGS earthquakes, adsb.lol aircraft,
+CelesTrak satellites and NOAA NHC/CPHC tropical cyclones. The workspace also supports
+bounded pins, distance arrows, areas and share links with annotations; measurements are
+approximate. Other upstream features and final acceptance checks are still being
+migrated; see the [status table](docs/development/rust-rewrite.md).
 
 Requirements: pinned Rust, Node 22.12+ and pnpm 12.11.2. See
 [Getting Started](docs/development/getting-started.md) for verified installation

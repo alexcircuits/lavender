@@ -91,6 +91,11 @@ async fn refresh_region(
                 {
                     aircraft_history.capture(aircraft, as_of);
                 }
+                if let Some(items) = &state.items
+                    && let FeedItems::Satellites(sats) = items.as_ref()
+                {
+                    deps.satellite_catalog.update(sats);
+                }
                 if let Some(reason) = &state.last_error {
                     failures = failures.saturating_add(1);
                     tracing::warn!(source, ?region, error = %reason, "provider answered only partly");
@@ -172,6 +177,37 @@ mod tests {
             assert!((Duration::from_secs(600)..=Duration::from_mins(11)).contains(&cyclone));
             let ordinary = healthy_refresh_delay(Duration::from_secs(500), Duration::ZERO);
             assert!((Duration::from_secs(450)..=Duration::from_secs(550)).contains(&ordinary));
+        }
+    }
+
+    #[test]
+    fn firms_never_wakes_before_its_ten_minute_floor() {
+        use crate::config::FirmsConfig;
+        use crate::providers::firms::FirmsProvider;
+
+        let provider = FirmsProvider::new(FirmsConfig { cadence_s: 0, ..FirmsConfig::default() });
+        let (cadence, floor) = (provider.cadence(), provider.retry_floor());
+        for failures in 0..=40 {
+            assert!(retry_delay(failures, floor, cadence) >= Duration::from_mins(10));
+        }
+        for _ in 0..100 {
+            assert!(healthy_refresh_delay(cadence, floor) >= Duration::from_mins(10));
+        }
+    }
+
+    #[test]
+    fn configured_cyclone_cadence_does_not_skip_an_early_refresh_cycle() {
+        use crate::config::CyclonesConfig;
+        use crate::providers::cyclones::CyclonesProvider;
+
+        let provider =
+            CyclonesProvider::new(CyclonesConfig { cadence_s: 1_800, ..CyclonesConfig::default() });
+        for _ in 0..100 {
+            let delay = healthy_refresh_delay(provider.cadence(), provider.retry_floor());
+            assert!(
+                (Duration::from_mins(30)..=Duration::from_mins(33)).contains(&delay),
+                "the configured provider would return a cooling cache at {delay:?}, skipping its next refresh"
+            );
         }
     }
 }

@@ -66,7 +66,13 @@ export function AppShell({ mountGlobe }: AppShellProps) {
         <div className={styles.overlay}>
           <div ref={leftRef} className={styles.left} hidden={collapsed === 'side'}>
             <IslandBoundary
-              title={sidePanel === 'sources' ? 'Sources' : 'Layers'}
+              title={
+                sidePanel === 'sources'
+                  ? 'Sources'
+                  : sidePanel === 'launches'
+                    ? 'Rocket launches'
+                    : 'Layers'
+              }
               resetKey={sidePanel ?? 'none'}
               className={styles.island}
             >

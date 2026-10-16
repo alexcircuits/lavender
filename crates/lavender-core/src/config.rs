@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use lavender_domain::LicenceMode;
+use lavender_domain::{BBox, LicenceMode};
 use serde::Deserialize;
 use url::Url;
 
@@ -117,6 +117,11 @@ pub struct ProvidersConfig {
     pub adsb_lol: AdsbLolConfig,
     pub celestrak: CelestrakConfig,
     pub cyclones: CyclonesConfig,
+    pub firms: FirmsConfig,
+    pub launches: LaunchesConfig,
+    pub wind: WindConfig,
+    pub aisstream: AisStreamConfig,
+    pub perimeters: PerimetersConfig,
 }
 
 /// The wire format of an operator-selected OSM geocoding service.
@@ -295,11 +300,279 @@ impl Default for CelestrakConfig {
         Self {
             enabled: true,
             base_url: url("https://celestrak.org/NORAD/elements/"),
-            groups: ["stations", "visual", "weather", "gps-ops", "galileo", "science"]
-                .map(str::to_owned)
-                .to_vec(),
+            // `last-30-days` holds every object from the last month's launches, which the
+            // operational groups do not list yet: launches are matched to their satellites
+            // from it (ENG-957). It comes last so an object also in a named group keeps
+            // that group.
+            groups: [
+                "stations",
+                "visual",
+                "weather",
+                "gps-ops",
+                "galileo",
+                "science",
+                "last-30-days",
+            ]
+            .map(str::to_owned)
+            .to_vec(),
             cadence_s: 7_200,
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct FirmsConfig {
+    pub enabled: bool,
+    pub base_url: Url,
+    pub sources: Vec<String>,
+    pub cadence_s: u64,
+    /// Time allowed for each source's download, body included (two days of a VIIRS
+    /// source are tens of megabytes). Replaces `fetch.request_timeout_s` for FIRMS.
+    pub request_timeout_s: u64,
+}
+
+impl Default for FirmsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            base_url: url("https://firms.modaps.eosdis.nasa.gov/api/area/csv/"),
+            sources: vec![
+                "VIIRS_NOAA20_NRT".to_owned(),
+                "VIIRS_NOAA21_NRT".to_owned(),
+                "VIIRS_SNPP_NRT".to_owned(),
+                "MODIS_NRT".to_owned(),
+            ],
+            cadence_s: 600,
+            request_timeout_s: 120,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct LaunchesConfig {
+    pub enabled: bool,
+    pub base_url: Url,
+    /// Refresh interval (default 900 s = 15 minutes).
+    pub cadence_s: u64,
+    /// Maximum allowed upstream requests per hour (default 15).
+    pub max_requests_per_hour: u32,
+    /// Minimum retry floor / spacing after failure or 429 (default 240 s).
+    pub retry_floor_s: u64,
+}
+
+impl Default for LaunchesConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            base_url: url("https://ll.thespacedevs.com/2.3.0/"),
+            cadence_s: 900,
+            max_requests_per_hour: 15,
+            retry_floor_s: 240,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct WindConfig {
+    pub enabled: bool,
+    pub gfs_base_url: Url,
+    pub ifs_base_url: Url,
+    pub ttl_s: u64,
+    pub timeout_s: u64,
+    pub scalar_timeout_s: u64,
+    pub failure_backoff_s: u64,
+    pub target_dx: f64,
+}
+
+impl Default for WindConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            gfs_base_url: url("https://noaa-gfs-bdp-pds.s3.amazonaws.com/"),
+            ifs_base_url: url("https://data.ecmwf.int/forecasts/"),
+            ttl_s: 3600,
+            timeout_s: 40,
+            scalar_timeout_s: 12,
+            failure_backoff_s: 60,
+            target_dx: 1.0,
+        }
+    }
+}
+
+/// Live vessels from AISStream. Needs `LAVENDER_AISSTREAM_API_KEY`; without it the layer
+/// is unconfigured and no connection is made.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct AisStreamConfig {
+    pub enabled: bool,
+    /// The WebSocket endpoint: `wss://`, or `ws://` only for `fetch.allow_http_hosts`.
+    pub url: Url,
+    /// Areas AISStream sends reports for (at most 16); the default is the whole world.
+    pub bounding_boxes: Vec<BBox>,
+    /// Seconds between snapshots for each subscriber (and re-reads of each map cell).
+    pub update_interval_s: u64,
+    /// Grid cell size for area queries; a view needing more than `max_cells` cells
+    /// shows the most recently heard vessels worldwide instead.
+    pub cell_deg: f64,
+    pub max_cells: u32,
+    pub max_vessels: usize,
+    pub max_track_points: usize,
+    pub max_total_track_points: usize,
+    /// Vessels not heard from for this long are removed; tracks keep this much history.
+    pub retention_s: u64,
+    /// A connection that sends nothing for this long, not even the answer to the pings
+    /// sent every quarter of it, is replaced. With a worldwide subscription, so is one
+    /// that delivers no AIS messages for this long; narrower areas may be quiet.
+    pub read_timeout_s: u64,
+    /// First wait after a failed connection; it doubles up to `reconnect_max_s`.
+    pub reconnect_min_ms: u64,
+    pub reconnect_max_s: u64,
+    /// Disconnect after this long without anyone asking for vessels (0 = stay connected).
+    pub idle_disconnect_s: u64,
+}
+
+impl Default for AisStreamConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            url: url("wss://stream.aisstream.io/v0/stream"),
+            bounding_boxes: vec![BBox::WORLD],
+            update_interval_s: 5,
+            cell_deg: 10.0,
+            max_cells: 9,
+            max_vessels: 50_000,
+            max_track_points: 64,
+            max_total_track_points: 500_000,
+            retention_s: 1_800,
+            read_timeout_s: 120,
+            reconnect_min_ms: 5_000,
+            reconnect_max_s: 900,
+            idle_disconnect_s: 600,
+        }
+    }
+}
+
+impl AisStreamConfig {
+    /// Every problem with this section; `allow_http_hosts` permits `ws://` test servers.
+    pub(crate) fn validation_errors(&self, allow_http_hosts: &[String]) -> Vec<String> {
+        let mut errors = Vec::new();
+        let mut check = |ok: bool, message: &str| {
+            if !ok {
+                errors.push(format!("providers.aisstream.{message}"));
+            }
+        };
+        let host = self.url.host_str().unwrap_or_default();
+        let plain_allowed = allow_http_hosts.iter().any(|h| h.eq_ignore_ascii_case(host));
+        check(
+            self.url.scheme() == "wss" || (self.url.scheme() == "ws" && plain_allowed),
+            "url: must be a wss:// URL",
+        );
+        check(
+            !host.is_empty()
+                && self.url.username().is_empty()
+                && self.url.password().is_none()
+                && self.url.query().is_none()
+                && self.url.fragment().is_none(),
+            "url: requires a host and no credentials, query or fragment",
+        );
+        check((1..=16).contains(&self.bounding_boxes.len()), "bounding_boxes: list 1–16 areas");
+        check((1..=60).contains(&self.update_interval_s), "update_interval_s: must be 1–60");
+        check((1.0..=45.0).contains(&self.cell_deg), "cell_deg: must be 1–45");
+        check((1..=64).contains(&self.max_cells), "max_cells: must be 1–64");
+        check((1..=200_000).contains(&self.max_vessels), "max_vessels: must be 1–200000");
+        check((1..=1_000).contains(&self.max_track_points), "max_track_points: must be 1–1000");
+        check(
+            (self.max_track_points..=5_000_000).contains(&self.max_total_track_points),
+            "max_total_track_points: must be max_track_points–5000000",
+        );
+        check((60..=86_400).contains(&self.retention_s), "retention_s: must be 60–86400");
+        check((10..=3_600).contains(&self.read_timeout_s), "read_timeout_s: must be 10–3600");
+        check(
+            (1_000..=60_000).contains(&self.reconnect_min_ms),
+            "reconnect_min_ms: must be 1000–60000",
+        );
+        check(
+            (self.reconnect_min_ms.div_ceil(1_000)..=86_400).contains(&self.reconnect_max_s),
+            "reconnect_max_s: must be at least reconnect_min_ms and at most 86400",
+        );
+        check(
+            self.idle_disconnect_s == 0 || (60..=86_400).contains(&self.idle_disconnect_s),
+            "idle_disconnect_s: must be 0 or 60–86400",
+        );
+        errors
+    }
+}
+
+/// NIFC WFIGS current fire perimeters, joined with InciWeb incident pages.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct PerimetersConfig {
+    pub enabled: bool,
+    /// The WFIGS current perimeters feature layer, ending with '/'; only its fixed
+    /// `query` resource is requested.
+    pub wfigs_base_url: Url,
+    /// WFIGS republishes every 5 minutes; refreshing faster only repeats the same data.
+    pub cadence_s: u64,
+    /// Whether perimeters are linked to their InciWeb pages. Off means no InciWeb requests.
+    pub inciweb_enabled: bool,
+    /// InciWeb site root, ending with '/'.
+    pub inciweb_base_url: Url,
+    /// How long the InciWeb incident index is reused before it is fetched again.
+    pub inciweb_index_ttl_s: u64,
+    /// Most InciWeb incident pages read per refresh (at most 8; a refresh's few seconds of
+    /// InciWeb time allow about four); links for the rest follow later.
+    pub inciweb_pages_per_refresh: usize,
+}
+
+impl Default for PerimetersConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            wfigs_base_url: url(
+                "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters_Current/FeatureServer/0/",
+            ),
+            cadence_s: 300,
+            inciweb_enabled: true,
+            inciweb_base_url: url("https://inciweb.wildfire.gov/"),
+            inciweb_index_ttl_s: 21_600,
+            inciweb_pages_per_refresh: 4,
+        }
+    }
+}
+
+impl PerimetersConfig {
+    fn validation_errors(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        for (name, endpoint) in
+            [("wfigs_base_url", &self.wfigs_base_url), ("inciweb_base_url", &self.inciweb_base_url)]
+        {
+            if endpoint.host_str().is_none()
+                || !endpoint.username().is_empty()
+                || endpoint.password().is_some()
+                || endpoint.query().is_some()
+                || endpoint.fragment().is_some()
+            {
+                errors.push(format!("providers.perimeters.{name}: requires a host and no credentials, query or fragment"));
+            }
+        }
+        if self.cadence_s < 300 {
+            errors.push("providers.perimeters.cadence_s: must be at least 300".to_owned());
+        }
+        if !(3_600..=86_400).contains(&self.inciweb_index_ttl_s) {
+            errors.push(
+                "providers.perimeters.inciweb_index_ttl_s: must be between 3600 and 86400"
+                    .to_owned(),
+            );
+        }
+        if self.inciweb_pages_per_refresh > 8 {
+            errors.push(
+                "providers.perimeters.inciweb_pages_per_refresh: must be at most 8".to_owned(),
+            );
+        }
+        errors
     }
 }
 
@@ -332,6 +605,7 @@ impl CoreConfig {
     ///
     /// # Errors
     /// Returns the list of problems when any setting is invalid.
+    #[allow(clippy::too_many_lines)]
     pub fn validate(&self) -> Result<(), Vec<String>> {
         let mut errors = Vec::new();
         let mut https = |name: &str, u: &Url| {
@@ -348,10 +622,80 @@ impl CoreConfig {
         https("providers.celestrak.base_url", &self.providers.celestrak.base_url);
         https("providers.cyclones.status_base_url", &self.providers.cyclones.status_base_url);
         https("providers.cyclones.gis_base_url", &self.providers.cyclones.gis_base_url);
+        https("providers.firms.base_url", &self.providers.firms.base_url);
+        https("providers.launches.base_url", &self.providers.launches.base_url);
+        https("providers.wind.gfs_base_url", &self.providers.wind.gfs_base_url);
+        https("providers.wind.ifs_base_url", &self.providers.wind.ifs_base_url);
+        https("providers.perimeters.wfigs_base_url", &self.providers.perimeters.wfigs_base_url);
+        https("providers.perimeters.inciweb_base_url", &self.providers.perimeters.inciweb_base_url);
         if let Some(base) = &self.geocoder.base_url {
             https("geocoder.base_url", base);
         }
         errors.extend(self.geocoder.validation_errors());
+        errors.extend(self.providers.aisstream.validation_errors(&self.fetch.allow_http_hosts));
+        errors.extend(self.providers.perimeters.validation_errors());
+
+        let wind = &self.providers.wind;
+        if wind.ttl_s < 60 {
+            errors.push("providers.wind.ttl_s: must be at least 60".to_owned());
+        }
+        if wind.timeout_s == 0 || wind.timeout_s > 300 {
+            errors.push("providers.wind.timeout_s: must be between 1 and 300".to_owned());
+        }
+        if wind.scalar_timeout_s == 0 || wind.scalar_timeout_s > 300 {
+            errors.push("providers.wind.scalar_timeout_s: must be between 1 and 300".to_owned());
+        }
+        if !(0.25..=180.0).contains(&wind.target_dx) {
+            errors.push("providers.wind.target_dx: must be between 0.25 and 180.0".to_owned());
+        }
+
+        let launches = &self.providers.launches;
+        if launches.cadence_s < 60 {
+            errors.push("providers.launches.cadence_s: must be at least 60".to_owned());
+        }
+        if launches.max_requests_per_hour == 0 || launches.max_requests_per_hour > 1000 {
+            errors.push(
+                "providers.launches.max_requests_per_hour: must be between 1 and 1000".to_owned(),
+            );
+        }
+        if launches.base_url.host_str().is_none()
+            || !launches.base_url.username().is_empty()
+            || launches.base_url.password().is_some()
+            || launches.base_url.query().is_some()
+            || launches.base_url.fragment().is_some()
+        {
+            errors.push("providers.launches.base_url: requires a host and no credentials, query or fragment".to_owned());
+        }
+
+        let firms = &self.providers.firms;
+        if firms.cadence_s < 600 {
+            errors.push("providers.firms.cadence_s: must be at least 600".to_owned());
+        }
+        if firms.request_timeout_s == 0 || firms.request_timeout_s > 600 {
+            errors.push("providers.firms.request_timeout_s: must be between 1 and 600".to_owned());
+        }
+        if firms.base_url.host_str().is_none()
+            || !firms.base_url.username().is_empty()
+            || firms.base_url.password().is_some()
+            || firms.base_url.query().is_some()
+            || firms.base_url.fragment().is_some()
+        {
+            errors.push(
+                "providers.firms.base_url: requires a host and no credentials, query or fragment"
+                    .to_owned(),
+            );
+        }
+        if firms.sources.is_empty() || firms.sources.len() > 10 {
+            errors.push("providers.firms.sources: list 1–10 sources".to_owned());
+        }
+        for (i, s) in firms.sources.iter().enumerate() {
+            if s.is_empty() || !s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                errors.push(format!("providers.firms.sources: '{s}' is not a valid source name"));
+            } else if firms.sources[..i].iter().any(|earlier| earlier.eq_ignore_ascii_case(s)) {
+                // Each source is one download per cadence against the shared key quota.
+                errors.push(format!("providers.firms.sources: '{s}' is listed more than once"));
+            }
+        }
 
         let cyclones = &self.providers.cyclones;
         if cyclones.cadence_s < 600 {
@@ -444,6 +788,34 @@ mod tests {
     }
 
     #[test]
+    fn firms_downloads_each_of_at_most_ten_distinct_sources_per_ten_minutes() {
+        let mut config = CoreConfig::default();
+        config.providers.firms.cadence_s = 599;
+        config.providers.firms.sources = vec!["VIIRS_SNPP_NRT".into(), "viirs_snpp_nrt".into()];
+        let errors = config.validate().unwrap_err();
+        assert_eq!(errors.len(), 2, "{errors:#?}");
+        assert!(errors.iter().any(|e| e.contains("cadence_s")));
+        assert!(errors.iter().any(|e| e.contains("more than once")));
+        config.providers.firms.cadence_s = 600;
+        config.providers.firms.sources = (0..11).map(|i| format!("SOURCE_{i}")).collect();
+        assert_eq!(config.validate().unwrap_err().len(), 1);
+    }
+
+    #[test]
+    fn firms_download_timeout_is_bounded() {
+        let mut config = CoreConfig::default();
+        assert_eq!(config.providers.firms.request_timeout_s, 120);
+        for invalid in [0, 601] {
+            config.providers.firms.request_timeout_s = invalid;
+            let errors = config.validate().unwrap_err();
+            assert_eq!(errors.len(), 1, "{errors:#?}");
+            assert!(errors[0].contains("providers.firms.request_timeout_s"));
+        }
+        config.providers.firms.request_timeout_s = 600;
+        config.validate().unwrap();
+    }
+
+    #[test]
     fn place_lookup_requires_an_explicit_endpoint_and_pacing_floor() {
         let mut config = CoreConfig::default();
         assert!(!config.geocoder.enabled);
@@ -497,6 +869,56 @@ mod tests {
         let mut c = CoreConfig::default();
         c.fetch.max_body_bytes = crate::fetch::MAX_BODY_CEILING + 1;
         assert_eq!(c.validate().unwrap_err().len(), 1);
+    }
+
+    #[test]
+    fn wind_spacing_must_be_a_number_between_a_quarter_degree_and_180() {
+        for valid in [0.25, 1.0, 180.0] {
+            let mut c = CoreConfig::default();
+            c.providers.wind.target_dx = valid;
+            c.validate().unwrap();
+        }
+        for invalid in [f64::NAN, f64::INFINITY, 0.2, 181.0] {
+            let mut c = CoreConfig::default();
+            c.providers.wind.target_dx = invalid;
+            let errors = c.validate().unwrap_err();
+            assert!(errors.iter().any(|e| e.contains("target_dx")), "{invalid}: {errors:?}");
+        }
+    }
+
+    #[test]
+    fn aisstream_requires_a_secure_bounded_configuration() {
+        let mut c = CoreConfig::default();
+        assert_eq!(c.providers.aisstream.url.as_str(), "wss://stream.aisstream.io/v0/stream");
+        c.providers.aisstream.url =
+            Url::parse("ws://user:secret@stream.example/v0?key=secret").unwrap();
+        c.providers.aisstream.bounding_boxes.clear();
+        c.providers.aisstream.max_vessels = 0;
+        c.providers.aisstream.reconnect_min_ms = 10;
+        c.providers.aisstream.idle_disconnect_s = 5;
+        let errors = c.validate().unwrap_err();
+        assert_eq!(errors.len(), 6, "{errors:#?}");
+        assert!(errors.iter().all(|e| !e.contains("secret")));
+        let mut c = CoreConfig::default();
+        c.providers.aisstream.url = Url::parse("ws://127.0.0.1:9/v0/stream").unwrap();
+        c.fetch.allow_http_hosts = vec!["127.0.0.1".into()];
+        c.validate().unwrap();
+    }
+
+    #[test]
+    fn perimeter_endpoints_are_fixed_resources_with_bounded_inciweb_use() {
+        let mut config = CoreConfig::default();
+        assert_eq!(config.providers.perimeters.cadence_s, 300);
+        let p = &mut config.providers.perimeters;
+        p.cadence_s = 299;
+        p.inciweb_index_ttl_s = 60;
+        p.inciweb_pages_per_refresh = 9;
+        p.wfigs_base_url =
+            Url::parse("https://user:secret@services3.arcgis.com/layer/?token=secret").unwrap();
+        p.inciweb_base_url = Url::parse("http://inciweb.wildfire.gov/").unwrap();
+        let errors = config.validate().unwrap_err();
+        assert_eq!(errors.len(), 5, "{errors:#?}");
+        assert!(errors.iter().all(|e| !e.contains("secret")));
     }
 
     #[test]

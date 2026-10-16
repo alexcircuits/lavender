@@ -4,16 +4,11 @@ import { cx, IconButton, Kbd, MagnifyingGlassIcon, XIcon } from '../../design';
 import { SEARCH_INPUT_ATTRIBUTE, useCommandContext } from '../commands';
 import { SearchResults } from './SearchResults';
 import styles from './search.module.css';
+import { useResultSelection } from './useResultSelection';
 import { useSearchModel } from './useSearch';
 
 export interface SearchBarProps {
   readonly className?: string | undefined;
-}
-
-function InlineResults({ query, onDone }: { query: string; onDone: () => void }) {
-  const commandContext = useCommandContext();
-  const model = useSearchModel(query, { commands: false, onDone, commandContext });
-  return <SearchResults query={query} model={model} keepFocus />;
 }
 
 /**
@@ -26,8 +21,16 @@ export function SearchBar({ className }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const open = focused && query.trim() !== '';
   const clear = useCallback(() => setQuery(''), []);
+  const commandContext = useCommandContext();
+  const model = useSearchModel(open ? query : '', {
+    commands: false,
+    onDone: clear,
+    commandContext,
+  });
+  const selection = useResultSelection(query, model.groups);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    selection.onKeyDown(event);
     if (event.key !== 'Escape') return;
     if (query !== '') {
       event.preventDefault();
@@ -43,6 +46,9 @@ export function SearchBar({ className }: SearchBarProps) {
       shouldFilter={false}
       vimBindings={false}
       className={cx(styles.bar, className)}
+      value={selection.value}
+      onValueChange={selection.onValueChange}
+      onPointerMoveCapture={selection.onPointerMoveCapture}
       onKeyDown={onKeyDown}
     >
       <div className={styles.field}>
@@ -54,7 +60,7 @@ export function SearchBar({ className }: SearchBarProps) {
           onValueChange={setQuery}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder="Search places, coordinates, callsigns"
+          placeholder="Search places, coordinates, callsigns, ships"
           className={styles.input}
         />
         {query !== '' ? (
@@ -73,7 +79,7 @@ export function SearchBar({ className }: SearchBarProps) {
       </div>
       {open ? (
         <div className={styles.dropdown}>
-          <InlineResults query={query} onDone={clear} />
+          <SearchResults query={query} model={model} keepFocus />
         </div>
       ) : null}
     </CommandRoot>

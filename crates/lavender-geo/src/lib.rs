@@ -6,6 +6,7 @@ pub mod geodesy;
 pub mod index;
 pub mod mgrs;
 pub mod orbit;
+pub mod polygon;
 pub mod region;
 
 pub use coords::{ParsedCoordinate, format_decimal, format_dms, parse_coordinates};

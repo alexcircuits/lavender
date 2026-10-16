@@ -80,4 +80,11 @@ export class KeyedEntries<T, E> {
     this.#slots.clear();
     return count;
   }
+
+  /** Visits every entry without allocating per entry, for passes over every entity. */
+  forEach(visit: (entry: E, id: string) => void): void {
+    this.#slots.forEach((slot, id) => {
+      visit(slot.entry, id);
+    });
+  }
 }

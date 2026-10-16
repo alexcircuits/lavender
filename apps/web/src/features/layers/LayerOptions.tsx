@@ -1,6 +1,6 @@
 import type { FeedFilters, LayerDescriptor } from '../../contracts';
-import { SegmentedControl, Toggle } from '../../design';
-import { useWorkspace } from '../../runtime';
+import { Button, SegmentedControl, Toggle } from '../../design';
+import { useUi, useWorkspace } from '../../runtime';
 import {
   MAGNITUDE_OPTIONS,
   magnitudeValue,
@@ -12,6 +12,7 @@ import {
 } from './filters';
 import { HazardLegend } from './HazardLegend';
 import styles from './layers.module.css';
+import { VesselLegend } from './VesselLegend';
 
 const NO_FILTERS: FeedFilters = {};
 const MAGNITUDE_SEGMENTS = MAGNITUDE_OPTIONS.map(({ value, label }) => ({ value, label }));
@@ -25,6 +26,7 @@ export function LayerOptions({ layer }: LayerOptionsProps) {
   const { feed } = layer;
   const filters = useWorkspace((s) => s.layers[feed]?.filters) ?? NO_FILTERS;
   const setFilters = useWorkspace((s) => s.setFilters);
+  const setSidePanel = useUi((s) => s.setSidePanel);
 
   switch (feed) {
     case 'earthquakes':
@@ -74,5 +76,15 @@ export function LayerOptions({ layer }: LayerOptionsProps) {
         </fieldset>
       );
     }
+    case 'fires':
+      return <HazardLegend kind="fire" />;
+    case 'launches':
+      return (
+        <Button size="sm" variant="secondary" onClick={() => setSidePanel('launches')}>
+          Show launch list
+        </Button>
+      );
+    case 'vessels':
+      return <VesselLegend />;
   }
 }

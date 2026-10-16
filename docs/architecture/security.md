@@ -1,6 +1,6 @@
 # Lavender — security specification
 
-- Status: v1.1, 2026-10-12 (hardening pass: see the PROGRESS log of that date)
+- Status: v1.2, 2026-10-14 (regression coverage: see the PROGRESS log)
 - Inputs: `docs/audit/upstream-backend.md` §3, §5, §9; `docs/audit/upstream-layers.md` §6; ADR 0006, 0008
 
 ## 1. Threat model (summary)
@@ -19,6 +19,12 @@
 ### Core (`lavender-core::fetch`)
 - HTTPS only. Per-provider host allowlist. Redirects followed only to
   allowlisted hosts (max 3).
+- Public providers resolve once per connection, validate every returned address
+  (at most 64), and pass that exact set to the connector. Private, reserved,
+  mixed public/private and embedded-private answers fail before connecting;
+  literal IPs and each redirect receive the same checks. Ambient proxy settings
+  are disabled. Explicit `fetch.allow_http_hosts` entries are development/internal
+  exceptions that permit HTTP and private addresses; the default list is empty.
 - Timeouts: connect 5 s, total 20 s by default (per-provider overrides).
 - Body caps: each provider's own cap is authoritative (USGS 32 MiB, since
   `all_month` can exceed 16 MiB; CelesTrak 20 MiB per group; adsb.lol 12 MiB).
@@ -30,8 +36,9 @@
 - Retries only for idempotent GETs on 429/5xx/timeouts, with jittered backoff,
   and respecting `Retry-After`. A provider can opt out (CelesTrak does, see below).
 - Parsed data is validated: coordinate ranges, finite numbers, string length
-  caps, enum whitelists. Documents are parsed row by row: a malformed or
-  wrong-typed row is dropped, never the whole feed. Dropped rows are counted,
+  caps, enum whitelists. Row-oriented providers drop malformed rows and count them;
+  cyclone status requires a valid whole document, while malformed GIS geometry
+  leaves valid storm positions available with degraded geometry. Dropped rows are counted,
   logged and reported as a snapshot notice ("USGS: 3 malformed records skipped.").
 - Error text that leaves a provider is cleaned (control characters removed) and
   capped at 200 characters before it reaches health, logs or stream frames,
@@ -93,7 +100,10 @@
   first untrusted address is the client, so entries a client writes itself are
   ignored.
 - Errors never echo upstream bodies or secrets. Logs redact `Authorization`,
-  `key`, `token`, `api_key` query parameters.
+  `key`, `token`, `api_key` query parameters. Request spans record method/path
+  without query strings; caught panics record fixed diagnostics without payloads.
+  Both executable adapters install the redacting process panic hook before
+  starting runtime work, so the default hook cannot print a caught panic's secret.
 
 ### Frontend
 - No secrets; runtime catalog may contain explicitly public tile keys only.
@@ -145,6 +155,7 @@ fetcher and WebSocket paths; build fixtures exercise the same exported checker a
 | Same-origin scheme and WebSocket upgrades | Server `api::{scheme_downgraded_origin_is_refused_through_the_router, websocket_from_a_foreign_origin_is_refused}` plus `security::tests::same_origin_checks_the_scheme` |
 | Rate limits, positive Retry-After, rotating X-Forwarded-For, IPv6 /64 | Server `api::{rate_limit_returns_429_with_retry_after, rotating_untrusted_forwarded_for_cannot_bypass_router_rate_limit}`; `security::tests::{forwarded_for_is_read_right_to_left_from_trusted_proxies_only, ipv6_clients_are_keyed_by_their_slash_64, the_bucket_table_is_bounded}` |
 | JSON envelopes, body limits, caught panic privacy | Server `api::{query_and_path_rejections_use_the_api_envelope, method_mismatches_and_oversized_bodies_use_the_api_envelope, timeouts_use_the_api_envelope}`; `security_regression_tests::caught_panic_response_and_logs_exclude_panic_payload` checks the actual panic response factory without invoking the process panic hook |
+| Process panic-hook privacy, including backtrace-enabled execution | Core `tests/panic_redaction.rs::actual_panic_payload_never_reaches_stdout_or_stderr` invokes its isolated child with `RUST_BACKTRACE=1` and checks captured process output; the child is marked ignored for ordinary discovery and explicitly executed by the parent regression |
 | WebSocket total/per-client admission, headers, subscription limit | Server `api::{websocket_total_capacity_refusal_has_retry_after_and_security_headers, websocket_connections_are_capped_per_client, websocket_subscription_limit_does_not_evict_an_existing_subscription}` |
 | WebSocket flood, malformed, single-frame and fragmented-message budgets | Server `api::{websocket_message_floods_are_closed, websocket_unreadable_message_budget_closes_with_policy_violation, websocket_oversized_frame_is_disconnected_before_application_parsing, websocket_fragmented_message_is_capped_across_individually_small_frames}` |
 | WebSocket idle and slow consumer cleanup | Server `api::idle_websockets_are_closed`; `ws::tests::a_client_that_stops_reading_ends_the_writer` uses a sink that never becomes ready |
@@ -155,10 +166,16 @@ fetcher and WebSocket paths; build fixtures exercise the same exported checker a
 
 Build checks reject actual inline scripts, style elements, style attributes and event
 handlers in entry HTML. They inspect the desktop CSP directive map for the exact
-`unsafe-eval` permission; the separate WASM exception and runtime inline styles remain
+`unsafe-eval` permission and validate the separate `script-src-elem` and `script-src-attr`
+contexts after case normalization. Directive names must follow the ASCII directive
+grammar; raw values cannot contain semicolons, controls or line delimiters, including
+within array elements, so verbatim serialization cannot inject another directive.
+Element overrides permit only self or none; attribute
+overrides permit only none. The separate WASM exception and runtime inline styles remain
 explicitly permitted by the architecture. Documentation text and code samples naming
 forbidden APIs do not trip the checks. Recognisable Google/OpenAI/private-key/JWT shapes
-and labelled server credential assignments are scanned in emitted assets; diagnostics
+and labelled server credential assignments, including the actual `LAVENDER_*` secret
+environment names, are scanned in emitted assets; diagnostics
 name the file without repeating a credential. This is a regression backstop, not a
 complete detector for arbitrary opaque credentials. Explicit public tile tokens stay governed by
 §3 and the runtime catalog policy rather than being embedded in build artifacts.
@@ -167,16 +184,20 @@ complete detector for arbitrary opaque credentials. Explicit public tile tokens 
 and sources. `.github/workflows/security-advisories.yml` adds an uncached daily RustSec
 check and dependency-change/manual triggers to the product repository, with read-only
 permissions, an immutable checkout action and pinned cargo-deny 0.20.2. The workflow has
-not been published or observed on a hosted runner. A nested product workflow is not
-executed by the host monorepo: that wiring remains ENG-1004.
+been pushed on the development branch but has not been observed on a hosted runner.
+GitHub currently reports no registered workflows for this repository. A nested product
+workflow is not executed by the host monorepo: that wiring remains ENG-1004.
 
 The host monorepo contains `.githooks/pre-commit` and a checksum-pinned gitleaks 8.30.1
 CI job with a planted-private-key control and full-history scan. Its configured hook
 path applies to the host checkout; the nested Lavender Git repository currently has no
 hook override. The hook explicitly skips scanning when gitleaks is unavailable. Neither
 hosted job execution nor coverage of the nested Lavender history is inferred from the
-presence of these files; secret-scanning integration remains an explicit release check. A local gitleaks 8.30.1 planted-key control was exercised during
-the regression work. Scanning the built distribution reported the Cesium SDK vendor
-default JWT, byte-for-byte equal to `@cesium/engine/Source/Core/Ion.js`; the globe clears
-`Ion.defaultAccessToken` at startup. This known public SDK value is recorded rather than
-a generic clean-scan claim or an unreviewed scanner suppression.
+presence of these files; secret-scanning integration remains an explicit release check.
+A local gitleaks 8.30.1 planted-key control was exercised during the regression work.
+The Vite transform removes the unused vendor default Ion token before emission, verified
+against the installed `@cesium/engine/Source/Core/Ion.js` assignment; the globe still
+clears `Ion.defaultAccessToken` at startup. The fresh production build passed the
+distribution checker, and an independent gitleaks 8.30.1 scan of 18.03 MB found no leaks
+without suppressing the vendor JWT finding. This is local evidence for that build;
+hosted workflow activation and nested-repository scanning integration remain ENG-1004.

@@ -1,7 +1,8 @@
 /**
  * Map symbology rules (docs/design/design-system.md §4, §11) as pure functions: altitude and
- * rotation of aircraft, magnitude → size and ramp step of earthquakes, stale opacity and the
- * label budget.
+ * rotation of aircraft, magnitude → size and ramp step of earthquakes, FRP → size and ramp
+ * step of fires, stale opacity and the label budget. Which fire cells are drawable is the
+ * shared rule in feeds/fireCells.ts.
  */
 import type { Aircraft, Freshness } from '../../contracts';
 
@@ -53,6 +54,30 @@ export function quakeRampIndex(magnitude: number): 0 | 1 | 2 | 3 | 4 {
   if (magnitude < 4) return 1;
   if (magnitude < 5) return 2;
   if (magnitude < 6) return 3;
+  return 4;
+}
+
+export const FIRE_MIN_PX = 6;
+export const FIRE_MAX_PX = 24;
+
+/**
+ * Side of a fire's square cell in CSS pixels: a base from peak FRP (6–18 px) plus cluster
+ * scaling (0–6 px) for count > 1, clamped to 6–24 px.
+ */
+export function fireSizePx(count: number, maxFrp: number): number {
+  const safeCount = Number.isFinite(count) && count > 0 ? count : 1;
+  const safeFrp = Number.isFinite(maxFrp) && maxFrp > 0 ? maxFrp : 0;
+  const base = 6 + Math.min(12, Math.sqrt(safeFrp) * 0.8);
+  const clusterBonus = safeCount > 1 ? Math.min(6, Math.log2(safeCount) * 1.2) : 0;
+  return Math.min(FIRE_MAX_PX, Math.max(FIRE_MIN_PX, base + clusterBonus));
+}
+
+/** Step of the five-colour hazard ramp: < 10, 10–50, 50–100, 100–250, ≥ 250 MW → 0..4. */
+export function fireRampIndex(frp: number): 0 | 1 | 2 | 3 | 4 {
+  if (!Number.isFinite(frp) || frp < 10) return 0;
+  if (frp < 50) return 1;
+  if (frp < 100) return 2;
+  if (frp < 250) return 3;
   return 4;
 }
 

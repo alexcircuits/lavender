@@ -8,7 +8,8 @@ use jiff::{SignedDuration, Timestamp};
 use lavender_domain::{
     AircraftTrack, Availability, Catalog, FeedId, FeedItems, FeedQuery, FeedSnapshot, FeedStatus,
     SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery,
-    SearchResults, SystemStatus,
+    SearchResults, SystemStatus, VesselTrackResponse, WeatherOverlay, WindManifest, WindModel,
+    WindStatus,
 };
 use lavender_geo::{OrbitError, Propagator};
 use tokio::sync::Semaphore;
@@ -22,14 +23,21 @@ use crate::health::HealthTracker;
 use crate::hub::{FeedHub, FeedSubscription, HubDeps, RegionBudget, SubscriptionEvent};
 use crate::providers::FeedProvider;
 use crate::providers::adsb_lol::AdsbLolProvider;
+use crate::providers::aisstream::AisStreamProvider;
 use crate::providers::celestrak::CelestrakProvider;
 use crate::providers::cyclones::CyclonesProvider;
+use crate::providers::firms::FirmsProvider;
+use crate::providers::launches::LaunchesProvider;
+use crate::providers::perimeters::PerimetersProvider;
 use crate::providers::usgs::UsgsProvider;
+use crate::providers::wind::{self, WindProvider};
 use crate::registry::Registry;
+use crate::satellite_catalog::SatelliteCatalog;
 use crate::search;
 use crate::search::geocoder::{ConfiguredGeocoder, Geocoder};
 use crate::secrets::{MemorySecretStore, SecretStore};
 use crate::settings::{MemorySettingsStore, SettingsStore};
+use crate::vessel_store::Mmsi;
 
 /// How far from an element set's epoch a requested track may start: SGP4 accuracy
 /// degrades quickly beyond a couple of weeks.
@@ -46,8 +54,11 @@ struct CoreInner {
     audit: Arc<dyn AuditSink>,
     started_at: Timestamp,
     geocoder: Option<Arc<dyn Geocoder>>,
+    #[allow(dead_code)]
+    satellite_catalog: Arc<SatelliteCatalog>,
     cancel: CancellationToken,
     pass_capacity: Arc<Semaphore>,
+    wind: WindProvider,
 }
 
 /// Cheap to clone; all clones share one core.
@@ -131,6 +142,7 @@ impl LavenderCoreBuilder {
         } else {
             None
         };
+        let satellite_catalog = Arc::new(crate::satellite_catalog::SatelliteCatalog::default());
         let providers = self.providers.unwrap_or_else(|| {
             let p = &self.config.providers;
             vec![
@@ -138,17 +150,27 @@ impl LavenderCoreBuilder {
                 Arc::new(UsgsProvider::new(p.usgs.clone())),
                 Arc::new(CelestrakProvider::new(p.celestrak.clone())),
                 Arc::new(CyclonesProvider::new(p.cyclones.clone())),
+                Arc::new(FirmsProvider::new(p.firms.clone())),
+                Arc::new(LaunchesProvider::with_satellite_catalog(
+                    p.launches.clone(),
+                    satellite_catalog.clone(),
+                )),
+                Arc::new(AisStreamProvider::new(p.aisstream.clone(), fetcher.clone())),
+                Arc::new(PerimetersProvider::new(p.perimeters.clone())),
             ]
         });
         let health = Arc::new(HealthTracker::default());
         let deps = HubDeps {
-            fetcher,
+            fetcher: fetcher.clone(),
             secrets: self.secrets.clone(),
             health: health.clone(),
             cache_dir: self.cache_dir,
+            satellite_catalog: satellite_catalog.clone(),
         };
         let hub = FeedHub::new(providers, deps, self.config.hub.clone());
         let registry = Registry::new(self.config.licence_mode, &self.config.licence_acknowledged);
+        let wind =
+            WindProvider::new(fetcher.clone(), self.config.providers.wind.clone(), health.clone());
         Ok(LavenderCore {
             inner: Arc::new(CoreInner {
                 config: self.config,
@@ -160,8 +182,10 @@ impl LavenderCoreBuilder {
                 audit: self.audit,
                 started_at: Timestamp::now(),
                 geocoder,
+                satellite_catalog,
                 cancel: CancellationToken::new(),
                 pass_capacity: Arc::new(Semaphore::new(2)),
+                wind,
             }),
         })
     }
@@ -208,7 +232,7 @@ impl LavenderCore {
         let sources = registry
             .sources()
             .iter()
-            .map(|s| self.inner.health.health(&s.id, registry.licence_permits(&s.id)))
+            .map(|s| self.inner.health.health(&s.id, self.source_enabled(&s.id)))
             .collect();
         let feeds = FeedId::ALL
             .into_iter()
@@ -230,6 +254,18 @@ impl LavenderCore {
             sources,
             feeds,
         }
+    }
+
+    /// Whether a source may run: permitted by the licence policy and, for the wind models,
+    /// not switched off in the provider settings.
+    fn source_enabled(&self, id: &str) -> bool {
+        self.inner.registry.licence_permits(id)
+            && (!wind::is_wind_source(id) || self.inner.wind.enabled())
+    }
+
+    #[must_use]
+    pub fn satellite_catalog(&self) -> &Arc<SatelliteCatalog> {
+        &self.inner.satellite_catalog
     }
 
     fn check_available(&self, feed: FeedId) -> Result<(), CoreError> {
@@ -369,6 +405,26 @@ impl LavenderCore {
         self.check_available(FeedId::Aircraft)?;
         self.inner.audit.record(AuditEvent::AircraftTrack);
         self.inner.hub.aircraft_track(hex)
+    }
+
+    /// The recent track of a vessel, accumulated from the live stream since it was first
+    /// heard (at most the configured retention). Reading it causes no network call.
+    ///
+    /// # Errors
+    /// An MMSI that is not nine digits (bad request), an unavailable vessels feed, or a
+    /// vessel with no retained positions (not found).
+    pub fn vessel_track(&self, mmsi: &str) -> Result<VesselTrackResponse, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        let mmsi = Mmsi::parse(mmsi).ok_or_else(|| {
+            CoreError::BadRequest("An MMSI must be exactly nine digits.".to_owned())
+        })?;
+        self.check_available(FeedId::Vessels)?;
+        self.inner.audit.record(AuditEvent::VesselTrack);
+        self.inner.hub.provider(FeedId::Vessels).and_then(|p| p.vessel_track(mmsi)).ok_or_else(
+            || CoreError::NotFound(format!("No retained track is available for vessel {mmsi}.")),
+        )
     }
 
     /// A propagated ground track for a satellite in the loaded catalogue.
@@ -534,6 +590,61 @@ impl LavenderCore {
         self.inner.settings.load()
     }
 
+    /// Refuses wind calls after shutdown, while wind is disabled in the settings, or when
+    /// the licence policy does not permit the model's source. Makes no network request.
+    fn check_wind(&self, model: WindModel) -> Result<(), CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        self.inner.wind.ensure_enabled()?;
+        wind::licence_gate(&self.inner.registry, model)
+    }
+
+    /// Global wind forecast manifest for a model and overlay variant. Upstream failures
+    /// are reported in the manifest (`stale`, `unavailable`) and in [`Self::status`].
+    ///
+    /// # Errors
+    /// Returns an error when wind is disabled, refused by the licence policy, or the core
+    /// is shutting down.
+    pub async fn wind_manifest(
+        &self,
+        model: WindModel,
+        overlay: WeatherOverlay,
+    ) -> Result<WindManifest, CoreError> {
+        self.check_wind(model)?;
+        self.inner.wind.manifest(model, overlay).await
+    }
+
+    /// Global wind forecast status: the manifest without `gridUrl` and `gridId`.
+    ///
+    /// # Errors
+    /// As [`Self::wind_manifest`].
+    pub async fn wind_status(
+        &self,
+        model: WindModel,
+        overlay: WeatherOverlay,
+    ) -> Result<WindStatus, CoreError> {
+        self.check_wind(model)?;
+        let mut manifest = self.inner.wind.manifest(model, overlay).await?;
+        manifest.grid_url = None;
+        manifest.grid_id = None;
+        Ok(manifest)
+    }
+
+    /// One retained binary grid (format: [`lavender_domain::WindGridDef`]).
+    ///
+    /// # Errors
+    /// As [`Self::wind_manifest`]; [`CoreError::NotFound`] if the grid is not retained.
+    pub async fn wind_grid(
+        &self,
+        model: WindModel,
+        overlay: WeatherOverlay,
+        id: &str,
+    ) -> Result<Vec<u8>, CoreError> {
+        self.check_wind(model)?;
+        self.inner.wind.grid(model, overlay, id).await
+    }
+
     /// Stops every background task. Subscriptions end; later calls fail.
     pub fn shutdown(&self) {
         self.inner.cancel.cancel();
@@ -551,5 +662,78 @@ fn orbit_error(error: OrbitError) -> CoreError {
         OrbitError::InvalidRequest(message) => CoreError::BadRequest(message),
         OrbitError::Limit(message) => CoreError::Limit(message),
         other => CoreError::Upstream(other.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
+
+    use lavender_domain::{ApiError, CommercialUse, ErrorCode, HealthState, LicenceMode};
+    use url::Url;
+    use wiremock::MockServer;
+
+    use super::*;
+    use crate::sources;
+
+    /// A core whose catalogue lists ECMWF's commercial terms as unknown, as after a licence
+    /// change. Both real wind sources are commercially allowed, so no configuration alone
+    /// can make the commercial policy refuse wind.
+    fn core_with_unverified_ecmwf_terms(
+        config: CoreConfig,
+        acknowledged: &[String],
+    ) -> LavenderCore {
+        let defs = sources::all()
+            .into_iter()
+            .map(|mut def| {
+                if def.info.id == sources::ECMWF_IFS {
+                    def.info.commercial = CommercialUse::Unknown;
+                }
+                def
+            })
+            .collect();
+        let registry = Registry::with_sources(defs, config.licence_mode, acknowledged);
+        let core = LavenderCore::builder(config).build().unwrap();
+        let inner = Arc::try_unwrap(core.inner).expect("no other handle exists yet");
+        LavenderCore { inner: Arc::new(CoreInner { registry, ..inner }) }
+    }
+
+    #[tokio::test]
+    async fn wind_calls_pass_the_licence_gate_before_any_upstream_request() {
+        let upstream = MockServer::start().await;
+        let base = Url::parse(&format!("{}/", upstream.uri())).unwrap();
+        let mut config =
+            CoreConfig { licence_mode: LicenceMode::Commercial, ..CoreConfig::default() };
+        config.fetch.allow_http_hosts = vec!["127.0.0.1".to_owned()];
+        config.fetch.retries = 0;
+        config.providers.wind.gfs_base_url = base.clone();
+        config.providers.wind.ifs_base_url = base;
+
+        let core = core_with_unverified_ecmwf_terms(config.clone(), &[]);
+        let error_code = |error: CoreError| ApiError::from(&error).code;
+        for overlay in [WeatherOverlay::None, WeatherOverlay::Temperature, WeatherOverlay::Pressure]
+        {
+            let refused = core.wind_manifest(WindModel::Ifs, overlay).await.unwrap_err();
+            assert_eq!(error_code(refused), ErrorCode::DisabledByLicence);
+            let refused = core.wind_status(WindModel::Ifs, overlay).await.unwrap_err();
+            assert_eq!(error_code(refused), ErrorCode::DisabledByLicence);
+            let refused = core.wind_grid(WindModel::Ifs, overlay, "ifs-1").await.unwrap_err();
+            assert_eq!(error_code(refused), ErrorCode::DisabledByLicence);
+        }
+        assert!(upstream.received_requests().await.unwrap().is_empty());
+        let ifs = core.status().sources.into_iter().find(|s| s.source_id == sources::ECMWF_IFS);
+        assert_eq!(ifs.unwrap().state, HealthState::Disabled);
+
+        // The gate is per model: GFS is still allowed and goes upstream (which has nothing).
+        let gfs = core.wind_manifest(WindModel::Gfs, WeatherOverlay::None).await.unwrap();
+        assert!(gfs.unavailable);
+        assert!(!upstream.received_requests().await.unwrap().is_empty());
+        core.shutdown();
+
+        // Acknowledging ECMWF's terms lifts the refusal.
+        let core = core_with_unverified_ecmwf_terms(config, &[sources::ECMWF_IFS.to_owned()]);
+        let ifs = core.wind_manifest(WindModel::Ifs, WeatherOverlay::None).await.unwrap();
+        assert!(ifs.unavailable, "permitted; the empty upstream has no forecast");
+        core.shutdown();
     }
 }

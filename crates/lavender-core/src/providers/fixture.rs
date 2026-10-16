@@ -10,18 +10,26 @@
 //! | `usgs.geojson` | USGS GeoJSON summary feed | earthquakes |
 //! | `adsb-lol.json` | adsb.lol v2 `{ "ac": [...] }` | aircraft |
 //! | `celestrak-<group>.json` | CelesTrak OMM JSON array | satellites (`group` from the name) |
+//! | `launches.json` | Launch Library 2 `{ "results": [...] }` launch list | launches |
+//! | `aisstream.jsonl` | AISStream messages, one JSON frame per line | vessels (recorded times kept) |
+//! | `perimeters-wfigs.geojson` | one WFIGS current-perimeters GeoJSON query page | perimeters |
+//! | `perimeters-inciweb-index.json` | InciWeb `api/map_data` array (optional) | perimeter links |
+//! | `perimeters-inciweb-<slug>.html` | InciWeb incident pages (optional) | perimeter links |
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use lavender_domain::{FeedId, FeedItems, ProviderScope};
+use lavender_domain::{FeedId, FeedItems, ProviderScope, VesselTrackResponse};
 
 use super::{
     FeedProvider, FetchContext, Fetched, ProviderError, Region, adsb_lol, celestrak, cyclones, usgs,
 };
+use crate::config::AisStreamConfig;
+use crate::providers::{aisstream, firms, launches, perimeters};
 use crate::sources;
+use crate::vessel_store::{Mmsi, VesselStore};
 
 /// Largest fixture file read, matching the fetcher's ceiling for live bodies.
 const MAX_FIXTURE_BYTES: u64 = 64 * 1024 * 1024;
@@ -29,12 +37,26 @@ const MAX_FIXTURE_BYTES: u64 = 64 * 1024 * 1024;
 const FIXTURE_CADENCE: Duration = Duration::from_secs(30);
 /// The notice every fixture snapshot carries.
 pub const FIXTURE_NOTICE: &str = "Recorded fixture data, not live.";
+/// Vessel replays keep the recording's own report times.
+pub const VESSEL_NOTICE: &str = "Vessel positions keep their recorded report times.";
+/// The notice instead of `VESSEL_NOTICE` for a replay that declares itself synthetic, as the
+/// checked-in one does (`apps/web/e2e/fixtures/aisstream-provenance.md`).
+pub const SYNTHETIC_VESSEL_NOTICE: &str =
+    "Synthetic AIS replay: invented test ships at their recorded report times.";
+/// An AIS replay declares itself synthetic with a first line
+/// `{"MessageType":"LavenderFixtureProvenance","Synthetic":true,…}`; the AISStream parser
+/// ignores it like any message type Lavender does not subscribe to.
+pub const AIS_PROVENANCE_MESSAGE_TYPE: &str = "LavenderFixtureProvenance";
+/// At most this much of a replay is read to find that first line.
+const PROVENANCE_PEEK_BYTES: u64 = 4 * 1024;
 
 #[derive(Debug)]
 pub struct FixtureProvider {
     feed: FeedId,
     source_id: &'static str,
     dir: PathBuf,
+    /// The vessels fixture replays into a store, so tracks can be read back.
+    vessel_store: Option<Arc<VesselStore>>,
 }
 
 impl FixtureProvider {
@@ -46,12 +68,52 @@ impl FixtureProvider {
             (FeedId::Aircraft, sources::ADSB_LOL),
             (FeedId::Satellites, sources::CELESTRAK),
             (FeedId::Cyclones, sources::NOAA_CYCLONES),
+            (FeedId::Fires, sources::NASA_FIRMS),
+            (FeedId::Launches, sources::LAUNCH_LIBRARY_2),
+            (FeedId::Vessels, sources::AISSTREAM),
+            (FeedId::Perimeters, sources::NIFC_WFIGS),
         ]
         .into_iter()
         .map(|(feed, source_id)| {
-            Arc::new(Self { feed, source_id, dir: dir.to_path_buf() }) as Arc<dyn FeedProvider>
+            let vessel_store = (feed == FeedId::Vessels).then(|| {
+                Arc::new(VesselStore::new(aisstream::store_limits(&AisStreamConfig::default())))
+            });
+            Arc::new(Self { feed, source_id, dir: dir.to_path_buf(), vessel_store })
+                as Arc<dyn FeedProvider>
         })
         .collect()
+    }
+
+    /// Replays `aisstream.jsonl` into this provider's store (idempotent: replaying the
+    /// same recording again changes nothing) and returns every vessel it holds.
+    async fn vessels(&self) -> Result<(FeedItems, usize), ProviderError> {
+        let Some(store) = &self.vessel_store else {
+            return Err(ProviderError::Unavailable("no vessel store".to_owned()));
+        };
+        let bytes = Self::read(&self.dir.join("aisstream.jsonl")).await?;
+        let recording = String::from_utf8_lossy(&bytes);
+        let counts = aisstream::replay(&recording, store);
+        let vessels = store.in_area(&lavender_domain::BBox::WORLD, store.limits().max_vessels);
+        Ok((FeedItems::Vessels(vessels), counts.malformed))
+    }
+
+    /// Whether the AIS replay at `path` opens with a provenance line saying it is synthetic.
+    /// Only the recording itself can say so: a real capture in another fixtures directory
+    /// must not be called invented.
+    async fn declares_synthetic(path: &Path) -> bool {
+        use tokio::io::AsyncReadExt;
+        let Ok(file) = tokio::fs::File::open(path).await else { return false };
+        let mut head = Vec::new();
+        if file.take(PROVENANCE_PEEK_BYTES).read_to_end(&mut head).await.is_err() {
+            return false;
+        }
+        let head = String::from_utf8_lossy(&head);
+        let Some(first) = head.lines().map(str::trim).find(|line| !line.is_empty()) else {
+            return false;
+        };
+        serde_json::from_str::<serde_json::Value>(first).is_ok_and(|frame| {
+            frame["MessageType"] == AIS_PROVENANCE_MESSAGE_TYPE && frame["Synthetic"] == true
+        })
     }
 
     async fn read(path: &Path) -> Result<Vec<u8>, ProviderError> {
@@ -85,6 +147,38 @@ impl FixtureProvider {
             cyclones::attach_geometry(&mut storms, [&points, &track, &cone])?;
         }
         Ok((FeedItems::Cyclones(storms), 0))
+    }
+
+    /// Replays a recorded WFIGS page joined with whatever recorded InciWeb index and
+    /// incident pages exist; without them the perimeters simply carry no links. The
+    /// answer carries the live provider's notices after the fixture notice.
+    async fn perimeters(&self) -> Result<Fetched, ProviderError> {
+        let wfigs = Self::read(&self.dir.join("perimeters-wfigs.geojson")).await?;
+        let index = Self::read(&self.dir.join("perimeters-inciweb-index.json")).await.ok();
+        let mut pages = std::collections::HashMap::new();
+        if let Ok(mut entries) = tokio::fs::read_dir(&self.dir).await {
+            while let Ok(Some(entry)) = entries.next_entry().await {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if let Some(slug) =
+                    name.strip_prefix("perimeters-inciweb-").and_then(|n| n.strip_suffix(".html"))
+                    && let Ok(html) = Self::read(&entry.path()).await
+                {
+                    pages.insert(slug.to_owned(), html);
+                }
+            }
+        }
+        let inciweb = url::Url::parse("https://inciweb.wildfire.gov/")
+            .map_err(|_| ProviderError::Unconfigured("invalid InciWeb root".to_owned()))?;
+        let (items, notices) = perimeters::from_recorded(
+            &wfigs,
+            index.as_deref(),
+            |slug| pages.get(slug).cloned(),
+            &inciweb,
+            jiff::Timestamp::now(),
+        )?;
+        let mut fetched = Fetched::fresh(FeedItems::Perimeters(items));
+        fetched.notices = std::iter::once(FIXTURE_NOTICE.to_owned()).chain(notices).collect();
+        Ok(fetched)
     }
 
     async fn satellites(&self) -> Result<(FeedItems, usize), ProviderError> {
@@ -138,6 +232,11 @@ impl FeedProvider for FixtureProvider {
         true
     }
 
+    /// The replayed store keeps the recording's clock, so tracks keep recorded times.
+    fn vessel_track(&self, mmsi: Mmsi) -> Option<VesselTrackResponse> {
+        aisstream::track_response(self.vessel_store.as_ref()?, mmsi, self.source_id)
+    }
+
     async fn fetch(
         &self,
         _ctx: &FetchContext<'_>,
@@ -155,6 +254,19 @@ impl FeedProvider for FixtureProvider {
             }
             FeedId::Satellites => self.satellites().await?,
             FeedId::Cyclones => self.cyclones().await?,
+            FeedId::Fires => {
+                let bytes = Self::read(&self.dir.join("firms.csv")).await?;
+                let (detections, dropped) = firms::parse_csv(&bytes)?;
+                let cells: Vec<lavender_domain::FireCell> =
+                    detections.into_iter().map(Into::into).collect();
+                (FeedItems::Fires(cells), dropped)
+            }
+            FeedId::Launches => {
+                let page = launches::parse(&Self::read(&self.dir.join("launches.json")).await?)?;
+                (FeedItems::Launches(page.launches), page.dropped)
+            }
+            FeedId::Vessels => self.vessels().await?,
+            FeedId::Perimeters => return self.perimeters().await,
         };
         let mut fetched = Fetched::fresh(items).with_dropped("Fixture", dropped);
         if self.feed == FeedId::Aircraft {
@@ -168,6 +280,11 @@ impl FeedProvider for FixtureProvider {
         if self.feed == FeedId::Cyclones {
             fetched.notices.push(cyclones::COVERAGE_NOTICE.to_owned());
             fetched.notices.push(cyclones::CONE_NOTICE.to_owned());
+        }
+        if self.feed == FeedId::Vessels {
+            let synthetic = Self::declares_synthetic(&self.dir.join("aisstream.jsonl")).await;
+            let notice = if synthetic { SYNTHETIC_VESSEL_NOTICE } else { VESSEL_NOTICE };
+            fetched.notices.push(notice.to_owned());
         }
         fetched.notices.insert(0, FIXTURE_NOTICE.to_owned());
         Ok(fetched)
@@ -229,6 +346,64 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_browser_fixture_replays_launches_with_a_notice() {
+        let dir = tempfile::tempdir().unwrap();
+        let browser_fixtures =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../apps/web/e2e/fixtures");
+        std::fs::copy(browser_fixtures.join("launches.json"), dir.path().join("launches.json"))
+            .unwrap();
+        let answer = fetch(dir.path(), FeedId::Launches).await.unwrap();
+        assert_eq!(answer.notices.first().map(String::as_str), Some(FIXTURE_NOTICE));
+        assert!(answer.notices.iter().any(|n| n.contains("1 malformed record")));
+        let FeedItems::Launches(launches) = answer.items else { panic!("launches") };
+        assert_eq!(launches.len(), 3);
+        assert!(launches.iter().all(|l| l.pad.is_some()));
+    }
+
+    #[tokio::test]
+    async fn only_an_ais_replay_that_declares_itself_synthetic_is_called_synthetic() {
+        let position = r#"{"MessageType":"PositionReport","MetaData":{"MMSI":230990001,"time_utc":"2026-10-15 11:50:00.000000000 +0000 UTC"},"Message":{"PositionReport":{"UserID":230990001,"Valid":true,"Latitude":60.1,"Longitude":24.9,"Sog":11.5,"Cog":88.0,"TrueHeading":89,"NavigationalStatus":0}}}"#;
+        let marker = r#"{"MessageType":"LavenderFixtureProvenance","Synthetic":true}"#;
+        let notices = |fetched: &Fetched| {
+            (
+                fetched.notices.iter().any(|n| n == VESSEL_NOTICE),
+                fetched.notices.iter().any(|n| n == SYNTHETIC_VESSEL_NOTICE),
+            )
+        };
+
+        // A recording of real traffic (no marker) is not called invented.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("aisstream.jsonl"), format!("{position}\n")).unwrap();
+        let recorded = fetch(dir.path(), FeedId::Vessels).await.unwrap();
+        assert_eq!(recorded.items.len(), 1);
+        assert_eq!(recorded.notices.first().map(String::as_str), Some(FIXTURE_NOTICE));
+        assert_eq!(notices(&recorded), (true, false));
+
+        // The marker must open the file and say `Synthetic: true`.
+        let dir = tempfile::tempdir().unwrap();
+        let later = format!("{position}\n{marker}\n");
+        std::fs::write(dir.path().join("aisstream.jsonl"), later).unwrap();
+        assert_eq!(notices(&fetch(dir.path(), FeedId::Vessels).await.unwrap()), (true, false));
+        let unsure = marker.replace("true", "false");
+        std::fs::write(dir.path().join("aisstream.jsonl"), format!("{unsure}\n{position}\n"))
+            .unwrap();
+        assert_eq!(notices(&fetch(dir.path(), FeedId::Vessels).await.unwrap()), (true, false));
+
+        std::fs::write(dir.path().join("aisstream.jsonl"), format!("\n{marker}\n{position}\n"))
+            .unwrap();
+        let synthetic = fetch(dir.path(), FeedId::Vessels).await.unwrap();
+        assert_eq!(synthetic.items.len(), 1, "the marker is not a ship");
+        assert_eq!(notices(&synthetic), (false, true));
+        assert!(!synthetic.notices.iter().any(|n| n.contains("malformed")));
+
+        // The checked-in browser replay is synthetic and says so.
+        let browser = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../apps/web/e2e/fixtures/aisstream.jsonl");
+        std::fs::copy(browser, dir.path().join("aisstream.jsonl")).unwrap();
+        assert_eq!(notices(&fetch(dir.path(), FeedId::Vessels).await.unwrap()), (false, true));
+    }
+
+    #[tokio::test]
     async fn cyclone_replay_preserves_advisory_dates_and_explains_coverage() {
         let dir = tempfile::tempdir().unwrap();
         let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
@@ -242,5 +417,40 @@ mod tests {
         let FeedItems::Cyclones(storms) = answer.items else { panic!("cyclones") };
         assert_eq!(storms[0].position_at.to_string(), "2026-10-14T00:00:00Z");
         assert_eq!(storms[0].geometry_status, lavender_domain::CycloneGeometryStatus::Current);
+    }
+
+    #[tokio::test]
+    async fn perimeter_replay_runs_the_real_parsers_and_verified_inciweb_join() {
+        let dir = tempfile::tempdir().unwrap();
+        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+        assert!(fetch(dir.path(), FeedId::Perimeters).await.is_err(), "no recording, no feed");
+        std::fs::copy(
+            fixtures.join("perimeters-wfigs.geojson"),
+            dir.path().join("perimeters-wfigs.geojson"),
+        )
+        .unwrap();
+        let bare = fetch(dir.path(), FeedId::Perimeters).await.unwrap();
+        let FeedItems::Perimeters(items) = &bare.items else { panic!("perimeters") };
+        assert!(items.iter().all(|p| p.inciweb_url.is_none()), "no recorded InciWeb, no links");
+        for name in [
+            "perimeters-inciweb-index.json",
+            "perimeters-inciweb-mtbdf-sand-creek.html",
+            "perimeters-inciweb-cogmf-gold-mountain-fire.html",
+            "perimeters-inciweb-wanes-sinlahekin-fire.html",
+        ] {
+            std::fs::copy(fixtures.join(name), dir.path().join(name)).unwrap();
+        }
+        let answer = fetch(dir.path(), FeedId::Perimeters).await.unwrap();
+        assert_eq!(answer.notices.first().map(String::as_str), Some(FIXTURE_NOTICE));
+        assert!(answer.notices.iter().any(|n| n == perimeters::COVERAGE_NOTICE));
+        let FeedItems::Perimeters(items) = answer.items else { panic!("perimeters") };
+        assert_eq!(items.len(), 7 * perimeters::LEVELS.len());
+        let sand = items.iter().find(|p| p.id == "2026-MTBDF-266319").unwrap();
+        assert_eq!(
+            sand.inciweb_url.as_deref(),
+            Some("https://inciweb.wildfire.gov/incident-information/mtbdf-sand-creek")
+        );
+        // Recorded perimeter dates are kept, not replaced by the replay clock.
+        assert_eq!(sand.updated_at.map(|t| t.to_string()).as_deref(), Some("2026-09-14T11:08:53Z"));
     }
 }

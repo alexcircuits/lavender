@@ -5,6 +5,7 @@ import {
   Button,
   CopyIcon,
   EmptyState,
+  formatCount,
   IconButton,
   InfoIcon,
   NavigationArrowIcon,
@@ -15,6 +16,7 @@ import {
 } from '../../design';
 import type { EntityRef } from '../../globe';
 import { formatDecimal } from '../../lib/coordinates';
+import { isPadId, isPlaceablePad, launchClock, launchTitle } from '../../lib/launches';
 import { noaaRecordUrl, usgsEventUrl } from '../../lib/safeUrl';
 import { formatUtcTime, parseTime } from '../../lib/time';
 import { useNow } from '../../lib/useNow';
@@ -30,16 +32,21 @@ import {
   cycloneFacts,
   earthquakeFacts,
   type Fact,
+  fireFacts,
   type Inspected,
   inspect,
   positionFacts,
   provenanceFacts,
   satelliteFacts,
   satelliteGroupLabel,
+  vesselFacts,
 } from './facts';
 import styles from './inspector.module.css';
+import { LaunchDetails, LaunchNotices, PadLaunches, useLaunchPadView } from './LaunchDetails';
+import { launchFacts, padFacts } from './launchFacts';
 import { SatellitePasses } from './SatellitePasses';
 import { useSatellitePosition } from './useSatellitePosition';
+import { VesselTrack, vesselReportedAtSec } from './VesselTrack';
 
 /** Copies a position to the clipboard and says what happened, in the action's own verb. */
 export async function copyCoordinates(position: GeoPoint): Promise<void> {
@@ -81,6 +88,18 @@ function sheetFor(
   const fetchedMs = parseTime(summary?.fetchedAt);
   const snapshotSources = summary?.sources ?? [];
   switch (view.kind) {
+    case 'vessels': {
+      const vessel = view.item;
+      return {
+        title: vessel.name?.trim() || vessel.mmsi,
+        summary: `MMSI ${vessel.mmsi}`,
+        facts: vesselFacts(vessel, nowMs),
+        position: vessel.position,
+        observedMs: parseTime(vessel.lastPositionUtc),
+        sourceIds: snapshotSources,
+        recordUrl: null,
+      };
+    }
     case 'cyclones': {
       const storm = view.item;
       return {
@@ -149,8 +168,52 @@ function sheetFor(
         recordUrl: null,
       };
     }
+    case 'fires': {
+      const cell = view.item;
+      const isCluster = cell.count > 1;
+      return {
+        title: isCluster
+          ? `Fire cluster (${formatCount(cell.count)} detections)`
+          : 'Active fire detection',
+        summary: `FRP ${cell.frp.toFixed(1)} MW · ${cell.satellite || 'Satellite'}`,
+        facts: fireFacts(cell),
+        position: { lat: cell.lat, lon: cell.lon },
+        observedMs: parseTime(cell.latestAcquiredAt || cell.acquiredAt),
+        sourceIds: snapshotSources,
+        recordUrl: null,
+      };
+    }
+    case 'launches': {
+      const launch = view.item;
+      const pad = isPlaceablePad(launch.pad) ? launch.pad : null;
+      return {
+        title: launchTitle(launch),
+        summary: [launch.provider, launch.rocket].filter(Boolean).join(' · ') || 'Rocket launch',
+        // The launch clock, as the list beside this sheet reads it.
+        facts: launchFacts(launch, launchClock(nowMs)),
+        position: pad ? { lat: pad.latitude, lon: pad.longitude } : null,
+        observedMs: null,
+        sourceIds: snapshotSources,
+        recordUrl: null,
+      };
+    }
+    case 'launchPad': {
+      const pad = view.item;
+      return {
+        title: pad.name,
+        summary: pad.locationName ? `Launch pad · ${pad.locationName}` : 'Launch pad',
+        facts: padFacts(pad, launchClock(nowMs)),
+        position: { lat: pad.latitude, lon: pad.longitude },
+        observedMs: null,
+        sourceIds: snapshotSources,
+        recordUrl: null,
+      };
+    }
   }
 }
+
+const isPadSelection = (selection: EntityRef) =>
+  selection.feed === 'launches' && isPadId(selection.id);
 
 /** Why the selected entity has no record to show, and what will change that. */
 function emptyMessage(
@@ -159,13 +222,19 @@ function emptyMessage(
   canTurnOn: boolean,
   waiting: boolean,
 ): string {
-  if (canTurnOn) return `${selection.id} is in ${name}, which is off. Turn it on to see it.`;
+  const subject = isPadSelection(selection) ? 'This launch pad' : selection.id;
+  if (canTurnOn) return `${subject} is in ${name}, which is off. Turn it on to see it.`;
   if (waiting) return `Waiting for ${name} data…`;
-  // Aircraft and earthquakes are fetched for the area the globe shows; satellites worldwide.
-  if (selection.feed === 'aircraft' || selection.feed === 'earthquakes') {
-    return `${selection.id} is not in the latest ${name} data for the area the globe shows.`;
+  // Aircraft, earthquakes and fires are fetched for the area the globe shows; satellites worldwide.
+  if (
+    selection.feed === 'aircraft' ||
+    selection.feed === 'earthquakes' ||
+    selection.feed === 'vessels' ||
+    selection.feed === 'fires'
+  ) {
+    return `${subject} is not in the latest ${name} data for the area the globe shows.`;
   }
-  return `${selection.id} is not in the latest ${name} data.`;
+  return `${subject} is not in the latest ${name} data.`;
 }
 
 /** Keeps keyboard focus sensible when the inspector closes: back to whatever opened it. */
@@ -231,7 +300,7 @@ interface InspectorBodyProps {
 
 function InspectorBody({ selection, className }: InspectorBodyProps) {
   const entity = useFeeds((s) => s.selectedEntity);
-  const present = useFeeds((s) => s.selectedPresent);
+  const storePresent = useFeeds((s) => s.selectedPresent);
   const lastSeen = useFeeds((s) => s.selectedLastSeen);
   const summary = useFeeds((s) => s.summaries[selection.feed]);
   const catalog = useSystem((s) => s.catalog);
@@ -240,10 +309,14 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
   const globe = useGlobe();
   const nowMs = useNow();
   const layer = catalog?.layers.find((l) => l.feed === selection.feed);
-  const view = useMemo(
+  const storeView = useMemo(
     () => inspect(selection.feed, selection.id, entity),
     [selection.feed, selection.id, entity],
   );
+  // A launch pad is not a feed item: its sheet is read from the latest launches snapshot.
+  const padView = useLaunchPadView(selection);
+  const view = padView?.view ?? storeView;
+  const present = padView ? padView.present : storePresent;
   const noradId = selection.feed === 'satellites' ? Number(selection.id) : Number.NaN;
   const satellite = useSatellitePosition(Number.isInteger(noradId) && noradId > 0 ? noradId : null);
 
@@ -252,7 +325,11 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
     const canTurnOn = !enabled && layer?.availability.state === 'available';
     const waiting = enabled && (!summary || summary.phase === 'connecting');
     return (
-      <InspectorFrame title={selection.id} layer={layer} className={className}>
+      <InspectorFrame
+        title={isPadSelection(selection) ? 'Launch pad' : selection.id}
+        layer={layer}
+        className={className}
+      >
         <EmptyState
           icon={InfoIcon}
           action={
@@ -271,6 +348,8 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
 
   const sheet = sheetFor(view, summary, satellite, nowMs);
   const lastSeenMs = parseTime(lastSeen);
+  // Launch and pad sheets show the feed's notices prominently at the top; say them once.
+  const noticesOnTop = view.kind === 'launches' || view.kind === 'launchPad';
   const provenance = provenanceFacts({
     sources: sourceNames(
       sheet.sourceIds.length > 0 ? sheet.sourceIds : (layer?.sourceIds ?? []),
@@ -279,6 +358,7 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
     observedMs: sheet.observedMs,
     fetchedMs: parseTime(summary?.fetchedAt),
     nowMs,
+    notices: noticesOnTop ? [] : (summary?.notices ?? []),
   });
   const position = sheet.position;
 
@@ -292,11 +372,21 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
             : `No longer in feed · last seen ${formatUtcTime(lastSeenMs)}`}
         </p>
       )}
+      {noticesOnTop ? <LaunchNotices /> : null}
       <FactSheet facts={sheet.facts} label="Facts" />
+      {view.kind === 'launches' ? <LaunchDetails launch={view.item} /> : null}
+      {view.kind === 'launchPad' ? <PadLaunches pad={view.item} /> : null}
       <h3 className={styles.subhead}>Provenance</h3>
       <FactSheet facts={provenance} label="Provenance" />
       {view.kind === 'aircraft' ? (
         <AircraftHistory key={view.item.hex} hex={view.item.hex} />
+      ) : null}
+      {view.kind === 'vessels' ? (
+        <VesselTrack
+          key={view.item.mmsi}
+          mmsi={view.item.mmsi}
+          reportedAtSec={vesselReportedAtSec(view.item)}
+        />
       ) : null}
       {view.kind === 'satellites' ? (
         <SatellitePasses key={view.item.noradId} noradId={view.item.noradId} />

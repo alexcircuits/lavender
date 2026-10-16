@@ -147,8 +147,13 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/feeds/{feed}", get(routes::feed))
         .route("/search", get(routes::search))
         .route("/aircraft/{hex}/track", get(routes::aircraft_track))
+        .route("/vessels/{mmsi}/track", get(routes::vessel_track))
         .route("/satellites/{norad}/track", get(routes::satellite_track))
         .route("/satellites/{norad}/passes", get(routes::satellite_passes))
+        .route("/wind", get(routes::wind_manifest))
+        .route("/wind/manifest", get(routes::wind_manifest))
+        .route("/wind/status", get(routes::wind_status))
+        .route("/wind/grid/{id}", get(routes::wind_grid))
         .route("/stream", get(ws::stream))
         .fallback(routes::api_not_found)
         .layer(middleware::from_fn(security::require_same_origin))
@@ -162,6 +167,14 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
     Router::new()
         .route("/healthz", get(routes::healthz))
         .nest("/api/v1", api)
+        .nest(
+            "/api/wind",
+            Router::new()
+                .route("/", get(routes::wind_manifest))
+                .route("/manifest", get(routes::wind_manifest))
+                .route("/status", get(routes::wind_status))
+                .route("/grid/{id}", get(routes::wind_grid)),
+        )
         .route("/api", any(routes::api_not_found))
         .route("/api/{*rest}", any(routes::api_not_found))
         .fallback_service(static_files)

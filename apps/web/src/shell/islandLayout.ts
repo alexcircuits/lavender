@@ -42,9 +42,14 @@ export function useCollapsed(): Surface | null {
   return last === 'inspector' ? 'side' : 'inspector';
 }
 
-/** The rail button for a panel (NavRail marks them), where focus goes when its island closes. */
+/**
+ * The rail button for a panel (NavRail marks them), where focus goes when its island closes.
+ * The launch list has none of its own: it is opened from, and belongs to, the Layers island.
+ */
 export const railButton = (panel: SidePanel) =>
-  document.querySelector<HTMLElement>(`[data-rail-panel="${panel}"]`);
+  document.querySelector<HTMLElement>(
+    `[data-rail-panel="${panel === 'launches' ? 'layers' : panel}"]`,
+  );
 
 /**
  * When the left island closes or switches while it held focus (its Close button, "Set up in

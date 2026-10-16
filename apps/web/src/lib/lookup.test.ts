@@ -21,8 +21,8 @@ describe('values from a newer server or a provider', () => {
   it('render with neutral fallbacks instead of throwing', () => {
     expect(familyLabel('oceans')).toBe('Oceans');
     expect(familySwatch('oceans')).toBe('context');
-    expect(feedGlyph('vessels')).toBeUndefined();
-    expect(itemNoun('vessels' as FeedId, 2)).toBe('items');
+    expect(feedGlyph('future-feed')).toBeUndefined();
+    expect(itemNoun('future-feed' as FeedId, 2)).toBe('items');
     expect(healthSpec('quantum').word).toBe('Health unknown');
     expect(commercialWords('maybe')).toBe('Unknown');
     expect(licenceModeNotice('partner').title).toBe('Commercial mode');

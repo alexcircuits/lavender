@@ -36,6 +36,9 @@ url.workspace = true
 wiremock.workspace = true
 async-trait.workspace = true
 jiff.workspace = true
+grib.workspace = true
+# HTTP load client of examples/perf_load.rs (ENG-1000).
+reqwest.workspace = true
 
 [lints]
 workspace = true

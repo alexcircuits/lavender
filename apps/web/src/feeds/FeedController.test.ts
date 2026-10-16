@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Catalog } from '../contracts';
+import type { Catalog, FeedSnapshot, FireCell } from '../contracts';
 import { createStores } from '../state/stores';
 import { catalogOf, FakePlatform, fakeGlobe, layer, quakeSnapshot } from '../test/fakes';
 import { FeedController } from './FeedController';
@@ -138,5 +138,71 @@ describe('FeedController', () => {
     await vi.runAllTimersAsync();
     expect(platform.tracks).toEqual([25544]);
     expect(globe.showTrack).toHaveBeenCalledWith(expect.objectContaining({ noradId: 25544 }));
+  });
+});
+
+describe('FeedController fire selection', () => {
+  const cell = (lat: number, lon: number, frp = 20): FireCell => ({
+    lat,
+    lon,
+    brightness: 320,
+    frp,
+    confidence: 'nominal',
+    satellite: 'N20',
+    acquiredAt: '2026-10-15T12:00:00Z',
+    dayNight: 'D',
+    count: 1,
+    maxFrp: frp,
+    latestAcquiredAt: '2026-10-15T12:00:00Z',
+  });
+  const fireSnapshot = (items: readonly unknown[]): FeedSnapshot => ({
+    ...quakeSnapshot([]),
+    feed: 'fires',
+    sources: ['nasa-firms'],
+    items: { kind: 'fires', items: items as FireCell[] },
+  });
+
+  let platform: FakePlatform;
+  let stores: ReturnType<typeof createStores>;
+  let controller: FeedController;
+
+  beforeEach(() => {
+    platform = new FakePlatform();
+    stores = createStores();
+    stores.system.getState().setCatalog(catalogOf([layer('fires')]));
+    controller = new FeedController(platform, stores);
+    controller.start();
+  });
+
+  afterEach(() => controller.stop());
+
+  it('refreshes a selected fire when a snapshot carries a cell with null coordinates', () => {
+    const { globe, pick } = fakeGlobe();
+    controller.attachGlobe(globe);
+    stores.workspace.getState().setLayerEnabled('fires', true);
+    const selected = cell(60.17, 24.94, 80);
+    platform.subs[0]?.onEvent({ kind: 'snapshot', snapshot: fireSnapshot([selected]) });
+    pick({ feed: 'fires', id: '60.1700,24.9400' });
+    expect(stores.feeds.getState()).toMatchObject({ selectedPresent: true });
+
+    // JSON has no NaN: a server bug or a newer contract sends null. The bad cell is skipped,
+    // never the refresh, and the selected cell (now 95 MW) is still found by its id.
+    const nullCell = { ...cell(0, 0), lat: null };
+    const refreshed = { ...selected, frp: 95 };
+    const next = fireSnapshot([nullCell, { ...cell(1, 2), lon: null }, refreshed]);
+    expect(() => platform.subs[0]?.onEvent({ kind: 'snapshot', snapshot: next })).not.toThrow();
+    expect(globe.applySnapshot).toHaveBeenLastCalledWith(next);
+    expect(stores.feeds.getState()).toMatchObject({
+      selectedPresent: true,
+      selectedEntity: { lat: 60.17, lon: 24.94, frp: 95 },
+    });
+
+    // Once the selected cell leaves, the last record is kept and marked as no longer present.
+    const gone = fireSnapshot([nullCell, cell(61, 25)]);
+    expect(() => platform.subs[0]?.onEvent({ kind: 'snapshot', snapshot: gone })).not.toThrow();
+    expect(stores.feeds.getState()).toMatchObject({
+      selectedPresent: false,
+      selectedEntity: { frp: 95 },
+    });
   });
 });

@@ -86,7 +86,7 @@ describe('filters', () => {
   });
 
   it('treats no groups as all groups and drops the filter when all are back', () => {
-    expect(selectedGroups({})).toHaveLength(6);
+    expect(selectedGroups({})).toHaveLength(7);
     const without = withGroup({}, 'science', false);
     expect(without.groups).not.toContain('science');
     expect(withGroup(without, 'science', true)).toEqual({});

@@ -4,15 +4,25 @@
  * WebSocket; the desktop adapter against a fake Tauri `invoke` and channels.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ClientFrame, FeedQuery, FeedSnapshot, ServerFrame } from '../contracts';
+import type {
+  ClientFrame,
+  FeedQuery,
+  FeedSnapshot,
+  ServerFrame,
+  VesselTrackResponse,
+  WeatherOverlay,
+  WindManifest,
+} from '../contracts';
 import { type ChannelLike, TauriPlatform } from './tauri/TauriPlatform';
 import {
   type FeedEvent,
   type LavenderPlatform,
   PlatformError,
   type PreferenceStore,
+  type WindRequest,
 } from './types';
-import { feedParams, type SocketLike, WebPlatform } from './web/WebPlatform';
+import { feedParams, type SocketLike, WebPlatform, windParams } from './web/WebPlatform';
+import { decodeWindGrid } from './windGrid';
 
 const snapshot = (feed: FeedSnapshot['feed'], count: number): FeedSnapshot => ({
   feed,
@@ -35,10 +45,68 @@ const memoryPrefs = (): PreferenceStore => {
   };
 };
 
+const GRID_ID = 'gfs-20261015-0-f6-180';
+
+/** A 2 × 2 grid (180° spacing) as lavender-core serves it: little-endian f32, U then V. */
+function windGridBytes(): ArrayBuffer {
+  const view = new DataView(new ArrayBuffer(2 * 4 * 4));
+  for (const [i, value] of [1.5, -2, 0.25, 3, 4, -5, 6.5, -7].entries()) {
+    view.setFloat32(i * 4, value, true);
+  }
+  return view.buffer;
+}
+
+const windManifest = (request: WindRequest, withGrid: boolean): WindManifest => ({
+  schemaVersion: 1,
+  model: request.model,
+  cycle: { date: '20261015', hour: 0, forecastHour: 6 },
+  grid: { nx: 2, ny: 2, lo1: 0, la1: 90, dx: 180, dy: 180 },
+  stale: false,
+  unavailable: false,
+  reason: null,
+  ...(withGrid
+    ? { gridId: GRID_ID, gridUrl: `/api/v1/wind/grid/${GRID_ID}.bin?model=${request.model}` }
+    : {}),
+  attribution: 'Wind: NOAA Global Forecast System (GFS)',
+});
+
+const unknownGrid = { code: 'notFound', message: 'unknown_grid', retryable: false };
+
+/** The one vessel the fake backend has kept a track for (synthetic MMSI and positions). */
+const TRACKED_MMSI = '230990001';
+const vesselTrack: VesselTrackResponse = {
+  mmsi: TRACKED_MMSI,
+  samples: [
+    { lat: 60.1, lon: 24.9, epochSec: 1_791_892_200 },
+    { lat: 60.1, lon: 24.91, epochSec: 1_791_892_260 },
+  ],
+  source: 'aisstream',
+  retainedSec: 1_800,
+  voyage: {
+    callSign: 'XTEST',
+    navigationalStatus: 'At anchor',
+    eta: { month: 10, day: 15, hour: 18, minute: 0 },
+    draughtM: 6.2,
+    dimensions: { lengthM: 70, beamM: 12 },
+  },
+};
+const noTrack = {
+  code: 'notFound',
+  message: 'No retained track is available for vessel 230990002.',
+  retryable: false,
+};
+
+type WindKind = 'manifest' | 'status' | 'grid';
+type WindCall = WindRequest & { readonly id?: string };
+
 /** A tiny in-memory backend both fakes delegate to. */
 class FakeBackend {
   readonly subscriptions = new Map<string, { query: FeedQuery; push: (f: ServerFrame) => void }>();
+  readonly windRequests: unknown[] = [];
+  readonly vesselTrackRequests: string[] = [];
   failCatalog = false;
+  /** Wind answers start but break off: the HTTP body errors, the IPC call rejects. */
+  breakWindTransfers = false;
 
   catalog() {
     if (this.failCatalog) throw { code: 'upstreamUnavailable', message: 'down', retryable: true };
@@ -59,6 +127,21 @@ class FakeBackend {
 
   unsubscribe(id: string) {
     this.subscriptions.delete(id);
+  }
+
+  vesselTrack(mmsi: string): VesselTrackResponse {
+    this.vesselTrackRequests.push(mmsi);
+    if (mmsi !== TRACKED_MMSI) throw noTrack;
+    return vesselTrack;
+  }
+
+  wind(request: WindCall, kind: WindKind) {
+    this.windRequests.push({ kind, ...request });
+    if (kind === 'grid') {
+      if (request.id !== GRID_ID) throw unknownGrid;
+      return windGridBytes();
+    }
+    return windManifest(request, kind === 'manifest');
   }
 }
 
@@ -92,8 +175,47 @@ class FakeSocket implements SocketLike {
   }
 }
 
+/** A 200 whose body fails after its first bytes, as a dropped or aborted download does. */
+function brokenBody(reason: Error): Response {
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      controller.enqueue(new Uint8Array([0x7b, 0x22]));
+      controller.error(reason);
+    },
+  });
+  return new Response(body, { status: 200 });
+}
+
+/** Parses `/api/v1/wind/{kind}[/{id}.bin]?model=…&overlay=…` like lavender-server. */
+function webWind(backend: FakeBackend, url: string): Response {
+  const parsed = new URL(url, 'http://localhost');
+  const match = /^\/api\/v1\/wind\/(manifest|status|grid)(?:\/(.+)\.bin)?$/.exec(parsed.pathname);
+  if (!match) return new Response('{}', { status: 404 });
+  const kind = match[1] as WindKind;
+  const id = match[2];
+  const model = parsed.searchParams.get('model') as WindRequest['model'];
+  const overlay = (parsed.searchParams.get('overlay') ?? 'none') as WeatherOverlay;
+  try {
+    const answer = backend.wind(
+      { model, overlay, ...(id ? { id: decodeURIComponent(id) } : {}) },
+      kind,
+    );
+    if (backend.breakWindTransfers) return brokenBody(new TypeError('network connection lost'));
+    return answer instanceof ArrayBuffer
+      ? new Response(answer, { headers: { 'Content-Type': 'application/octet-stream' } })
+      : new Response(JSON.stringify(answer));
+  } catch (error) {
+    return new Response(JSON.stringify({ error: 'unknown_grid', ...(error as object) }), {
+      status: 404,
+    });
+  }
+}
+
 function webAdapter(backend: FakeBackend): LavenderPlatform {
-  const fetch = async (url: string): Promise<Response> => {
+  const fetch = async (url: string, init?: RequestInit): Promise<Response> => {
+    // Like the browser's fetch: an already-aborted signal rejects before any request.
+    if (init?.signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
+    if (url.includes('/api/v1/wind/')) return webWind(backend, url);
     if (url.includes('/api/v1/satellites/25544/passes'))
       return new Response(
         JSON.stringify({
@@ -106,6 +228,14 @@ function webAdapter(backend: FakeBackend): LavenderPlatform {
           passes: [],
         }),
       );
+    const vessel = /\/api\/v1\/vessels\/([^/?]+)\/track$/.exec(url);
+    if (vessel?.[1]) {
+      try {
+        return new Response(JSON.stringify(backend.vesselTrack(decodeURIComponent(vessel[1]))));
+      } catch (error) {
+        return new Response(JSON.stringify(error), { status: 404 });
+      }
+    }
     if (url.includes('/api/v1/aircraft/'))
       return new Response(
         JSON.stringify({
@@ -148,6 +278,8 @@ function desktopAdapter(backend: FakeBackend): LavenderPlatform {
           points: [{ time: '2026-10-13T12:00:00Z', position: { lat: 60, lon: 24 } }],
           sources: ['adsb-lol'],
         } as T;
+      case 'vessel_track':
+        return backend.vesselTrack(args?.mmsi as string) as T;
       case 'satellite_passes':
         return {
           noradId: 25544,
@@ -171,6 +303,14 @@ function desktopAdapter(backend: FakeBackend): LavenderPlatform {
       case 'feed_unsubscribe':
         backend.unsubscribe(args?.id as string);
         return undefined as T;
+      case 'wind_manifest':
+      case 'wind_status':
+      case 'wind_grid':
+        if (backend.breakWindTransfers) throw new TypeError('IPC connection lost');
+        return backend.wind(
+          args as unknown as WindCall,
+          command.slice('wind_'.length) as WindKind,
+        ) as T;
       default:
         throw { code: 'notFound', message: `no command ${command}`, retryable: false };
     }
@@ -214,6 +354,32 @@ describe.each([
     });
   });
 
+  it('reads the same retained vessel track through either adapter', async () => {
+    const backend = new FakeBackend();
+    const platform = make(backend);
+    await expect(platform.vesselTrack(TRACKED_MMSI)).resolves.toEqual(vesselTrack);
+    expect(backend.vesselTrackRequests).toEqual([TRACKED_MMSI]);
+  });
+
+  it('reports a vessel without a retained track as notFound', async () => {
+    const platform = make(new FakeBackend());
+    const err = await platform.vesselTrack('230990002').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PlatformError);
+    expect((err as PlatformError).apiError).toEqual(noTrack);
+  });
+
+  it('does not start a vessel track request that was already cancelled', async () => {
+    const backend = new FakeBackend();
+    const platform = make(backend);
+    const request = new AbortController();
+    request.abort();
+    const err = await platform
+      .vesselTrack(TRACKED_MMSI, { signal: request.signal })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PlatformError);
+    expect((err as PlatformError).apiError.message).toBe('The request was cancelled.');
+  });
+
   it('predicts the same geometric satellite passes through either adapter', async () => {
     const platform = make(new FakeBackend());
     await expect(
@@ -241,6 +407,59 @@ describe.each([
     await vi.waitFor(() => expect(backend.subscriptions.size).toBe(0));
   });
 
+  it('reads the same wind manifest and status through either adapter', async () => {
+    const backend = new FakeBackend();
+    const platform = make(backend);
+    const manifest = await platform.windManifest({ model: 'gfs' });
+    expect(manifest).toMatchObject({ model: 'gfs', gridId: GRID_ID, stale: false });
+    const status = await platform.windStatus({ model: 'ifs', overlay: 'pressure' });
+    expect(status).toMatchObject({ model: 'ifs', unavailable: false });
+    expect(status.gridId).toBeUndefined();
+    expect(backend.windRequests).toEqual([
+      { kind: 'manifest', model: 'gfs', overlay: 'none' },
+      { kind: 'status', model: 'ifs', overlay: 'pressure' },
+    ]);
+  });
+
+  it('downloads the same little-endian wind grid through either adapter', async () => {
+    const backend = new FakeBackend();
+    const platform = make(backend);
+    const manifest = await platform.windManifest({ model: 'gfs' });
+    const buffer = await platform.windGrid({ model: 'gfs', id: manifest.gridId ?? '' });
+    // 1.5 as binary32, least-significant byte first.
+    expect([...new Uint8Array(buffer, 0, 4)]).toEqual([0x00, 0x00, 0xc0, 0x3f]);
+    const grid = decodeWindGrid(buffer, manifest);
+    expect([...grid.u]).toEqual([1.5, -2, 0.25, 3]);
+    expect([...grid.v]).toEqual([4, -5, 6.5, -7]);
+    expect(grid.scalar).toBeUndefined();
+  });
+
+  it('reports an unknown wind grid as notFound', async () => {
+    const platform = make(new FakeBackend());
+    const err = await platform.windGrid({ model: 'gfs', id: 'gone' }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PlatformError);
+    expect((err as PlatformError).apiError.code).toBe('notFound');
+  });
+
+  it('reports a wind transfer that breaks off as a retryable PlatformError', async () => {
+    const backend = new FakeBackend();
+    const platform = make(backend);
+    backend.breakWindTransfers = true;
+    const calls = [
+      () => platform.windGrid({ model: 'gfs', id: GRID_ID }),
+      () => platform.windManifest({ model: 'gfs' }),
+      () => platform.windStatus({ model: 'ifs' }),
+    ];
+    for (const call of calls) {
+      const err = await call().catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(PlatformError);
+      expect((err as PlatformError).apiError).toMatchObject({
+        code: 'upstreamUnavailable',
+        retryable: true,
+      });
+    }
+  });
+
   it('reports the transport state immediately', () => {
     const platform = make(new FakeBackend());
     const states: string[] = [];
@@ -265,9 +484,11 @@ describe('web transport specifics', () => {
     await platform.search({ q: 'Helsinki', places: false });
     await platform.search({ q: 'Helsinki', places: true });
     await platform.aircraftTrack('a/b');
+    await platform.vesselTrack('23099/0001?x');
     expect(urls[0]).toContain('places=false');
     expect(urls[1]).toContain('places=true');
     expect(urls[2]).toContain('/aircraft/a%2Fb/track');
+    expect(urls[3]).toBe('/api/v1/vessels/23099%2F0001%3Fx/track');
   });
 
   it('builds feed query strings like lavender-server expects', () => {
@@ -279,6 +500,51 @@ describe('web transport specifics', () => {
       }),
     ).toBe('?bbox=170%2C-10%2C-170%2C10&militaryOnly=true&groups=a%2Cb');
     expect(feedParams({ feed: 'earthquakes', filters: {} })).toBe('');
+  });
+
+  it('requests wind grids at the gridUrl lavender-server publishes', async () => {
+    expect(windParams({ model: 'gfs' })).toBe('?model=gfs');
+    expect(windParams({ model: 'gfs', overlay: 'none' })).toBe('?model=gfs');
+    expect(windParams({ model: 'ifs', overlay: 'temperature' })).toBe(
+      '?model=ifs&overlay=temperature',
+    );
+    const urls: string[] = [];
+    const accepts: string[] = [];
+    const platform = new WebPlatform({
+      fetch: async (url, init) => {
+        urls.push(url);
+        const headers = (init?.headers ?? {}) as Record<string, string>;
+        accepts.push(headers.Accept ?? '');
+        return new Response(new ArrayBuffer(8));
+      },
+      preferences: memoryPrefs(),
+      socket: () => new FakeSocket(new FakeBackend()),
+    });
+    await platform.windGrid({ model: 'gfs', overlay: 'pressure', id: 'gfs-a/b' });
+    expect(urls).toEqual(['/api/v1/wind/grid/gfs-a%2Fb.bin?model=gfs&overlay=pressure']);
+    expect(accepts).toEqual(['application/octet-stream']);
+  });
+
+  it('reports a wind grid cancelled while its body streams as a cancelled PlatformError', async () => {
+    const platform = new WebPlatform({
+      fetch: async () => brokenBody(new DOMException('The operation was aborted.', 'AbortError')),
+      preferences: memoryPrefs(),
+      socket: () => new FakeSocket(new FakeBackend()),
+    });
+    const err = await platform.windGrid({ model: 'gfs', id: GRID_ID }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PlatformError);
+    expect((err as PlatformError).apiError.message).toBe('The request was cancelled.');
+  });
+
+  it('rejects a successful answer whose JSON cannot be read instead of resolving undefined', async () => {
+    const platform = new WebPlatform({
+      fetch: async () => new Response('{"schemaVersion": 1, "mo', { status: 200 }),
+      preferences: memoryPrefs(),
+      socket: () => new FakeSocket(new FakeBackend()),
+    });
+    const err = await platform.windManifest({ model: 'gfs' }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PlatformError);
+    expect((err as PlatformError).apiError.retryable).toBe(true);
   });
 
   it('revalidates with ETags and reuses the cached body on 304', async () => {

@@ -2,9 +2,13 @@
 import type { Aircraft } from "./Aircraft";
 import type { Cyclone } from "./Cyclone";
 import type { Earthquake } from "./Earthquake";
+import type { FireCell } from "./FireCell";
+import type { FirePerimeter } from "./FirePerimeter";
+import type { Launch } from "./Launch";
 import type { SatelliteElements } from "./SatelliteElements";
+import type { Vessel } from "./Vessel";
 
 /**
  * The items of a snapshot, tagged by kind.
  */
-export type FeedItems = { "kind": "aircraft", "items": Array<Aircraft> } | { "kind": "earthquakes", "items": Array<Earthquake> } | { "kind": "satellites", "items": Array<SatelliteElements> } | { "kind": "cyclones", "items": Array<Cyclone> };
+export type FeedItems = { "kind": "aircraft", "items": Array<Aircraft> } | { "kind": "earthquakes", "items": Array<Earthquake> } | { "kind": "satellites", "items": Array<SatelliteElements> } | { "kind": "cyclones", "items": Array<Cyclone> } | { "kind": "fires", "items": Array<FireCell> } | { "kind": "launches", "items": Array<Launch> } | { "kind": "vessels", "items": Array<Vessel> } | { "kind": "perimeters", "items": Array<FirePerimeter> };

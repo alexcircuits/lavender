@@ -103,6 +103,7 @@ pub struct HubDeps {
     pub secrets: Arc<dyn SecretStore>,
     pub health: Arc<HealthTracker>,
     pub cache_dir: Option<PathBuf>,
+    pub satellite_catalog: Arc<crate::satellite_catalog::SatelliteCatalog>,
 }
 
 #[derive(Debug)]
@@ -124,6 +125,9 @@ impl Drop for HubInner {
     /// A hub dropped without `shutdown` must not leave refresh tasks fetching forever.
     fn drop(&mut self) {
         self.shutdown.cancel();
+        for provider in self.providers.values() {
+            provider.shutdown();
+        }
     }
 }
 
@@ -279,11 +283,15 @@ impl FeedHub {
         (u32::try_from(regions).unwrap_or(u32::MAX), subs)
     }
 
-    /// Cancels every refresh task and subscription.
+    /// Cancels every refresh task and subscription, and stops providers' own background
+    /// work (persistent upstream connections).
     pub fn shutdown(&self) {
         self.inner.shutdown.cancel();
         self.inner.lock_slots().clear();
         self.inner.capacity.notify_waiters();
+        for provider in self.inner.providers.values() {
+            provider.shutdown();
+        }
     }
 
     #[must_use]

@@ -16,4 +16,4 @@ militaryOnly?: boolean,
 /**
  * Satellites: catalogue groups to include, for example `stations` or `gps-ops`.
  */
-groups?: Array<string>, };
+groups?: Array<string>, minFrp?: number, };

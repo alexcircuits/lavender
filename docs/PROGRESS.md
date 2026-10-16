@@ -276,6 +276,86 @@ includes the earlier verified work and the unfinished next batch on
   screenshots are intended for this checkpoint. Continue with these review findings
   before closing tasks or treating the branch as deployable.
 
+## 2026-10-15–16 — providers, globe layers and the performance harness
+
+The previous session stopped mid-fix with 141 uncommitted files. This pass finished that work
+and added new layers. It ran as reviewed parallel lanes:
+- Each lane worked in a git worktree under `/Volumes/NoirSystems/lavender-build/wt/<lane>`, cut
+  from a local snapshot of the uncommitted tree.
+- Each lane was implemented, independently reviewed, fixed and, where needed, rechecked.
+- The lead merged each lane here with `lavender-build/integrate.sh <lane>`, a three-way merge
+  per file, and resolved the conflicts by hand.
+- Cargo targets live on `/Volumes/Code/lavender-build/` (owner: no builds on the system drive).
+
+**Done in Flokzy, with evidence in each task's comments:**
+- **Fires — ENG-950 (FIRMS):**
+  - Hub dedup and FRP filtering fixed.
+  - Exact counts and the ≤ 1 MB world snapshot proved on 166 549 real detections.
+  - Activation measured at 161 ms in the harness.
+- **Launches — ENG-957:**
+  - The disk cache survives restarts.
+  - Every LL2 attempt counts against the hourly quota.
+  - Upcoming launches are included.
+- **Wind — ENG-955:**
+  - Real GFS (template 5.3) and IFS (5.42) GRIB2 fixtures, checked against ecCodes reference values.
+  - Byte-order and bounded-memory tests.
+  - Desktop and web adapters.
+- **Vessels — ENG-953 (AIS store):**
+  - AISStream link with a watchdog.
+  - Bounded R-tree store with time-bucket eviction.
+  - Track route.
+  - 0.44 ms median area query over 50 000 ships.
+- **Perimeters — ENG-956:**
+  - WFIGS perimeters, simplified per zoom, with size caps.
+  - InciWeb links via a bounded page scanner.
+- **Hazard rendering — ENG-975:**
+  - Quake rings, fire cells and cyclone spirals.
+  - One shared fire validity rule.
+  - An imagery-aware edge for contrast.
+  - The camera-settlement change finished.
+- **ENG-974 / ENG-976 (aircraft, satellites):** performance targets measured with the harness.
+
+**Integrated, still open:**
+- **Harness — ENG-1000:** `scripts/perf.sh`. The first capture is
+  `docs/performance/2026-10-15-capture.md`. Done once that capture is committed.
+- **Vessels on the globe — ENG-980:**
+  - Renderer, inspector, track, search.
+  - Its 12 000-ship target is measured only in a lane spec so far; it needs a harness capture.
+- **First-wave layer UI — ENG-990:**
+  - Launches list, pad markers and inspector merged.
+  - Wind, perimeters, weather and context slices remain.
+- **Search — ENG-952:** vessel search works; it waits on ENG-938 (geocoder terms).
+- **Contrast follow-up — ENG-1048 (new):** inner-ring and stale-symbol contrast; fire-cell z-fighting.
+- **New tasks:**
+  - ENG-1046: the boundaries layer, in progress.
+  - ENG-1047: conflict-layer scoping, which needs owner input before any follow-up tasks.
+
+**Other changes:**
+- `FixtureSecretStore`: fixture mode replays key-gated layers without any key.
+- `LAVENDER_E2E_PORT`: parallel checkouts can run Playwright.
+- The AIS TLS tests generate a throwaway CA in memory (`rcgen`, dev-only), so no private key is
+  committed.
+
+**Verified on the merged tree (2026-10-16):**
+- `scripts/check.sh`: fmt, clippy `-D warnings`, Rust 620/620, contracts, cargo-deny; web tsc,
+  Biome, Vitest 655/655, build/check-dist.
+- Desktop clippy/tests with `LAVENDER_CHECK_DESKTOP=1` in the earlier pass.
+- Playwright: 29 passed, 5 opt-in specs skipped.
+- Live upstreams were not exercised for:
+  - the FIRMS keyed endpoint (no MAP_KEY);
+  - AISStream (no key);
+  - InciWeb (HTTP 403 from this network).
+
+**Still running:** batch 2b (lavender-lanes run `wf_0622bdaa-44a`, from snapshot
+`lavender-build/SNAP3`). Lanes:
+- `boundaries` (ENG-1046);
+- `wind-ui` and `perimeters-ui` (ENG-990);
+- `perf-core` (ENG-1001 server side).
+
+Resume an interrupted run with `resumeFromRunId` and the same args, merge with `integrate.sh`,
+then run `check.sh` and e2e. The lanes' documentation notes are collected in
+`lavender-build/docnotes.json`; they still have to be applied to the shared docs.
+
 ## Environment notes
 - Rust 1.99.0 pinned (installed, latest stable); `cargo-tauri` 2.11.3, `cargo-deny`, `cargo-nextest` available.
 - Node 25 (Homebrew) is what's on PATH; the monorepo pins Node 22 via mise (mise not installed here).

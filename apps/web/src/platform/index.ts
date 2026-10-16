@@ -14,8 +14,11 @@ export type {
   LavenderPlatform,
   PreferenceStore,
   TransportState,
+  WindGridRequest,
+  WindRequest,
 } from './types';
 export { PlatformError, toApiError } from './types';
+export { decodeWindGrid, type WindGridData } from './windGrid';
 
 /** Whether the page runs inside the Lavender desktop app (Tauri 2 sets this global). */
 export function isDesktop(): boolean {

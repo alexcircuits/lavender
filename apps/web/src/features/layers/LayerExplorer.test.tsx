@@ -180,6 +180,7 @@ describe('LayerExplorer', () => {
       'weather',
       'galileo',
       'science',
+      'last-30-days',
     ]);
     await user.click(screen.getByRole('switch', { name: 'GPS' }));
     expect(workspace().layers.satellites?.filters).toEqual({});

@@ -19,6 +19,8 @@ import type {
   SearchQuery,
   SearchResults,
   SystemStatus,
+  VesselTrackResponse,
+  WindManifest,
 } from '../contracts';
 import type { CameraPose, EntityRef, GlobeController, ViewState } from '../globe';
 import type {
@@ -27,6 +29,8 @@ import type {
   LavenderPlatform,
   PreferenceStore,
   TransportState,
+  WindGridRequest,
+  WindRequest,
 } from '../platform';
 
 export function layer(feed: FeedId, overrides: Partial<LayerDescriptor> = {}): LayerDescriptor {
@@ -158,6 +162,15 @@ export class FakePlatform implements LavenderPlatform {
     }),
   );
 
+  vesselTrack = vi.fn(
+    async (mmsi: string, _options?: CallOptions): Promise<VesselTrackResponse> => ({
+      mmsi,
+      samples: [],
+      source: 'aisstream',
+      retainedSec: 1_800,
+    }),
+  );
+
   satelliteTrack = vi.fn(async (r: SatelliteTrackRequest): Promise<SatelliteTrack> => {
     this.tracks.push(r.noradId);
     return { noradId: r.noradId, name: 'SAT', points: [], periodMin: 90 };
@@ -173,6 +186,26 @@ export class FakePlatform implements LavenderPlatform {
       minElevationDeg: request.minElevationDeg ?? 0,
       passes: [],
     }),
+  );
+
+  windManifest = vi.fn(
+    async (request: WindRequest, _options?: CallOptions): Promise<WindManifest> => ({
+      schemaVersion: 1,
+      model: request.model,
+      stale: true,
+      unavailable: true,
+      reason: 'Wind upstream unavailable',
+    }),
+  );
+
+  windStatus = vi.fn(
+    async (request: WindRequest, options?: CallOptions): Promise<WindManifest> =>
+      this.windManifest(request, options),
+  );
+
+  windGrid = vi.fn(
+    async (_request: WindGridRequest, _options?: CallOptions): Promise<ArrayBuffer> =>
+      new ArrayBuffer(0),
   );
 
   subscribe = vi.fn((query: FeedQuery, onEvent: (e: FeedEvent) => void) => {
@@ -235,6 +268,7 @@ export function fakeGlobe(): FakeGlobe {
     clearFeed: vi.fn(),
     setSelection: vi.fn(),
     showTrack: vi.fn(),
+    showVesselTrack: vi.fn(),
     setImagery: vi.fn(),
     setAnnotations: vi.fn(),
     setDrawing: vi.fn(),

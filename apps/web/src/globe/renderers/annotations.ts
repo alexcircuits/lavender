@@ -25,6 +25,7 @@ import {
   annotationCentre,
   EARTH_RADIUS_M,
   greatCircleM,
+  MAX_EDGE_ANGLE_RAD,
   measurement,
 } from '../../features/annotations/geometry';
 import type { AnnotationDraft, MapAnnotation } from '../../features/annotations/model';
@@ -56,8 +57,8 @@ export class AnnotationRenderer {
     this.#labelEntries.length = 0;
     for (const fill of this.#fills.splice(0)) this.#root.remove(fill);
     for (const annotation of annotations)
-      this.#draw(annotation.kind, annotation.points, annotation.label, false);
-    if (draft) this.#draw(draft.kind, draft.points, 'Draft', true);
+      this.#drawSafely(annotation.kind, annotation.points, annotation.label, false);
+    if (draft) this.#drawSafely(draft.kind, draft.points, 'Draft', true);
     this.viewChanged();
     this.#ctx.requestRender();
   }
@@ -65,7 +66,12 @@ export class AnnotationRenderer {
     const entries = this.#labelEntries;
     const anchors = entries.map(({ label, width }) => {
       label.pixelOffset = new Cartesian2();
-      const point = label.computeScreenSpacePosition(this.#scene);
+      let point: Cartesian2 | undefined;
+      try {
+        point = label.computeScreenSpacePosition(this.#scene);
+      } catch (error) {
+        console.error('Globe could not place one annotation label', error);
+      }
       return { x: point?.x ?? Number.NaN, y: point?.y ?? Number.NaN, width };
     });
     const offsets = placeAnnotationLabels(
@@ -79,6 +85,18 @@ export class AnnotationRenderer {
       if (entry.label.show) entry.label.pixelOffset = new Cartesian2(0, offset ?? 0);
     }
     this.#ctx.requestRender();
+  }
+  #drawSafely(
+    kind: MapAnnotation['kind'],
+    points: readonly GeoPoint[],
+    label: string,
+    draft: boolean,
+  ): void {
+    try {
+      this.#draw(kind, points, label, draft);
+    } catch (error) {
+      console.error('Globe could not draw one annotation', error);
+    }
   }
   #draw(
     kind: MapAnnotation['kind'],
@@ -107,7 +125,7 @@ export class AnnotationRenderer {
         const a = ring[i - 1] as GeoPoint;
         const b = ring[i] as GeoPoint;
         const distance = greatCircleM(a, b);
-        if (distance < 0.5 || distance > Math.PI * EARTH_RADIUS_M - 1_000) continue;
+        if (distance < 0.5 || distance >= MAX_EDGE_ANGLE_RAD * EARTH_RADIUS_M) continue;
         // Densify ellipsoid arcs; coarse Cartesian chords would disappear inside Earth.
         const geodesic = new EllipsoidGeodesic(
           Cartographic.fromDegrees(a.lon, a.lat),

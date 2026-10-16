@@ -10,7 +10,9 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use lavender_core::providers::fixture::FixtureProvider;
-use lavender_core::{EnvSecretStore, FileSettingsStore, LavenderCore};
+use lavender_core::{
+    EnvSecretStore, FileSettingsStore, FixtureSecretStore, LavenderCore, SecretStore,
+};
 use lavender_server::config::{LogFormat, ServerConfig};
 use tracing_subscriber::EnvFilter;
 
@@ -75,8 +77,15 @@ async fn run() -> ExitCode {
         }
     };
     init_tracing(&config.server.log_format);
+    // Fixture providers never contact an upstream, so they need no keys: key-gated layers
+    // replay their recordings too, and no real key is loaded into a test server.
+    let secrets: Arc<dyn SecretStore> = if config.server.fixtures_dir.is_some() {
+        Arc::new(FixtureSecretStore)
+    } else {
+        Arc::new(EnvSecretStore::from_env())
+    };
     let mut builder = LavenderCore::builder(config.core.clone())
-        .secrets(Arc::new(EnvSecretStore::from_env()))
+        .secrets(secrets)
         .settings(Arc::new(FileSettingsStore::new(config.server.data_dir.join("settings.json"))))
         .cache_dir(config.server.cache_dir.clone());
     if let Some(dir) = &config.server.fixtures_dir {

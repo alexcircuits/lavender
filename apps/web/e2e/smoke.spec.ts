@@ -65,9 +65,23 @@ test('an idle globe draws nothing (request-render mode)', async ({ page }) => {
     .filter({ has: page.getByRole('switch', { name: 'Earthquakes' }) });
   await expect(quakes).toContainText('45', { timeout: 30_000 });
   const draws = () => page.evaluate(() => (window as Window & { __draws?: number }).__draws ?? 0);
-  // Let imagery load and the swap finish, then watch an idle scene for two seconds.
+  // Let imagery load and the swap finish (under a loaded parallel run that can outlast a fixed
+  // pause), then watch an idle scene for two seconds. A globe that never stops drawing still
+  // fails: it never has a quiet second.
   await page.waitForTimeout(4000);
   expect(await draws()).toBeGreaterThan(0);
+  let previous = -1;
+  await expect
+    .poll(
+      async () => {
+        const now = await draws();
+        const quiet = now === previous;
+        previous = now;
+        return quiet;
+      },
+      { message: 'the globe stops drawing once loaded', timeout: 15_000, intervals: [1_000] },
+    )
+    .toBe(true);
   const before = await draws();
   await page.waitForTimeout(2000);
   expect(await draws()).toBe(before);

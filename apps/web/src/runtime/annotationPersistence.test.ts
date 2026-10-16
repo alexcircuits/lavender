@@ -85,6 +85,28 @@ describe('durable annotation state', () => {
     expect(runtime.stores.workspace.getState().annotations).toEqual([pin]);
   });
 
+  it('persists marks before a throwing renderer and publishes the catalog despite its failure', async () => {
+    const platform = new FakePlatform();
+    const runtime = createRuntime(platform, { workspaceLocation: null });
+    const globe = fakeGlobe();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(globe.globe.setAnnotations).mockImplementation(() => {
+      throw new Error('GPU rejected geometry');
+    });
+    expect(() => runtime.attachGlobe(globe.globe)).not.toThrow();
+    stops.push(runtime.start());
+    expect(() => runtime.stores.workspace.getState().setAnnotations([pin])).not.toThrow();
+    expect(
+      platform.preferences.get<{ annotations: unknown }>(WORKSPACE_PREF_KEY)?.annotations,
+    ).toEqual([pin]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(runtime.stores.system.getState().catalog).toBe(platform.catalogResult);
+    expect(runtime.stores.system.getState().catalogError).toBeNull();
+    expect(runtime.stores.workspace.getState().annotationRenderError).toMatch(
+      /saved geometry remains/,
+    );
+  });
+
   it('rejects corrupt device marks, while old preferences without annotations still work', () => {
     const platform = new FakePlatform();
     const catalog = platform.catalogResult;

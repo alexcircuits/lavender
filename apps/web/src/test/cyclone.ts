@@ -39,6 +39,7 @@ export function cyclone(overrides: Partial<Cyclone> = {}): Cyclone {
             [-62, 19],
             [-59, 19],
             [-59, 22],
+            [-62, 22],
             [-62, 19],
           ],
           [

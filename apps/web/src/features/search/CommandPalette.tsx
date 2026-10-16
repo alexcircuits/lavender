@@ -5,12 +5,14 @@ import { useUi } from '../../runtime';
 import { useCommandContext } from '../commands';
 import { SearchResults } from './SearchResults';
 import styles from './search.module.css';
+import { useResultSelection } from './useResultSelection';
 import { useSearchModel } from './useSearch';
 
 function PaletteBody({ onDone }: { onDone: () => void }) {
   const [query, setQuery] = useState('');
   const commandContext = useCommandContext();
   const model = useSearchModel(query, { commands: true, onDone, commandContext });
+  const selection = useResultSelection(query, model.groups);
   return (
     <CommandRoot
       label="Search places, coordinates, callsigns and commands"
@@ -18,13 +20,17 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
       vimBindings={false}
       loop
       className={styles.command}
+      value={selection.value}
+      onValueChange={selection.onValueChange}
+      onKeyDown={selection.onKeyDown}
+      onPointerMoveCapture={selection.onPointerMoveCapture}
     >
       <div className={styles.paletteField}>
         <MagnifyingGlassIcon size={16} weight="bold" aria-hidden className={styles.fieldIcon} />
         <CommandInput
           value={query}
           onValueChange={setQuery}
-          placeholder="Search places, coordinates, callsigns or commands"
+          placeholder="Search places, coordinates, callsigns, ships or commands"
           className={styles.input}
         />
       </div>

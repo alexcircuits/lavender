@@ -4,4 +4,4 @@ allow-expect-in-tests = true
 allow-panic-in-tests = true
 
 # Product and protocol names that appear in prose, not code ("..": keep clippy's defaults).
-doc-valid-idents = ["..", "WebView", "WebView2", "WebKitGTK", "WebSocket", "WebSockets", "WebGL", "WebGL2", "GeoJSON", "OpenSky", "CelesTrak", "TypeScript", "JavaScript", "MapLibre", "CesiumJS", "OpenStreetMap", "NoirSystems"]
+doc-valid-idents = ["..", "WebView", "WebView2", "WebKitGTK", "WebSocket", "WebSockets", "WebGL", "WebGL2", "GeoJSON", "OpenSky", "CelesTrak", "TypeScript", "JavaScript", "MapLibre", "CesiumJS", "OpenStreetMap", "NoirSystems", "AISStream", "InciWeb", "ArcGIS"]

@@ -5,7 +5,7 @@ one TypeScript interface, honest source/age information, and web plus desktop
 adapters. The backend already runs; the remaining work is feature parity,
 operational readiness and measured quality. Do not restart the foundations.
 
-This roadmap was reconciled with source and Flokzy on **2026-10-13**. Flokzy holds
+This roadmap's implementation notes were updated on **2026-10-14**. Flokzy holds
 current status, ownership and dependency links. No delivery dates were supplied.
 [Task Index](development/task-index.md) lists all existing tasks; the
 [original detailed breakdown](roadmap-detail.md) preserves L/WS/P references and
@@ -32,7 +32,7 @@ coordination because Lavender is a separate nested Git repository.
 E2E pass; generated TS matches Rust; new contributor can trace an aircraft record.
 CI task completion additionally requires the actual tracked/published integration.
 
-## 2. Finish the three working feeds and search
+## 2. Finish aircraft, satellites and search
 
 **Goal:** earthquakes, aircraft, satellites and search meet their full task scope.
 
@@ -60,8 +60,10 @@ hidden behind a completed basic-feed claim.
 **Goal:** fires and cyclones, then ships/weather/wind and other first-wave layers,
 work through the same core and interface.
 
-**Current state:** fire/cyclone providers ENG-950/951 are Todo. ENG-975 is In Progress
-because earthquake rendering exists, while fire/cyclone rendering remains. Provider
+**Current state:** cyclone provider/domain, catalog/search, inspector and keyed
+track/cone rendering are implemented; ENG-951 remains In Progress pending final
+journey verification. Fire provider ENG-950 is Todo. ENG-975 remains In Progress
+for fire rendering and broader hazard imagery/performance acceptance. Provider
 work ENG-953–959, vessel renderer ENG-980 and first-wave interface ENG-990 are Todo.
 
 **Required work:** one provider contract and renderer journey per layer. Start the
@@ -83,7 +85,10 @@ are measured once the harness exists. Use [Add a Provider](development/add-provi
 **Current state:** second-wave providers ENG-960–968 and interface ENG-991 are Todo.
 Share links, settings, tracking, annotations, keyed imagery and label improvements
 are separate existing tasks (ENG-977–979, 988–989). ENG-972 share/restore is Done,
-with validated v1 links and recorded browser verification.
+with recorded browser verification. Annotation editing, approximate measurements
+and bounded device persistence now use workspace v2, accepting strict v1 links;
+ENG-989 is In Progress pending final verification. Native deep-link registration
+and server-stored workspaces remain separate scope.
 
 **Required work:** migrate traffic, transit, bike-share, directions, permitted cameras,
 Mapillary, safe map-feature queries, licensed cables and recent imagery individually.
@@ -120,8 +125,10 @@ A web E2E run alone is not desktop evidence.
 
 **Goal:** release decisions rest on tested functionality, terms and measurements.
 
-**Current state:** security controls and many regression tests exist; ENG-1002's
-complete suite and ENG-1000's measurement harness are Todo. Optimization ENG-1001,
+**Current state:** ENG-1002's local HTTP/WS, DNS/redirect, log/panic redaction and
+build-policy regressions are implemented; final reconciliation remains In Progress.
+The advisory workflow source exists, but hosted activation and CI integration
+remain unverified in ENG-1004. ENG-1000's measurement harness is Todo. Optimization ENG-1001,
 operator/user guides ENG-1005/1006, deployment ENG-1007, licensing sign-off ENG-1008
 and legacy removal ENG-1009 remain Todo.
 
@@ -138,21 +145,19 @@ local tests is not production or commercial sign-off.
 
 ## What to work on next
 
-Read current task comments/links before claiming work. On 2026-10-13, these **Todo**
-tasks have all recorded `blocked_by` tasks completed:
+Read current task comments/links before claiming work. These remaining **Todo**
+candidates had all recorded `blocked_by` tasks completed in the 2026-10-13
+snapshot; recheck their live links before starting:
 
 | Task | A focused next deliverable | Before starting |
 |---|---|---|
-| [ENG-989](https://app.flokzy.com/app/tasks/7787f083-5295-434f-9f96-d4fa07e87d44) | Add persistent annotations and measurements | Extend the workspace document's reserved annotations field with bounded geometry and keyboard list tests. |
 | [ENG-957](https://app.flokzy.com/app/tasks/6c40bdde-a62a-4eba-8a89-d41053a00090) | Add launch data and satellite matching | Satellite dependency is Done; verify current LL2 terms and hourly budget before ingestion. |
 | [ENG-950](https://app.flokzy.com/app/tasks/3f879345-de9b-4766-9d1f-87820918cdaf) | Add FIRMS fire ingestion and aggregation | Confirm key/terms and lawful CSV fixtures; then coordinate renderer ENG-975. |
-| [ENG-951](https://app.flokzy.com/app/tasks/7ad4d567-da74-4ca3-ace7-3f112d5c6d87) | Add NHC/CPHC cyclone data | Capture active, empty and malformed fixtures; preserve strict schema validation. |
 | [ENG-955](https://app.flokzy.com/app/tasks/4651a15f-676e-4c01-90cd-cae4618548b2) | Prove the wind decoder on real forecasts | Keep the first review to the trial/evidence; do not assume a decoder supports every packing template. |
-| [ENG-1002](https://app.flokzy.com/app/tasks/ed0b7065-cb9f-416d-8120-fe79f24eec8a) | Fill gaps in the existing security tests | Inventory current regression coverage before adding duplicates. |
 | [ENG-1004](https://app.flokzy.com/app/tasks/3625e8eb-c541-499d-a58b-6d53a739f8ae) | Resolve CI inclusion | Inspect the nested repository boundary and coordinate monorepo-owned files. |
 
 Direct task links are generated from the live snapshot in the [Task Index](development/task-index.md).
-ENG-1012 records completed readability work. ENG-948/952/996/975 are already
+ENG-1012 records completed readability work. ENG-948/951/952/989/996/975/1002 are already
 In Progress; coordinate before extending them. ENG-976 remains In Review with
 all recorded prerequisites Done, but its 5,000-satellite performance requirement
 still needs measurement.

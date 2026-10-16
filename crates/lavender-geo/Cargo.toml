@@ -15,7 +15,13 @@ sgp4.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+criterion.workspace = true
 proptest.workspace = true
+
+# Criterion drives the loop; `cargo bench -p lavender-geo` (ENG-1000).
+[[bench]]
+name = "geo"
+harness = false
 
 [lints]
 workspace = true

@@ -148,7 +148,13 @@
       }
     },
     {
-      "includes": ["scripts/**", "e2e/**", "*.config.ts", "satellite-js-without-wasm.ts"],
+      "includes": [
+        "scripts/**",
+        "e2e/**",
+        "perf/**",
+        "*.config.ts",
+        "satellite-js-without-wasm.ts"
+      ],
       "linter": {
         "rules": {
           "style": {

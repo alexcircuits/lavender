@@ -2,18 +2,23 @@
  * Pointer interaction over the widget's single ScreenSpaceEventHandler: clicks pick an entity
  * (primitives carry an `EntityRef` as their `id`) and pointer moves report the geographic
  * position under the cursor, throttled to animation frames. Neither requests a render.
+ * Pick assists (the open centres of rings and spirals) only answer a click that finds no
+ * drawn symbol under the cursor.
  */
 import { Cartesian2, Cartesian3, Cartographic, Math as CesiumMath } from '@cesium/core';
 import { type CesiumWidget, ScreenSpaceEventType } from '@cesium/engine';
 import type { GeoPoint } from '../contracts';
 import { entityFromPick } from './entityRef';
 import type { EntityRef } from './index';
+import type { PickAssist } from './renderers/types';
 
 export interface InteractionHandlers {
   readonly pick: (entity: EntityRef | null) => void;
   readonly cursor: (position: GeoPoint | null) => void;
   readonly point?: (position: GeoPoint | null) => void;
   readonly drawing?: () => boolean;
+  /** Hit areas that answer a click only when no drawn symbol is under the cursor. */
+  readonly pickAssists?: readonly PickAssist[];
 }
 
 const scratchCartesian = new Cartesian3();
@@ -35,6 +40,7 @@ export function geoPointAt(widget: CesiumWidget, windowPosition: Cartesian2): Ge
 export class Interaction {
   readonly #widget: CesiumWidget;
   readonly #handlers: InteractionHandlers;
+  readonly #assists: readonly PickAssist[];
   readonly #pointer = new Cartesian2();
   #pending = false;
   #frame = 0;
@@ -44,6 +50,7 @@ export class Interaction {
   constructor(widget: CesiumWidget, handlers: InteractionHandlers) {
     this.#widget = widget;
     this.#handlers = handlers;
+    this.#assists = handlers.pickAssists ?? [];
     const events = widget.screenSpaceEventHandler;
     events.setInputAction(
       (click: { position: Cartesian2 }) => this.#pick(click.position),
@@ -70,16 +77,39 @@ export class Interaction {
 
   #pick(position: Cartesian2): void {
     if (this.#handlers.drawing?.()) {
+      // Canvas clicks do not reliably blur form fields. Drawing transfers keyboard ownership
+      // to the existing accessible globe region so Enter/undo/cancel act on the map.
+      this.#widget.canvas
+        .closest<HTMLElement>('main[tabindex], [role="main"][tabindex]')
+        ?.focus({ preventScroll: true });
       this.#handlers.point?.(geoPointAt(this.#widget, position));
       return;
     }
     let entity: EntityRef | null = null;
     try {
-      entity = entityFromPick(this.#widget.scene.pick(position));
+      entity = this.#pickEntity(position);
     } catch (error) {
       console.error('Globe pick failed', error);
     }
     this.#handlers.pick(entity);
+  }
+
+  /**
+   * The entity drawn under the cursor, picked with the assists hidden so a nearer symbol's
+   * open centre cannot cover it; only when nothing drawn is there do the assists answer.
+   */
+  #pickEntity(position: Cartesian2): EntityRef | null {
+    const scene = this.#widget.scene;
+    const shown = this.#assists.filter((assist) => assist.show);
+    if (shown.length === 0) return entityFromPick(scene.pick(position));
+    let drawn: EntityRef | null;
+    try {
+      for (const assist of shown) assist.show = false;
+      drawn = entityFromPick(scene.pick(position));
+    } finally {
+      for (const assist of shown) assist.show = true;
+    }
+    return drawn ?? entityFromPick(scene.pick(position));
   }
 
   #move(position: Cartesian2): void {

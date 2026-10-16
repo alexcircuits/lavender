@@ -1,0 +1,87 @@
+/* Launch and pad sections of the inspector. Tokens only. */
+
+.notices {
+  composes: sq from global;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin-bottom: var(--s-3);
+  padding: var(--s-1_5) var(--s-2);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
+  background: var(--well);
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-1_5);
+  color: var(--ink);
+  font: var(--type-body-sm);
+}
+
+.noticeIcon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ink-2);
+}
+
+.prose {
+  max-width: var(--measure-prose);
+  margin: 0 0 var(--s-2);
+  color: var(--ink);
+  font: var(--type-body-sm);
+  overflow-wrap: anywhere;
+}
+
+.plain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0 0 var(--s-2);
+  padding: 0;
+  list-style: none;
+  font: var(--type-body-sm);
+  overflow-wrap: anywhere;
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0 0 var(--s-2);
+  padding: 0;
+  list-style: none;
+  font: var(--type-body-sm);
+}
+
+.linkRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-1) var(--s-2);
+  min-width: 0;
+}
+
+/* A text link that selects an entity: it acts in the app, so it is a button. */
+.entityLink {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font: var(--type-label);
+  text-align: start;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.linkMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1_5);
+  color: var(--ink-2);
+  font: var(--type-caption);
+}

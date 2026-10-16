@@ -51,6 +51,13 @@ describe('entity refs', () => {
     expect(isEntityRef({ feed: 'satellites', id: '' })).toBe(false);
   });
 
+  it('recognises picked vessel chevrons, dots and trails (ENG-980)', () => {
+    expect(entityFromPick({ primitive: {}, id: { feed: 'vessels', id: '230990001' } })).toEqual({
+      feed: 'vessels',
+      id: '230990001',
+    });
+  });
+
   it('compares refs by value', () => {
     expect(sameEntity({ feed: 'aircraft', id: 'a' }, { feed: 'aircraft', id: 'a' })).toBe(true);
     expect(sameEntity({ feed: 'aircraft', id: 'a' }, null)).toBe(false);

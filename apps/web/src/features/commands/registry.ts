@@ -121,6 +121,13 @@ export const COMMANDS: readonly Command[] = [
     run: (ctx) => ui(ctx).setSidePanel('sources'),
   },
   {
+    id: 'panel.launches',
+    title: 'Show rocket launches',
+    keywords: ['launches', 'rockets', 'missions', 'launch pads', 'space'],
+    inPalette: true,
+    run: (ctx) => ui(ctx).setSidePanel('launches'),
+  },
+  {
     id: 'selection.clear',
     title: 'Clear the selection',
     keywords: ['deselect', 'close inspector'],

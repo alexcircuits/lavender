@@ -17,6 +17,8 @@ import type {
   SearchResults,
   ServerFrame,
   SystemStatus,
+  VesselTrackResponse,
+  WindManifest,
 } from '../../contracts';
 import { LocalPreferences } from '../preferences';
 import {
@@ -29,6 +31,8 @@ import {
   type PreferenceStore,
   type TransportState,
   toApiError,
+  type WindGridRequest,
+  type WindRequest,
 } from '../types';
 
 export type Invoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
@@ -97,12 +101,30 @@ export class TauriPlatform implements LavenderPlatform {
     return this.#call('aircraft_track', { hex }, options);
   }
 
+  /** `commands::vessel_track` in apps/desktop/src-tauri. */
+  vesselTrack(mmsi: string, options?: CallOptions): Promise<VesselTrackResponse> {
+    return this.#call('vessel_track', { mmsi }, options);
+  }
+
   satellitePasses(request: SatellitePassRequest, options?: CallOptions): Promise<SatellitePasses> {
     return this.#call('satellite_passes', { request }, options);
   }
 
   satelliteTrack(request: SatelliteTrackRequest, options?: CallOptions): Promise<SatelliteTrack> {
     return this.#call('satellite_track', { request }, options);
+  }
+
+  windManifest(request: WindRequest, options?: CallOptions): Promise<WindManifest> {
+    return this.#call('wind_manifest', windArgs(request), options);
+  }
+
+  windStatus(request: WindRequest, options?: CallOptions): Promise<WindManifest> {
+    return this.#call('wind_status', windArgs(request), options);
+  }
+
+  /** The command answers raw bytes (`tauri::ipc::Response`), which arrive as an ArrayBuffer. */
+  windGrid(request: WindGridRequest, options?: CallOptions): Promise<ArrayBuffer> {
+    return this.#call('wind_grid', { ...windArgs(request), id: request.id }, options);
   }
 
   /** IPC to an in-process core has no connection to lose. */
@@ -135,4 +157,9 @@ export class TauriPlatform implements LavenderPlatform {
       },
     };
   }
+}
+
+/** Arguments of the `wind_*` commands; the overlay is always explicit. */
+function windArgs(request: WindRequest): Record<string, unknown> {
+  return { model: request.model, overlay: request.overlay ?? 'none' };
 }

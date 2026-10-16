@@ -82,6 +82,8 @@ pub enum FetchError {
     HostNotAllowed { host: String },
     #[error("plain HTTP to {host} is refused; use HTTPS")]
     InsecureScheme { host: String },
+    #[error("{host} must be reached over a secure WebSocket (wss://)")]
+    InsecureStream { host: String },
     #[error("{host} did not respond in time")]
     Timeout { host: String },
     #[error("{host} answered HTTP {status}")]
@@ -181,9 +183,20 @@ pub struct FetchOptions {
     /// Retries for this request, replacing the configured count (providers with strict
     /// usage policies retry on their own schedule instead).
     pub retries: Option<u8>,
+    /// Redirects followed for this request, replacing the configured maximum. A provider
+    /// that counts every HTTP request against a budget sets 0, so one reserved request is
+    /// exactly one request upstream; a redirect then fails as `TooManyRedirects`.
+    pub redirects: Option<u8>,
     /// Conditional GET for a cached copy of this exact URL. A redirect to another URL
     /// clears these headers and 304 acceptance, even when the host remains allowed.
     pub conditional: Option<CacheValidators>,
+    /// Optional Authorization header value (e.g. `Token <secret>` or `Bearer <secret>`).
+    pub auth_header: Option<String>,
+    /// Optional HTTP byte-range request `(start, end)` inclusive, emitting `Range: bytes={start}-{end}`.
+    pub range: Option<(u64, u64)>,
+    /// Time allowed for this request, body included, replacing `fetch.request_timeout_s`
+    /// (for example for large downloads).
+    pub timeout: Option<Duration>,
 }
 
 impl Default for FetchOptions {
@@ -193,7 +206,11 @@ impl Default for FetchOptions {
             accept: "application/json",
             cancel: None,
             retries: None,
+            redirects: None,
             conditional: None,
+            auth_header: None,
+            range: None,
+            timeout: None,
         }
     }
 }
@@ -220,6 +237,24 @@ pub struct Fetcher {
 
 fn host_of(url: &Url) -> String {
     url.host_str().unwrap_or("unknown host").to_owned()
+}
+
+/// The secure and the development-only plain scheme of one protocol.
+#[derive(Clone, Copy)]
+struct Scheme {
+    secure: &'static str,
+    plain: &'static str,
+    insecure: fn(String) -> FetchError,
+}
+
+impl Scheme {
+    const HTTP: Self = Self {
+        secure: "https",
+        plain: "http",
+        insecure: |host| FetchError::InsecureScheme { host },
+    };
+    const WEBSOCKET: Self =
+        Self { secure: "wss", plain: "ws", insecure: |host| FetchError::InsecureStream { host } };
 }
 
 impl Fetcher {
@@ -277,20 +312,40 @@ impl Fetcher {
     }
 
     /// The body cap for a request: its own cap, else the configured default, never above
-    /// [`MAX_BODY_CEILING`].
+    /// [`MAX_BODY_CEILING`]. When a byte range is requested, caps to the range length.
     fn body_limit(&self, opts: &FetchOptions) -> usize {
-        opts.max_body_bytes.unwrap_or(self.config.max_body_bytes).min(MAX_BODY_CEILING)
+        let configured =
+            opts.max_body_bytes.unwrap_or(self.config.max_body_bytes).min(MAX_BODY_CEILING);
+        if let Some((start, end)) = opts.range {
+            let range_len =
+                usize::try_from(end.saturating_sub(start).saturating_add(1)).unwrap_or(usize::MAX);
+            configured.min(range_len)
+        } else {
+            configured
+        }
     }
 
     fn check(&self, url: &Url, policy: &HostPolicy) -> Result<(), FetchError> {
+        self.check_target(url, policy, Scheme::HTTP)
+    }
+
+    /// The egress rules every connection follows, whatever its protocol: an allowed host,
+    /// the secure scheme (the plain one only for listed development hosts) and, unless
+    /// the host is listed, a public literal address.
+    fn check_target(
+        &self,
+        url: &Url,
+        policy: &HostPolicy,
+        scheme: Scheme,
+    ) -> Result<(), FetchError> {
         let host = host_of(url);
         if !policy.allows(url) {
             return Err(FetchError::HostNotAllowed { host });
         }
         let plain_http_allowed =
             self.config.allow_http_hosts.iter().any(|h| h.eq_ignore_ascii_case(&host));
-        if url.scheme() != "https" && !(url.scheme() == "http" && plain_http_allowed) {
-            return Err(FetchError::InsecureScheme { host });
+        if url.scheme() != scheme.secure && !(url.scheme() == scheme.plain && plain_http_allowed) {
+            return Err((scheme.insecure)(host));
         }
         let address = match url.host() {
             Some(url::Host::Ipv4(ip)) => Some(std::net::IpAddr::V4(ip)),
@@ -368,7 +423,8 @@ impl Fetcher {
         let limit = self.body_limit(opts);
         let mut current = url.clone();
         let mut conditional = opts.conditional.as_ref();
-        for _ in 0..=self.config.max_redirects {
+        let max_redirects = opts.redirects.unwrap_or(self.config.max_redirects);
+        for _ in 0..=max_redirects {
             self.check(&current, policy).map_err(|e| (e, None))?;
             let host = host_of(&current);
             self.pace(&host, policy.min_interval).await;
@@ -377,7 +433,13 @@ impl Fetcher {
                 .client
                 .get(current.clone())
                 .header(header::ACCEPT, opts.accept)
-                .timeout(self.config.request_timeout());
+                .timeout(opts.timeout.unwrap_or_else(|| self.config.request_timeout()));
+            if let Some(auth) = &opts.auth_header {
+                request = request.header(header::AUTHORIZATION, auth);
+            }
+            if let Some((start, end)) = opts.range {
+                request = request.header(header::RANGE, format!("bytes={start}-{end}"));
+            }
             if let Some(validators) = conditional {
                 if let Some(etag) = validators.etag() {
                     request = request.header(header::IF_NONE_MATCH, etag);
@@ -426,6 +488,12 @@ impl Fetcher {
                 let retry_after = retry_after(&response, status);
                 return Err((FetchError::Status { host, status: status.as_u16() }, retry_after));
             }
+            if let Some((start, _)) = opts.range
+                && status != StatusCode::PARTIAL_CONTENT
+                && !(status == StatusCode::OK && start == 0)
+            {
+                return Err((FetchError::Status { host, status: status.as_u16() }, None));
+            }
             if let Some(len) = response.content_length()
                 && usize::try_from(len).unwrap_or(usize::MAX) > limit
             {
@@ -459,6 +527,68 @@ impl Fetcher {
             reason: clean(&e.to_string(), 200),
         })?;
         Ok((value, response))
+    }
+
+    /// The `User-Agent` sent with every upstream request, for protocols that build their
+    /// own requests (the WebSocket handshake).
+    #[must_use]
+    pub fn user_agent(&self) -> &str {
+        &self.config.user_agent
+    }
+
+    /// Opens a TCP connection for a WebSocket under the same egress rules as [`Self::get`]:
+    /// the host must be allowed by `policy`, the scheme must be `wss` (`ws` only for hosts
+    /// in `fetch.allow_http_hosts`), and the name is resolved once with every address
+    /// checked, so the socket can only reach the validated set. No proxy is used. The
+    /// lookup and the connection attempts together take at most the configured connect
+    /// timeout. The caller runs TLS and the WebSocket handshake on the returned stream.
+    ///
+    /// # Errors
+    /// Returns a [`FetchError`] naming only the host when the policy refuses the target
+    /// or no validated address accepts the connection in time.
+    pub async fn connect_stream(
+        &self,
+        url: &Url,
+        policy: &HostPolicy,
+    ) -> Result<tokio::net::TcpStream, FetchError> {
+        self.check_target(url, policy, Scheme::WEBSOCKET)?;
+        let host = host_of(url);
+        let network =
+            |reason: &str| FetchError::Network { host: host.clone(), reason: reason.to_owned() };
+        let timed_out = || FetchError::Timeout { host: host.clone() };
+        let deadline = tokio::time::Instant::now() + self.config.connect_timeout();
+        let port = url.port_or_known_default().ok_or_else(|| network("no port"))?;
+        let addresses = match url.host() {
+            Some(url::Host::Ipv4(ip)) => vec![std::net::SocketAddr::new(ip.into(), port)],
+            Some(url::Host::Ipv6(ip)) => vec![std::net::SocketAddr::new(ip.into(), port)],
+            Some(url::Host::Domain(name)) => {
+                let resolver = dns::PublicResolver::new(self.config.allow_http_hosts.clone());
+                tokio::time::timeout_at(deadline, resolver.lookup(name, port))
+                    .await
+                    .map_err(|_| timed_out())?
+                    .map_err(|error| {
+                        if error.downcast_ref::<dns::BlockedAddress>().is_some() {
+                            FetchError::NonPublicAddress { host: host.clone() }
+                        } else {
+                            network("name lookup failed")
+                        }
+                    })?
+            }
+            None => return Err(network("no host")),
+        };
+        let mut last = network("no address accepted the connection");
+        for (tried, address) in addresses.iter().enumerate() {
+            // Like hyper's connector, the time left is shared by the addresses not yet
+            // tried, so one unreachable address cannot use up the whole timeout.
+            let untried = u32::try_from(addresses.len() - tried).unwrap_or(u32::MAX);
+            let budget = deadline.saturating_duration_since(tokio::time::Instant::now()) / untried;
+            match tokio::time::timeout(budget, tokio::net::TcpStream::connect(address)).await {
+                Ok(Ok(stream)) => return Ok(stream),
+                Ok(Err(error)) => last = network(&error.kind().to_string()),
+                Err(_) => last = timed_out(),
+            }
+        }
+        Err(last)
     }
 }
 

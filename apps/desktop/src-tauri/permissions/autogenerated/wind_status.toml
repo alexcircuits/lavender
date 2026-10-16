@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-wind-status"
+description = "Enables the wind_status command without any pre-configured scope."
+commands.allow = ["wind_status"]
+
+[[permission]]
+identifier = "deny-wind-status"
+description = "Denies the wind_status command without any pre-configured scope."
+commands.deny = ["wind_status"]

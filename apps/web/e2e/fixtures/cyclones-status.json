@@ -1,0 +1,21 @@
+{
+  "activeStorms": [
+    {
+      "id": "al062026",
+      "name": "TEST ALPHA",
+      "classification": "HU",
+      "longitudeNumeric": -60,
+      "latitudeNumeric": 20,
+      "lastUpdate": "2026-10-14T00:00:00.000Z",
+      "intensity": "80",
+      "pressure": "970",
+      "movementDir": 300,
+      "movementSpeed": 12,
+      "forecastAdvisory": {
+        "issuance": "2026-10-13T21:00:00.000Z",
+        "advNum": "006",
+        "url": "https://www.nhc.noaa.gov/text/MIATCMAT1.shtml"
+      }
+    }
+  ]
+}

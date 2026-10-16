@@ -17,6 +17,8 @@ import type {
   SearchResults,
   ServerFrame,
   SystemStatus,
+  VesselTrackResponse,
+  WindManifest,
 } from '../../contracts';
 import { LocalPreferences } from '../preferences';
 import {
@@ -30,6 +32,8 @@ import {
   type SubscribeOptions,
   type TransportState,
   toApiError,
+  type WindGridRequest,
+  type WindRequest,
 } from '../types';
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -111,21 +115,30 @@ export class WebPlatform implements LavenderPlatform {
       throw new PlatformError(toApiError(error));
     }
     if (response.status === 304 && cached) return cached.body as T;
-    const body: unknown = await response.json().catch(() => undefined);
     if (!response.ok) {
-      throw new PlatformError(
-        isApiError(body)
-          ? body
-          : {
-              code: 'internal',
-              message: `The server answered HTTP ${response.status}.`,
-              retryable: response.status >= 500,
-            },
-      );
+      throw httpError(response.status, await response.json().catch(() => undefined));
     }
+    const body = await readBody(() => response.json() as Promise<unknown>);
     const etag = response.headers.get('ETag');
     if (etag) this.#etags.set(url, { etag, body });
     return body as T;
+  }
+
+  /** A binary body (wind grids); errors still arrive as Lavender's JSON envelope. */
+  async #getBinary(path: string, options?: CallOptions): Promise<ArrayBuffer> {
+    let response: Response;
+    try {
+      response = await this.#fetch(`${this.#base}/api/v1${path}`, {
+        headers: { Accept: 'application/octet-stream' },
+        ...(options?.signal ? { signal: options.signal } : {}),
+      });
+    } catch (error) {
+      throw new PlatformError(toApiError(error));
+    }
+    if (!response.ok) {
+      throw httpError(response.status, await response.json().catch(() => undefined));
+    }
+    return readBody(() => response.arrayBuffer());
   }
 
   catalog(options?: CallOptions): Promise<Catalog> {
@@ -161,6 +174,10 @@ export class WebPlatform implements LavenderPlatform {
     return this.#get(`/aircraft/${encodeURIComponent(hex)}/track`, options);
   }
 
+  vesselTrack(mmsi: string, options?: CallOptions): Promise<VesselTrackResponse> {
+    return this.#get(`/vessels/${encodeURIComponent(mmsi)}/track`, options);
+  }
+
   satellitePasses(request: SatellitePassRequest, options?: CallOptions): Promise<SatellitePasses> {
     const params = new URLSearchParams({
       observer: `${request.observer.lat},${request.observer.lon}`,
@@ -171,6 +188,20 @@ export class WebPlatform implements LavenderPlatform {
     if (request.minElevationDeg !== undefined)
       params.set('minElevationDeg', String(request.minElevationDeg));
     return this.#get(`/satellites/${request.noradId}/passes?${params.toString()}`, options);
+  }
+
+  windManifest(request: WindRequest, options?: CallOptions): Promise<WindManifest> {
+    return this.#get(`/wind/manifest${windParams(request)}`, options);
+  }
+
+  windStatus(request: WindRequest, options?: CallOptions): Promise<WindManifest> {
+    return this.#get(`/wind/status${windParams(request)}`, options);
+  }
+
+  /** Same path as the manifest's `gridUrl`, so HTTP caching (immutable) applies. */
+  windGrid(request: WindGridRequest, options?: CallOptions): Promise<ArrayBuffer> {
+    const id = encodeURIComponent(request.id);
+    return this.#getBinary(`/wind/grid/${id}.bin${windParams(request)}`, options);
   }
 
   // ── live stream ─────────────────────────────────────────────────────────────────────
@@ -325,6 +356,38 @@ export class WebPlatform implements LavenderPlatform {
     if (entry.pollTimer) clearTimeout(entry.pollTimer);
     entry.pollTimer = null;
   }
+}
+
+/**
+ * Reads a successful answer's body. A failure while it streams (connection lost, request
+ * aborted, JSON cut off) rejects with a PlatformError, as a failed request does and as the
+ * desktop adapter always does.
+ */
+async function readBody<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    throw new PlatformError(toApiError(error));
+  }
+}
+
+function httpError(status: number, body: unknown): PlatformError {
+  return new PlatformError(
+    isApiError(body)
+      ? body
+      : {
+          code: 'internal',
+          message: `The server answered HTTP ${status}.`,
+          retryable: status >= 500,
+        },
+  );
+}
+
+/** `?model=…[&overlay=…]` for a wind variant, as lavender-server builds `gridUrl`. */
+export function windParams(request: WindRequest): string {
+  const params = new URLSearchParams({ model: request.model });
+  if (request.overlay && request.overlay !== 'none') params.set('overlay', request.overlay);
+  return `?${params.toString()}`;
 }
 
 /** `?bbox=w,s,e,n&minMagnitude=…` for a feed query (matches lavender-server's routes). */

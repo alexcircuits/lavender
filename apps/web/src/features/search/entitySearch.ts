@@ -110,10 +110,66 @@ function scoreSnapshot(snapshot: FeedSnapshot, q: string): Scored[] {
               },
             ];
       });
+    case 'fires':
+    case 'perimeters':
+      return [];
+    case 'vessels':
+      return items.items.flatMap((vessel) => {
+        const s = best([vessel.mmsi, vessel.name, vessel.imo], q);
+        return s === null
+          ? []
+          : [
+              {
+                score: s,
+                hit: {
+                  feed: 'vessels' as const,
+                  id: vessel.mmsi,
+                  label: vessel.name?.trim() || vessel.mmsi,
+                  detail: [`MMSI ${vessel.mmsi}`, vessel.vesselType?.trim()]
+                    .filter(Boolean)
+                    .join(' · '),
+                  position: vessel.position,
+                },
+              },
+            ];
+      });
+    case 'launches':
+      return items.items.flatMap((launch) => {
+        const s = best([launch.name, launch.provider ?? undefined, launch.mission ?? undefined], q);
+        return s === null
+          ? []
+          : [
+              {
+                score: s,
+                hit: {
+                  feed: 'launches' as const,
+                  id: launch.id,
+                  label: launch.name,
+                  ...(launch.provider ? { detail: launch.provider } : {}),
+                  ...(launch.pad
+                    ? {
+                        position: {
+                          lat: launch.pad.latitude,
+                          lon: launch.pad.longitude,
+                        },
+                      }
+                    : {}),
+                },
+              },
+            ];
+      });
   }
 }
 
-const ALL_FEEDS: readonly FeedId[] = ['aircraft', 'satellites', 'earthquakes', 'cyclones'];
+const ALL_FEEDS: readonly FeedId[] = [
+  'aircraft',
+  'satellites',
+  'earthquakes',
+  'cyclones',
+  'fires',
+  'launches',
+  'vessels',
+];
 
 /** The best `limit` matches across `feeds` (default: all), best match first. */
 export function searchLiveEntities(

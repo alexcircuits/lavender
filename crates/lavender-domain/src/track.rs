@@ -1,4 +1,9 @@
-//! Aircraft observations and satellite ground tracks returned by the Rust core.
+//! Aircraft observations, satellite ground tracks and pass predictions returned by the core.
+//!
+//! Aircraft track addresses are lowercase and include `~` for non-ICAO TIS-B contacts.
+//! Track source ids resolve through the catalog for attribution. Satellite pass rise/set
+//! times are threshold crossings, clipped to the requested window when `already_above`
+//! or `continues_after_window` is set; peak is the highest geometric elevation inside it.
 
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
@@ -40,10 +45,10 @@ pub struct TrackPoint {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AircraftTrack {
-    /// Lowercase transponder address, including '~' for a non-ICAO TIS-B address.
+    // Lowercase transponder address, including '~' for a non-ICAO TIS-B address.
     pub hex: String,
     pub points: Vec<TrackPoint>,
-    /// Source ids that reported the retained points; use the catalog for attribution.
+    // Source ids that reported the retained points; use the catalog for attribution.
     pub sources: Vec<String>,
 }
 
@@ -58,21 +63,24 @@ pub struct SatelliteTrack {
     pub period_min: f64,
 }
 
+/// Pass prediction for a WGS84 observer at -500–10,000 metres altitude (default zero).
+/// The search spans 1–24 hours (default 24); rise/set use the requested geometric
+/// elevation from 0–89 degrees (default zero).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct SatellitePassRequest {
     pub norad_id: u32,
-    /// WGS84 observer; altitude defaults to zero and must be -500–10,000 metres.
+    // WGS84 observer; altitude defaults to zero and must be -500–10,000 metres.
     pub observer: GeoPoint,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub from: Option<Timestamp>,
-    /// Search window in hours (1–24, default 24).
+    // Search window in hours (1–24, default 24).
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub hours: Option<u32>,
-    /// Geometric elevation defining rise/set (0–89 degrees, default 0).
+    // Geometric elevation defining rise/set (0–89 degrees, default 0).
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub min_elevation_deg: Option<f64>,
@@ -84,11 +92,11 @@ pub struct SatellitePassRequest {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct SatellitePass {
-    /// Threshold crossing, or the window start when alreadyAbove is true.
+    // Threshold crossing, or the window start when alreadyAbove is true.
     pub rise: Timestamp,
-    /// Highest geometric elevation within this interval of the requested window.
+    // Highest geometric elevation within this interval of the requested window.
     pub peak: Timestamp,
-    /// Threshold crossing, or the window end when continuesAfterWindow is true.
+    // Threshold crossing, or the window end when continuesAfterWindow is true.
     pub set: Timestamp,
     pub max_elevation_deg: f64,
     pub already_above: bool,

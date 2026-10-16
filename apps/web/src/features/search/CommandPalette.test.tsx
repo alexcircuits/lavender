@@ -322,6 +322,80 @@ describe('Command palette', () => {
 });
 
 describe('Search field', () => {
+  it.each(['field', 'palette'] as const)(
+    'promotes a newly arriving live match before Enter in the %s',
+    async (surface) => {
+      const { user, ...h } = await setup();
+      act(() => h.runtime.stores.workspace.getState().setLayerEnabled('aircraft', true));
+      const dialog = surface === 'palette' ? await openPalette(user) : null;
+      const input = dialog
+        ? within(dialog).getByRole('combobox')
+        : screen.getByRole('combobox', { name: 'Search places, coordinates and callsigns' });
+      await user.type(input, 'sas14');
+      const places = screen.getByRole('option', { name: /Search places for/ });
+      await waitFor(() => expect(places).toHaveAttribute('aria-selected', 'true'));
+      act(() =>
+        h.platform.live('aircraft')?.onEvent({
+          kind: 'snapshot',
+          snapshot: aircraftSnapshot([aircraft('4aca2d', { callsign: 'SAS1462' })]),
+        }),
+      );
+      expect(screen.getByRole('option', { name: /^SAS1462/ })).toBeVisible();
+      await user.keyboard('{Enter}');
+      expect(h.runtime.stores.workspace.getState().selection).toEqual({
+        feed: 'aircraft',
+        id: '4aca2d',
+      });
+      expect(h.platform.searches.some((query) => query.places)).toBe(false);
+    },
+  );
+
+  it('preserves an explicit arrow-key result choice when better matches arrive', async () => {
+    const { user, ...h } = await setup();
+    act(() => h.runtime.stores.workspace.getState().setLayerEnabled('aircraft', true));
+    const input = screen.getByRole('combobox', {
+      name: 'Search places, coordinates and callsigns',
+    });
+    await user.type(input, 'sas14');
+    const places = screen.getByRole('option', { name: /Search places for/ });
+    await waitFor(() => expect(places).toHaveAttribute('aria-selected', 'true'));
+    // Home is an explicit choice even when the list currently contains only that action.
+    await user.keyboard('{Home}');
+    act(() =>
+      h.platform.live('aircraft')?.onEvent({
+        kind: 'snapshot',
+        snapshot: aircraftSnapshot([aircraft('4aca2d', { callsign: 'SAS1462' })]),
+      }),
+    );
+    expect(screen.getByRole('option', { name: /^SAS1462/ })).toBeVisible();
+    expect(places).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(h.platform.searches.some((query) => query.places)).toBe(true));
+    expect(h.runtime.stores.workspace.getState().selection).toBeNull();
+  });
+
+  it('preserves a pointer-highlighted place action when a live match arrives', async () => {
+    const { user, ...h } = await setup();
+    act(() => h.runtime.stores.workspace.getState().setLayerEnabled('aircraft', true));
+    await user.type(
+      screen.getByRole('combobox', { name: 'Search places, coordinates and callsigns' }),
+      'sas14',
+    );
+    const places = screen.getByRole('option', { name: /Search places for/ });
+    await user.hover(places);
+    act(() =>
+      h.platform.live('aircraft')?.onEvent({
+        kind: 'snapshot',
+        snapshot: aircraftSnapshot([aircraft('4aca2d', { callsign: 'SAS1462' })]),
+      }),
+    );
+    expect(screen.getByRole('option', { name: /^SAS1462/ })).toBeVisible();
+    expect(places).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(h.platform.searches.some((query) => query.places)).toBe(true));
+    expect(h.runtime.stores.workspace.getState().selection).toBeNull();
+  });
+
   it('focuses with /, shows results inline and runs the first on Enter', async () => {
     const { user, ...h } = await setup();
     screen.getByRole('button', { name: 'Before' }).focus();

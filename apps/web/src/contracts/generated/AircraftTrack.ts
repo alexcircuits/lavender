@@ -5,12 +5,4 @@ import type { TrackPoint } from "./TrackPoint";
  * Retained aircraft observations from shared feed refreshes, ordered oldest to newest.
  * This is a bounded trail collected since this process started, not upstream backfill.
  */
-export type AircraftTrack = { 
-/**
- * Lowercase transponder address, including '~' for a non-ICAO TIS-B address.
- */
-hex: string, points: Array<TrackPoint>, 
-/**
- * Source ids that reported the retained points; use the catalog for attribution.
- */
-sources: Array<string>, };
+export type AircraftTrack = { hex: string, points: Array<TrackPoint>, sources: Array<string>, };

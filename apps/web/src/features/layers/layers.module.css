@@ -194,23 +194,54 @@
   gap: var(--s-1);
 }
 .legendSwatch {
-  width: 10px;
-  height: 10px;
-  border: 1px solid var(--map-outline);
-  border-radius: var(--r-xs);
+  flex: none;
 }
+/* Swatches draw the globe's symbol (quake ring, fire cell, cyclone spiral) with its hazard
+   edge; the ramp colour is the swatch's currentColor. */
 .legendSwatch[data-step='0'] {
-  background: var(--hazard-1);
+  color: var(--hazard-1);
 }
 .legendSwatch[data-step='1'] {
-  background: var(--hazard-2);
+  color: var(--hazard-2);
 }
 .legendSwatch[data-step='2'] {
-  background: var(--hazard-3);
+  color: var(--hazard-3);
 }
 .legendSwatch[data-step='3'] {
-  background: var(--hazard-4);
+  color: var(--hazard-4);
 }
 .legendSwatch[data-step='4'] {
-  background: var(--hazard-5);
+  color: var(--hazard-5);
+}
+.legendSwatch[data-step='unknown'] {
+  color: var(--map-space);
+}
+.legendOutline {
+  fill: var(--map-outline);
+  stroke: var(--map-outline);
+}
+.legendKeyline {
+  fill: var(--map-keyline);
+  stroke: var(--map-keyline);
+}
+.legendFill {
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+/* Vessel key: the globe's maritime chevron and dot, with their ground outline. */
+.vesselSwatch {
+  flex: none;
+  fill: var(--map-maritime);
+  stroke: var(--map-outline);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  paint-order: stroke fill;
+}
+
+.legendNote {
+  margin: 0;
+  color: var(--ink-2);
+  font: var(--type-caption);
+  font-variant-numeric: tabular-nums;
 }

@@ -2,11 +2,11 @@ import type { Plugin } from 'vite';
 
 /** Lavender never uses the SDK's vendor account; keep its unused credential out of dist. */
 export function stripCesiumDefaultToken(source: string): string {
-  const assignment = /Ion\.defaultAccessToken\s*=\s*["'][^"']+["']\s*;/g;
+  const assignment = /const\s+defaultAccessToken\s*=\s*["'][^"']+["']\s*;/g;
   const matches = [...source.matchAll(assignment)];
-  if (matches.length !== 1)
+  if (matches.length !== 1 || !/Ion\.defaultAccessToken\s*=\s*defaultAccessToken\s*;/.test(source))
     throw new Error('Cesium Ion default-token source changed; review the SDK transform.');
-  return source.replace(assignment, "Ion.defaultAccessToken = '';");
+  return source.replace(assignment, "const defaultAccessToken = '';");
 }
 
 export function cesiumWithoutDefaultToken(): Plugin {

@@ -11,6 +11,7 @@ pub enum AuditEvent {
     Searched { chars: usize },
     SatelliteTrack { norad_id: u32 },
     AircraftTrack,
+    VesselTrack,
     SatellitePasses { norad_id: u32 },
 }
 

@@ -20,6 +20,7 @@ export const SATELLITE_GROUPS = [
   { id: 'gps-ops', label: 'GPS' },
   { id: 'galileo', label: 'Galileo' },
   { id: 'science', label: 'Science' },
+  { id: 'last-30-days', label: 'Recent launches' },
 ] as const;
 
 const ALL_GROUPS: readonly string[] = SATELLITE_GROUPS.map((g) => g.id);

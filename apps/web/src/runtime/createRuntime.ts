@@ -9,7 +9,13 @@ import { FeedController } from '../feeds/FeedController';
 import type { GlobeController } from '../globe';
 import { type LavenderPlatform, toApiError } from '../platform';
 import { createStores, type Stores } from '../state/stores';
-import { readWorkspace, toPersisted, WORKSPACE_PREF_KEY } from './workspacePrefs';
+import {
+  readWorkspace,
+  readWorkspaceAnnotations,
+  toPersisted,
+  toPersistedBeforeCatalog,
+  WORKSPACE_PREF_KEY,
+} from './workspacePrefs';
 import { browserWorkspaceLocation, type WorkspaceLocation, WorkspaceShare } from './workspaceShare';
 
 export interface RuntimeOptions {
@@ -55,7 +61,15 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
   );
 
   const initialPreferences = platform.preferences.get<unknown>(WORKSPACE_PREF_KEY);
+  const initialState = workspace.getState();
+  initialState.restore(
+    initialState.layers,
+    initialState.imageryId,
+    initialState.selection,
+    readWorkspaceAnnotations(initialPreferences),
+  );
 
+  let preferencesHydrated = false;
   let running: (() => void) | null = null;
   let catalogTimer: ReturnType<typeof setTimeout> | null = null;
   let catalogAttempt = 0;
@@ -98,6 +112,7 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
           // First load: hydrate before publishing the catalog so the controller opens the
           // right feeds once. Later reloads keep what the analyst turned on since.
           const persisted = readWorkspace(initialPreferences, catalog);
+          preferencesHydrated = true;
           const state = workspace.getState();
           workspace
             .getState()
@@ -105,11 +120,6 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
               state.revisions.layers === 0 ? persisted.layers : state.layers,
               state.revisions.imagery === 0 ? persisted.imageryId : state.imageryId,
             );
-          const current = workspace.getState();
-          if (current.revisions.annotations === 0)
-            workspace
-              .getState()
-              .restore(current.layers, current.imageryId, current.selection, persisted.annotations);
         }
         share.apply(catalog);
         system.getState().setCatalog(catalog);
@@ -136,10 +146,17 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
     const error =
       'Device storage is unavailable. These annotations are saved only for this session; copy a view link to keep them.';
     try {
-      platform.preferences.set(
-        WORKSPACE_PREF_KEY,
-        toPersisted(state.layers, state.imageryId, state.annotations),
-      );
+      const persisted =
+        preferencesHydrated || system.getState().catalog
+          ? toPersisted(state.layers, state.imageryId, state.annotations)
+          : toPersistedBeforeCatalog(
+              platform.preferences.get<unknown>(WORKSPACE_PREF_KEY),
+              state.layers,
+              state.imageryId,
+              state.revisions.imagery > 0,
+              state.annotations,
+            );
+      platform.preferences.set(WORKSPACE_PREF_KEY, persisted);
       const saved = platform.preferences.get<{ readonly annotations?: unknown }>(
         WORKSPACE_PREF_KEY,
       );
@@ -150,6 +167,19 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
         );
     } catch {
       workspace.getState().setAnnotationStorageError(error);
+    }
+  };
+
+  const syncAnnotations = (): void => {
+    const state = workspace.getState();
+    try {
+      ui.getState().globe?.setAnnotations(state.annotations, null);
+      state.setAnnotationRenderError(null);
+    } catch (error) {
+      console.error('Globe could not draw annotations', error);
+      state.setAnnotationRenderError(
+        'Some annotations could not be drawn. Their saved geometry remains available in this list.',
+      );
     }
   };
 
@@ -178,9 +208,9 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
         )
           return;
         if (s.annotations !== prev.annotations) {
-          ui.getState().globe?.setAnnotations(s.annotations, null);
           // Marks are durable before a reload can cancel the debounce timer.
           if (s.annotations.length > 0 || prev.annotations.length > 0) persistWorkspace(s);
+          syncAnnotations();
         }
         if (s.imageryId !== prev.imageryId) syncImagery();
         if (persistTimer) clearTimeout(persistTimer);
@@ -215,7 +245,7 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
       feeds.attachGlobe(globe);
       syncImagery();
       share.apply(system.getState().catalog);
-      globe.setAnnotations(workspace.getState().annotations, null);
+      syncAnnotations();
     },
     detachGlobe() {
       offCameraIntent?.();

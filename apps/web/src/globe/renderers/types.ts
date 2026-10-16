@@ -7,9 +7,11 @@ export interface MapColors {
   /** The CSS strings, for canvas-drawn glyphs. */
   readonly css: MapPalette;
   readonly air: Color;
+  readonly maritime: Color;
   readonly space: Color;
   readonly selection: Color;
   readonly outline: Color;
+  readonly keyline: Color;
   readonly ink: Color;
   readonly hazardRamp: readonly [Color, Color, Color, Color, Color];
 }
@@ -32,15 +34,18 @@ export function toMapColors(palette: MapPalette): MapColors {
   const css: MapPalette = {
     ...palette,
     air: tryParse(palette.air) ? palette.air : d.air,
+    maritime: tryParse(palette.maritime) ? palette.maritime : d.maritime,
     selection: tryParse(palette.selection) ? palette.selection : d.selection,
     outline: tryParse(palette.outline) ? palette.outline : d.outline,
   };
   return {
     css,
     air: parse(palette.air, d.air),
+    maritime: parse(palette.maritime, d.maritime),
     space: parse(palette.space, d.space),
     selection: parse(palette.selection, d.selection),
     outline: parse(palette.outline, d.outline),
+    keyline: parse(palette.keyline, d.keyline),
     ink: parse(palette.ink, d.ink),
     hazardRamp: [
       parse(ramp[0], d.hazardRamp[0]),
@@ -59,6 +64,8 @@ export interface RenderContext {
   cameraPosition(): Cartesian3;
   /** Camera height above the ellipsoid in metres. */
   cameraHeightM(): number;
+  /** The globe canvas in CSS pixels, for screen-space level of detail (vessel thinning). */
+  canvasSizePx?(): { readonly width: number; readonly height: number };
 }
 
 /** Where the selection halo goes for an entity. */
@@ -79,4 +86,16 @@ export interface FeedRenderer {
   /** The camera settled somewhere new (labels, level of detail). */
   viewChanged(): void;
   destroy(): void;
+  /** Invisible hit areas of this layer's symbols, if any (see `PickAssist`). */
+  readonly pickAssists?: PickAssist;
+}
+
+/**
+ * Near-invisible hit areas over the open parts of symbols (inside a quake ring, between
+ * cyclone spiral arms), kept apart from the drawn symbols. A click consults them only when no
+ * drawn symbol is under the cursor (interaction.ts), so whatever is drawn there wins even
+ * when a nearer symbol's open centre covers it.
+ */
+export interface PickAssist {
+  show: boolean;
 }

@@ -14,14 +14,16 @@ pub enum SecretKey {
     AisStreamApiKey,
     OpenSkyClientId,
     OpenSkyClientSecret,
+    Ll2ApiToken,
 }
 
 impl SecretKey {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::FirmsMapKey,
         Self::AisStreamApiKey,
         Self::OpenSkyClientId,
         Self::OpenSkyClientSecret,
+        Self::Ll2ApiToken,
     ];
 
     /// The environment variable a server operator sets.
@@ -32,6 +34,7 @@ impl SecretKey {
             Self::AisStreamApiKey => "LAVENDER_AISSTREAM_API_KEY",
             Self::OpenSkyClientId => "LAVENDER_OPENSKY_CLIENT_ID",
             Self::OpenSkyClientSecret => "LAVENDER_OPENSKY_CLIENT_SECRET",
+            Self::Ll2ApiToken => "LAVENDER_LL2_API_TOKEN",
         }
     }
 
@@ -43,6 +46,7 @@ impl SecretKey {
             Self::AisStreamApiKey => "AISStream API key",
             Self::OpenSkyClientId => "OpenSky client id",
             Self::OpenSkyClientSecret => "OpenSky client secret",
+            Self::Ll2ApiToken => "Launch Library 2 API token",
         }
     }
 }
@@ -68,7 +72,12 @@ impl EnvSecretStore {
     pub fn from_env() -> Self {
         let mut values = HashMap::new();
         for key in SecretKey::ALL {
-            let direct = std::env::var(key.env_var()).ok();
+            let legacy = match key {
+                SecretKey::Ll2ApiToken => std::env::var("LL2_API_TOKEN").ok(),
+                SecretKey::AisStreamApiKey => std::env::var("AISSTREAM_API_KEY").ok(),
+                _ => None,
+            };
+            let direct = std::env::var(key.env_var()).ok().or(legacy);
             let from_file = std::env::var(format!("{}_FILE", key.env_var()))
                 .ok()
                 .and_then(|path| std::fs::read_to_string(path).ok());
@@ -117,10 +126,37 @@ impl SecretStore for MemorySecretStore {
     }
 }
 
+/// Secrets for fixture mode, where recorded documents replace every provider.
+///
+/// No provider contacts its upstream there, so no key is ever read or sent. Every key counts
+/// as configured, so key-gated layers (fires, vessels) replay their fixtures like the others,
+/// but no key has a value: a live provider that reached this store would still find none.
+#[derive(Debug, Default)]
+pub struct FixtureSecretStore;
+
+impl SecretStore for FixtureSecretStore {
+    fn get(&self, _key: SecretKey) -> Option<SecretString> {
+        None
+    }
+
+    fn is_set(&self, _key: SecretKey) -> bool {
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use secrecy::ExposeSecret;
+
+    #[test]
+    fn fixture_store_configures_every_key_without_holding_a_value() {
+        let store = FixtureSecretStore;
+        for key in SecretKey::ALL {
+            assert!(store.is_set(key), "{key:?}");
+            assert!(store.get(key).is_none(), "{key:?}");
+        }
+    }
 
     #[test]
     fn debug_output_never_contains_the_value() {

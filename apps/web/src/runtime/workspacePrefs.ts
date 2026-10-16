@@ -51,6 +51,16 @@ export function defaultWorkspace(catalog: Catalog): PersistedWorkspace {
   return { version: VERSION, layers, imageryId: null, annotations: [] };
 }
 
+/** Marks have no catalog dependency and are available before any network request settles. */
+export function readWorkspaceAnnotations(value: unknown): readonly MapAnnotation[] {
+  if (!isRecord(value) || value.version !== VERSION) return [];
+  try {
+    return validateAnnotations(value.annotations ?? []);
+  } catch {
+    return [];
+  }
+}
+
 /** Reads a persisted workspace, keeping only what the current catalog can back. */
 export function readWorkspace(value: unknown, catalog: Catalog): PersistedWorkspace {
   if (!isRecord(value) || value.version !== VERSION || !isRecord(value.layers))
@@ -65,12 +75,7 @@ export function readWorkspace(value: unknown, catalog: Catalog): PersistedWorksp
     typeof value.imageryId === 'string' && catalog.imagery.some((i) => i.id === value.imageryId)
       ? value.imageryId
       : null;
-  let annotations: readonly MapAnnotation[] = [];
-  try {
-    annotations = validateAnnotations(value.annotations ?? []);
-  } catch {
-    /* Corrupt marks never reach the map. */
-  }
+  const annotations = readWorkspaceAnnotations(value);
   return { version: VERSION, layers, imageryId, annotations };
 }
 
@@ -80,4 +85,37 @@ export function toPersisted(
   annotations: readonly MapAnnotation[] = [],
 ): PersistedWorkspace {
   return { version: VERSION, layers, imageryId, annotations };
+}
+
+/** Annotation-only edits must not erase layer choices while their catalog is still loading. */
+export function toPersistedBeforeCatalog(
+  previous: unknown,
+  layers: Partial<Record<FeedId, LayerState>>,
+  imageryId: string | null,
+  imageryClaimed: boolean,
+  annotations: readonly MapAnnotation[],
+): PersistedWorkspace {
+  const retained: Partial<Record<FeedId, LayerState>> = {};
+  let previousImagery: string | null = null;
+  if (isRecord(previous) && previous.version === VERSION) {
+    if (isRecord(previous.layers)) {
+      for (const [feed, state] of Object.entries(previous.layers).slice(0, 32)) {
+        if (
+          !/^[a-z][a-z0-9-]{0,63}$/.test(feed) ||
+          !isRecord(state) ||
+          typeof state.enabled !== 'boolean'
+        )
+          continue;
+        // Unknown feeds are retained only in storage until readWorkspace can authorize them.
+        retained[feed as FeedId] = { enabled: state.enabled, filters: readFilters(state.filters) };
+      }
+    }
+    if (typeof previous.imageryId === 'string' && previous.imageryId.length <= 128)
+      previousImagery = previous.imageryId;
+  }
+  return toPersisted(
+    { ...retained, ...layers },
+    imageryClaimed ? imageryId : previousImagery,
+    annotations,
+  );
 }

@@ -1,6 +1,7 @@
 # Lavender frontend specification
 
 - Status: v1, 2026-10-11
+- Implementation notes updated: 2026-10-14
 - Decisions: ADR 0003 (Cesium engine-only), 0004 (stack), 0005 (platform), 0007 (contracts)
 - Design: `docs/design/design-system.md`
 
@@ -54,6 +55,7 @@ apps/web/src/
     inspector/             Inspector, per-kind fact sheets, provenance
     search/                SearchBar, CommandPalette, result builders
     sources/               SourcesPanel (attribution, licence, health)
+    annotations/           validated pin/line/area editor, keyboard ownership, measurements
   shell/                   AppShell, NavRail, SidePanel, StatusBar, MapControls, feed chip
   lib/                     pure helpers (coordinates, mgrs, orbit, time, safeUrl)
   design/                  tokens.css, fonts.css, primitives/*
@@ -71,15 +73,27 @@ Import rules (Biome `noRestrictedImports` plus a boundary test):
 
 ## 3. State
 
-Current workspace sharing uses `WorkspaceDocument v1` in
+Current workspace sharing uses `WorkspaceDocument v2` in
 `state/workspaceDocument.ts` and `runtime/workspaceShare.ts`. A deliberate copy
 action creates `#view=<base64url UTF-8 JSON>`; it does not continuously rewrite the
 URL. Limits are 5,500 decoded bytes, 7,500 payload characters and 8,192 URL
 characters. Unsupported versions/fields or malformed values produce a toast.
 Restoration respects independent user revisions for layers, imagery, selection
 and camera, filters against the current catalog and handles hash/back/forward.
-Annotations are reserved as an empty array; native `lavender://view?view=…` is a
-reserved format rather than an installed OS handler.
+Strict v1 documents with empty annotations migrate to v2. Annotations have their
+own revision lane, so early device hydration and edits survive delayed catalog
+loading and share restoration. Native `lavender://view?view=…` remains a reserved
+format rather than an installed OS handler.
+
+Pins, distance arrows and areas support map clicks, editable vertices, labels,
+notes, locate and delete. Limits are 24 marks, 32 vertices per mark, 120-character
+labels, 500-character notes and 64 KiB for the device annotation payload; the
+smaller share-document limit still applies. Distances and areas use approximate
+spherical geometry. Invalid, crossing, degenerate, hemisphere-ambiguous and
+near-antipodal geometry is refused. Enter finishes a valid draft, Escape cancels
+it and Backspace removes its last point, while visible dialogs/menus and text
+fields retain keyboard ownership. Annotation changes persist before rendering;
+renderer failures preserve the saved geometry and report an error in the list.
 
 Place search is an explicit selectable action, with retry for unchanged text.
 Debounced keystroke requests set `places: false`; coordinates and loaded entities
@@ -96,15 +110,16 @@ no optical visibility or camera-follow behavior is implied.
 
 | Store | Holds | Writers |
 |---|---|---|
-| `workspace` | enabled layers + options, selection `{ kind, id }`, tracked ids, camera bookmarks, imagery choice | UI actions, share-link restore |
+| `workspace` | enabled layers + options, selection, camera, imagery choice, annotations and independent revisions | UI actions, device hydration, share-link restore |
 | `feeds` | per feed: freshness, count, source, last error, subscription status | `FeedController` only |
 | `ui` | panel open/width, palette open, toasts | UI |
 
 Rules: entity *data* (thousands of positions) is never in a store; it lives in
 renderers keyed by id. Stores hold summaries and selection. Selectors are
 narrow (`useFeedSummary('aircraft')`), so a feed update re-renders one row.
-`workspace` is persisted per device through `platform.preferences`
-(debounced) and encoded into share links.
+`workspace` is persisted per device through `platform.preferences` and encoded
+into share links. Layer/imagery saves are debounced; annotation edits save
+immediately, including before catalog loading finishes.
 
 ## 4. Globe engine
 
@@ -126,11 +141,20 @@ narrow (`useFeedSummary('aircraft')`), so a feed update re-renders one row.
 - Renderer registry: `register(feed, renderer)`. A renderer implements
   `apply(snapshot)`, `setVisible`, `setSelected(id)`, `dispose()`.
 
-Renderers (P2): `AircraftRenderer` (BillboardCollection with rotation +
-LabelCollection budgeted), `PointHazardRenderer` (earthquakes, fires:
-PointPrimitiveCollection with magnitude ramp), `SatelliteRenderer` (elements →
+Current renderers: `AircraftRenderer` (BillboardCollection with rotation +
+LabelCollection budgeted), earthquake `PointHazardRenderer`
+(PointPrimitiveCollection with magnitude ramp), `SatelliteRenderer` (elements →
 per-frame SGP4 for visible subset; PointPrimitiveCollection; orbit polyline
-for selected), `CycloneRenderer` (small entity set: track lines, cone polygons).
+for selected), and `CycloneRenderer` (keyed points, multipart tracks and cone
+polygons with holes). Fire rendering remains ENG-975/950 work.
+
+Cyclone geometry is shown only for the current advisory. Storm positions remain
+available when GIS geometry is degraded. Wind legends use sustained knots;
+missing wind has an explicit neutral/unknown treatment. Rendering caps storms at
+32 and expanded arc vertices at 100,000 per snapshot, including retained arcs.
+`surfaceArcPositions` raises chord segments above the ellipsoid and rejects
+unsupported near-antipodal paths without disrupting other storm updates.
+Annotations use separate bounded point, line, polygon and label collections.
 
 Diff strategy: maintain `Map<id, primitive>`; on snapshot, update existing,
 add new, remove missing. Never clear and rebuild a collection.
@@ -170,6 +194,10 @@ Both are tested against the same contract test suite with a fake transport.
 - Code splitting: the engine (`@cesium/engine`) is a separate lazy chunk; the
   shell renders first. Budget: initial JS (excluding the engine) ≤ 250 KiB gzip.
 - No inline scripts or styles in `index.html` (CSP; test-enforced).
+- `cesium-without-default-token.ts` removes the SDK's bundled default Ion token
+  before distribution, preserving explicitly configured runtime credentials.
+  Build-policy fixtures reject token leakage and unsafe CSP overrides; hosted
+  advisory/security CI activation remains separate work in ENG-1004.
 
 ## 8. Testing
 
@@ -178,7 +206,7 @@ Both are tested against the same contract test suite with a fake transport.
 | Unit | Vitest | coordinate parsing (decimal/DMS/MGRS), formatters, stores, feed controller with fake platform, diff logic of renderers (Cesium mocked at the collection boundary) |
 | Component | Vitest + Testing Library (happy-dom) | LayerRow states, Inspector, SearchField/palette keyboard behaviour, StatusBar |
 | Contract | Vitest | WebPlatform and TauriPlatform against the shared adapter contract suite |
-| E2E | Playwright (Chromium; WebKit where available) | boot, toggle earthquakes with the Rust server on fixtures, select, inspect, search coordinates |
+| E2E | Playwright (Chromium; WebKit where available) | boot, fixture feeds, selection/inspection, search, workspace sharing and annotation editing; final journey evidence lives in the progress log |
 | Rendering smoke | Playwright | globe canvas lit-pixel ratio > threshold, no console errors, no CSP violations |
 
 ## 9. Porting from GEV

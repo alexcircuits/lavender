@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const INITIAL_JS_BUDGET_BYTES = 250 * 1024;
+/** docs/performance/specification.md §2: "Initial JS excluding Cesium engine ≤ 250 KiB gzip". */
+export const INITIAL_JS_BUDGET_BYTES = 250 * 1024;
 /** Present in every Cesium build (GLSL built-ins are prefixed czm_) and nowhere else. */
 const ENGINE_MARKER = 'czm_';
 const TEXT_EXTENSIONS = new Set([
@@ -28,7 +29,7 @@ const KEY_SHAPES = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
 ];
 const SERVER_KEY_ASSIGNMENT =
-  /\b(?:FIRMS_MAP_KEY|AISSTREAM_API_KEY|OPENSKY_CLIENT_SECRET|TOMTOM_API_KEY|GOOGLE_MAPS_SERVER_KEY|OPENAI_API_KEY)\b["']?\s*[:=]\s*["']([0-9A-Za-z_-]{16,})["']/g;
+  /\b(?:LAVENDER_)?(?:FIRMS_MAP_KEY|AISSTREAM_API_KEY|OPENSKY_CLIENT_ID|OPENSKY_CLIENT_SECRET|LL2_API_TOKEN|TOMTOM_API_KEY|GOOGLE_MAPS_SERVER_KEY|OPENAI_API_KEY)\b["']?\s*[:=]\s*["']([0-9A-Za-z_-]{16,})["']/g;
 
 function hasJwt(source) {
   // A complete signed JWT has three base64url parts. Decode the JSON rather than
@@ -141,7 +142,7 @@ function checkEngineSplit(html, files, dist, root, label, fail) {
   if (lazyEngine.length === 0) fail('No lazily loaded chunk contains the Cesium engine');
   if (initialGzip > INITIAL_JS_BUDGET_BYTES) {
     fail(
-      `${label} initial JS is ${(initialGzip / 1024).toFixed(1)} KiB gzip; the budget is 250 KiB`,
+      `${label} initial JS is ${(initialGzip / 1024).toFixed(1)} KiB gzip; the budget is ${INITIAL_JS_BUDGET_BYTES / 1024} KiB`,
     );
   }
   return { initialGzip, initialCount: initial.length, lazyEngine };
@@ -163,17 +164,49 @@ function checkDesktopCsp(path, fail) {
     fail('Desktop CSP must be an explicit directive map');
     return;
   }
-  for (const value of Object.values(csp)) {
+  const directives = new Map();
+  for (const [name, value] of Object.entries(csp)) {
+    // Tauri serializes this map verbatim. Invalid names and raw separators can
+    // inject a new directive that the structured checks below would never see.
+    if (!/^[A-Za-z][A-Za-z0-9-]*$/.test(name)) {
+      fail('Desktop CSP contains an invalid directive name');
+      continue;
+    }
+    const values = Array.isArray(value) ? value : [value];
+    if (values.some((raw) => typeof raw === 'string' && /[;\p{Cc}\p{Zl}\p{Zp}]/u.test(raw))) {
+      fail('Desktop CSP contains a directive separator or control character');
+    }
+    const directive = name.toLowerCase();
+    if (directives.has(directive)) fail('Desktop CSP contains a duplicate directive');
+    directives.set(directive, value);
     if (typeof value !== 'string' || value.split(/\s+/).includes("'unsafe-eval'")) {
       fail('Desktop CSP contains unsafe-eval or an invalid directive');
     }
   }
-  const script = csp['script-src']?.split(/\s+/) ?? [];
+  const tokens = (directive) => {
+    const value = directives.get(directive);
+    return typeof value === 'string' ? value.trim().split(/\s+/) : [];
+  };
+  const script = tokens('script-src');
   if (
     !script.includes("'self'") ||
     script.some((value) => !["'self'", "'wasm-unsafe-eval'"].includes(value))
   ) {
     fail('Desktop script-src must allow only self and the explicit WASM exception');
+  }
+  // These CSP3 directives override script-src for their own execution contexts.
+  // An otherwise strict base policy cannot make a permissive override safe.
+  if (directives.has('script-src-elem')) {
+    const elements = tokens('script-src-elem');
+    if (elements.length !== 1 || !["'self'", "'none'"].includes(elements[0])) {
+      fail('Desktop script-src-elem must allow only self or disable script elements');
+    }
+  }
+  if (directives.has('script-src-attr')) {
+    const attributes = tokens('script-src-attr');
+    if (attributes.length !== 1 || attributes[0] !== "'none'") {
+      fail('Desktop script-src-attr must disable script attributes');
+    }
   }
 }
 
@@ -209,18 +242,22 @@ export function checkDist({
   return { failures, files, split, docsSplit };
 }
 
-function main() {
-  const result = checkDist();
+/** The postbuild command: prints the outcome and returns the process exit code (1 fails CI). */
+function run(options = {}) {
+  const result = checkDist(options);
   if (result.failures.length > 0) {
     console.error(`check-dist: ${result.failures.length} problem(s)`);
     for (const message of result.failures) console.error(`  ✗ ${message}`);
-    process.exitCode = 1;
-    return;
+    return 1;
   }
-  const engine = result.split.lazyEngine.map((f) => relative(join(appRoot, 'dist'), f)).join(', ');
+  const dist = options.dist ?? join(appRoot, 'dist');
+  const engine = result.split.lazyEngine.map((f) => relative(dist, f)).join(', ');
   console.log(
     `check-dist: ok — ${result.files.length} files; workspace JS ${(result.split.initialGzip / 1024).toFixed(1)} KiB gzip; docs JS ${(result.docsSplit.initialGzip / 1024).toFixed(1)} KiB gzip; engine chunk ${engine}`,
   );
+  return 0;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exitCode = run();
+}

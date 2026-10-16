@@ -196,7 +196,9 @@ impl FeedProvider for CyclonesProvider {
         self.config.enabled
     }
     fn retry_floor(&self) -> Duration {
-        CADENCE_FLOOR
+        // The provider's cooldown follows the configured cadence after both success
+        // and failure. Hub jitter/backoff must not wake before that same interval.
+        self.cadence()
     }
 
     async fn fetch(

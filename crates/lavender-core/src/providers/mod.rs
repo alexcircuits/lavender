@@ -6,10 +6,15 @@
 //! cleaned and length-capped, because parser errors can quote upstream content.
 
 pub mod adsb_lol;
+pub mod aisstream;
 pub mod celestrak;
 pub mod cyclones;
+pub mod firms;
 pub mod fixture;
+pub mod launches;
+pub mod perimeters;
 pub mod usgs;
+pub mod wind;
 
 use std::path::Path;
 use std::time::Duration;
@@ -17,7 +22,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use jiff::Timestamp;
 use lavender_domain::text::clean;
-use lavender_domain::{FeedId, FeedItems, ProviderScope};
+use lavender_domain::{FeedId, FeedItems, ProviderScope, VesselTrackResponse};
 use lavender_geo::Cell;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer};
@@ -25,6 +30,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::fetch::{FetchError, Fetcher};
 use crate::secrets::SecretStore;
+use crate::vessel_store::Mmsi;
 
 /// Longest provider error message, in characters, that reaches health, logs and frames.
 pub const MAX_ERROR_CHARS: usize = 200;
@@ -164,6 +170,23 @@ pub trait FeedProvider: Send + Sync + std::fmt::Debug {
     fn global_fallback_notice(&self) -> Option<&'static str> {
         None
     }
+
+    /// For push-based providers: the shortest interval between the snapshots one
+    /// subscription sends once its view is complete. Slot updates inside it are
+    /// coalesced, so a subscriber gets updates at this rate however many cells it covers.
+    fn snapshot_interval(&self) -> Option<Duration> {
+        None
+    }
+
+    /// For vessels providers: the track retained for `mmsi`, read from the provider's
+    /// own store with no network call. `None` when nothing is retained.
+    fn vessel_track(&self, _mmsi: Mmsi) -> Option<VesselTrackResponse> {
+        None
+    }
+
+    /// Stops background work the provider runs outside `fetch`, such as a persistent
+    /// upstream connection. Called when the hub shuts down.
+    fn shutdown(&self) {}
 
     /// Fetches and normalises the items for `region`.
     async fn fetch(&self, ctx: &FetchContext<'_>, region: Region)

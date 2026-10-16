@@ -1,0 +1,169 @@
+/* Rocket launches: the list and the status chip. Tokens only. */
+
+/* A launch status: icon + word, the icon in its status tone (design-system §3.3). */
+.status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+  padding: 0 var(--s-1_5) 0 var(--s-1);
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background: var(--control);
+  color: var(--ink);
+  font: var(--type-micro);
+  white-space: nowrap;
+}
+
+.statusGlyph {
+  flex: none;
+}
+
+.status[data-tone='good'] .statusGlyph {
+  color: var(--good);
+}
+
+.status[data-tone='warning'] .statusGlyph {
+  color: var(--warning);
+}
+
+.status[data-tone='alert'] .statusGlyph {
+  color: var(--alert);
+}
+
+.status[data-tone='neutral'] .statusGlyph {
+  color: var(--neutral-state);
+}
+
+.status[data-tone='neutral'] .statusWord {
+  color: var(--ink-2);
+}
+
+/* The header's second line: trouble, count and the feed's notices. */
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.statusLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1_5);
+  color: var(--ink-2);
+  font: var(--type-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.reason {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-1_5);
+  color: var(--ink);
+  font: var(--type-caption);
+}
+
+.noticeIcon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--ink-2);
+}
+
+.group + .group {
+  margin-top: var(--s-3);
+}
+
+.groupLabel {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-1_5);
+  padding: var(--s-1) var(--s-2);
+  color: var(--ink-2);
+  font: var(--type-micro);
+}
+
+.groupCount {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.groupEmpty {
+  padding: var(--s-1) var(--s-2);
+  color: var(--ink-2);
+  font: var(--type-body-sm);
+}
+
+/* A row's title line: the launch name, and its relative NET at the end. */
+.titleLine {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.titleText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relative {
+  flex: none;
+  color: var(--ink-2);
+  font: var(--type-body-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A row's description: status and NET, provider · rocket, then the pad, each one line. */
+.rowLines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0_5);
+  min-width: 0;
+  padding-block: var(--s-0_5);
+}
+
+.rowLine {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The status line keeps its chip and time side by side. */
+.rowLine:first-child {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1_5);
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.loadingRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-1) var(--s-2);
+}
+
+.footnote {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--ink-2);
+  font: var(--type-caption);
+}

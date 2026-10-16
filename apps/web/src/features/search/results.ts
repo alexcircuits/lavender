@@ -13,10 +13,13 @@ import type {
 } from '../../contracts';
 import {
   AirplaneIcon,
+  BoatIcon,
   CrosshairIcon,
+  FireIcon,
   type Icon,
   MapTrifoldIcon,
   PlanetIcon,
+  RocketLaunchIcon,
   StackIcon,
   WaveformIcon,
 } from '../../design';
@@ -123,6 +126,10 @@ const ENTITY_ICONS: Readonly<Record<FeedId, Icon>> = {
   earthquakes: WaveformIcon,
   satellites: PlanetIcon,
   cyclones: WaveformIcon,
+  fires: FireIcon,
+  launches: RocketLaunchIcon,
+  vessels: BoatIcon,
+  perimeters: FireIcon,
 };
 
 /** Live entities: local matches first, then the server's, each entity once. */

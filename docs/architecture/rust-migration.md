@@ -6,6 +6,7 @@
 | | |
 |---|---|
 | Status | v1, 2026-10-11 |
+| Implementation notes updated | 2026-10-14; target mapping below remains the full migration inventory |
 | Inputs | `docs/audit/upstream-backend.md` (route table §2.0, routes §2.1–2.22, background work §4, secrets §5, MCP/voice §6, tests §7, mapping §8, risks §9); `docs/audit/upstream-layers.md`; `docs/audit/upstream-ui-and-systems.md`; `docs/audit/data-sources-and-licensing.md`; ADRs 0001–0008; `docs/architecture/overview.md` |
 | Companion | `docs/audit/feature-parity-matrix.md` (F-ids referenced below) |
 | Phases | P1 Foundations · P2 First vertical slices · P3 Feature wave A · P4 Feature wave B · P5 Automation & deferred · P6 Desktop readiness · P7 Optimisation & hardening · P8 Final verification & legacy removal · Roadmap · — (removed) |
@@ -19,6 +20,16 @@ fetch), `GET /api/v1/satellites/{norad}/passes?observer=lat,lon&hours=24`
 The core operations are `aircraft_track`, async `satellite_passes` and async
 `search`; Tauri exposes matching commands. Limits/error behavior are documented
 in [the current API reference](../development/reference.md).
+
+`feed:cyclones` is also implemented through the existing snapshot/subscription
+operations, with `providers/cyclones.rs` and strict status/GIS parsing. It adds
+typed storm, forecast, track and cone data without a cyclone-specific route.
+Browser annotations use workspace v2 with strict v1 migration and local device
+persistence; server-stored workspaces and registered native deep links remain
+planned. The current public-address resolver is `fetch/dns.rs` over Tokio DNS;
+the historical hickory/`PrivateOnly` design in B2 is not an installed dependency
+or a claim that local receivers have migrated. Adapter executables now explicitly
+install the redacting panic hook in `diagnostics.rs`.
 
 GEV's backend is about 19,000 lines of Node.js. It runs as Connect middleware inside Vite's dev and preview servers and exposes 58 method+path endpoints on 39 mounts, plus a JSON 404 catch-all and a dev-only `/panel/*` mount (backend audit §0, §2.0). It has no production process.
 

@@ -7,11 +7,19 @@ import type {
   Cyclone,
   Earthquake,
   FeedId,
+  FireCell,
   GeoPoint,
+  Launch,
   SatelliteElements,
+  Vessel,
+  VesselDimensions,
+  VesselEta,
+  VesselVoyage,
 } from '../../contracts';
 import { formatAge, formatCount } from '../../design';
+import { fireCellId, isValidFireCell } from '../../feeds/fireCells';
 import { formatDecimal } from '../../lib/coordinates';
+import { isLaunchRecord, type LaunchPadGroup } from '../../lib/launches';
 import { lookup } from '../../lib/lookup';
 import { spaceMgrs, toMgrs } from '../../lib/mgrs';
 import { apsides, orbitalPeriodMin } from '../../lib/orbit';
@@ -38,6 +46,7 @@ const SATELLITE_GROUP_LABELS: Readonly<Record<string, string>> = {
   'gps-ops': 'GPS',
   galileo: 'Galileo',
   science: 'Science',
+  'last-30-days': 'Recent launches',
 };
 
 /** "10.5", "10" — at most `digits` decimals, no trailing zeros. */
@@ -107,6 +116,93 @@ export function aircraftFacts(aircraft: Aircraft): Fact[] {
     { label: 'Military', value: aircraft.isMilitary ? 'Yes' : 'No' },
     ...positionFacts(aircraft.position),
     { label: 'Position age', value: formatAge(aircraft.seenPosS) },
+  ];
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const isWhole = (value: unknown, min: number, max: number): value is number =>
+  typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
+const twoDigits = (value: number) => String(value).padStart(2, '0');
+
+/**
+ * An AIS ETA as the crew entered it: "17 Oct 08:30 UTC", or "17 Oct" without a time. AIS
+ * carries no year, so none is shown; impossible values read as not reported.
+ */
+export function formatVesselEta(eta: VesselEta | undefined): string {
+  if (typeof eta !== 'object' || eta === null) return NOT_REPORTED;
+  if (!isWhole(eta.month, 1, 12) || !isWhole(eta.day, 1, 31)) return NOT_REPORTED;
+  const date = `${eta.day} ${MONTHS[eta.month - 1]}`;
+  if (!isWhole(eta.hour, 0, 23)) return date;
+  const minute = isWhole(eta.minute, 0, 59) ? eta.minute : 0;
+  return `${date} ${twoDigits(eta.hour)}:${twoDigits(minute)} UTC`;
+}
+
+/** Length and beam: "70 × 12 m", "70 m long", "12 m beam". */
+export function formatVesselDimensions(dimensions: VesselDimensions | undefined): string {
+  const metres = (value: number | undefined) =>
+    isWhole(value, 1, 1_022) ? formatCount(value) : null;
+  const length = metres(dimensions?.lengthM);
+  const beam = metres(dimensions?.beamM);
+  if (length && beam) return `${length} × ${beam} m`;
+  if (length) return `${length} m long`;
+  if (beam) return `${beam} m beam`;
+  return NOT_REPORTED;
+}
+
+/** AIS static draught: 0 means "not available"; it cannot exceed 25.5 m. */
+const draught = (metres: number | undefined) =>
+  typeof metres === 'number' && Number.isFinite(metres) && metres > 0 && metres <= 25.5
+    ? `${trimmed(metres, 1)} m`
+    : NOT_REPORTED;
+
+/** Text from the wire, or "Not reported" when it is missing, blank or not text at all. */
+const wireText = (value: unknown) =>
+  typeof value === 'string' && value.trim() !== '' ? value.trim() : NOT_REPORTED;
+
+/**
+ * The selected ship's voyage and status (call sign, navigational status, ETA, draught,
+ * dimensions). They come with its track response, not in feed snapshots (`VesselVoyage`).
+ */
+export function vesselVoyageFacts(voyage: VesselVoyage | undefined): Fact[] {
+  const callSign = wireText(voyage?.callSign);
+  return [
+    { label: 'Call sign', value: callSign, mono: callSign !== NOT_REPORTED },
+    { label: 'Navigational status', value: wireText(voyage?.navigationalStatus) },
+    { label: 'ETA', value: formatVesselEta(voyage?.eta) },
+    { label: 'Draught', value: draught(voyage?.draughtM) },
+    { label: 'Length × beam', value: formatVesselDimensions(voyage?.dimensions) },
+  ];
+}
+
+/** AIS "not available" codes stay unknown, even for records from a newer server. */
+export function vesselFacts(vessel: Vessel, nowMs: number): Fact[] {
+  const reported = (value: number | undefined, max: number, unit: string) =>
+    value !== undefined && Number.isFinite(value) && value >= 0 && value < max
+      ? `${trimmed(value, 1)}${unit}`
+      : NOT_REPORTED;
+  const observed = parseTime(vessel.lastPositionUtc);
+  return [
+    { label: 'Name', value: text(vessel.name) },
+    { label: 'MMSI', value: vessel.mmsi, mono: true },
+    { label: 'IMO', value: text(vessel.imo), mono: Boolean(vessel.imo) },
+    { label: 'Vessel type', value: text(vessel.vesselType) },
+    { label: 'Destination', value: text(vessel.destination) },
+    { label: 'Speed over ground', value: reported(vessel.speedKnots, 102.3, ' kn') },
+    { label: 'Course over ground', value: reported(vessel.courseDeg, 360, '°') },
+    {
+      label: 'Heading',
+      value: vessel.headingDeg === 360 ? '360°' : reported(vessel.headingDeg, 360, '°'),
+    },
+    {
+      label: 'Position time',
+      value: observed === null ? NOT_REPORTED : formatUtcDateTime(observed),
+      mono: observed !== null,
+    },
+    {
+      label: 'Position age',
+      value: observed === null ? NOT_REPORTED : formatAge(secondsBetween(observed, nowMs)),
+    },
+    ...positionFacts(vessel.position),
   ];
 }
 
@@ -204,6 +300,8 @@ export interface ProvenanceInput {
   readonly observedMs: number | null;
   readonly fetchedMs: number | null;
   readonly nowMs: number;
+  /** The snapshot's notices, e.g. that fixture data is replayed, not live. */
+  readonly notices?: readonly string[];
 }
 
 export function cycloneFacts(storm: Cyclone): Fact[] {
@@ -256,14 +354,19 @@ export function cycloneFacts(storm: Cyclone): Fact[] {
   ];
 }
 
-/** Source, observed, fetched and age: where a datum came from and how old it is (§1.5). */
+/**
+ * Source, observed, fetched and age: where a datum came from and how old it is (§1.5), plus
+ * the snapshot's notices when it has any (fixture replay, partial coverage, truncation).
+ */
 export function provenanceFacts({
   sources,
   observedMs,
   fetchedMs,
   nowMs,
+  notices = [],
 }: ProvenanceInput): Fact[] {
   const at = (ms: number | null) => (ms === null ? NOT_REPORTED : formatUtcTime(ms));
+  const said = notices.map((notice) => notice.trim()).filter((notice) => notice !== '');
   return [
     { label: 'Source', value: sources.length > 0 ? sources.join(', ') : NOT_REPORTED },
     { label: 'Observed', value: at(observedMs), mono: observedMs !== null },
@@ -272,14 +375,76 @@ export function provenanceFacts({
       label: 'Age',
       value: observedMs === null ? 'Unknown' : formatAge(secondsBetween(observedMs, nowMs)),
     },
+    ...(said.length > 0 ? [{ label: 'Notices', value: said.join(' ') }] : []),
   ];
+}
+
+/** Brightness temperature in kelvin; the server sends 0 when FIRMS did not report it. */
+function brightnessK(kelvin: number): string {
+  return Number.isFinite(kelvin) && kelvin > 0 ? `${kelvin.toFixed(1)} K` : NOT_REPORTED;
+}
+
+export function fireFacts(cell: FireCell): Fact[] {
+  const isCluster = cell.count > 1;
+  const brightness = brightnessK(cell.brightness);
+  const facts: Fact[] = [
+    { label: 'Radiative power', value: `${cell.frp.toFixed(1)} MW`, mono: true },
+  ];
+  if (isCluster) {
+    facts.push(
+      { label: 'Detections', value: formatCount(cell.count) },
+      { label: 'Peak FRP', value: `${cell.maxFrp.toFixed(1)} MW`, mono: true },
+    );
+  }
+  facts.push(
+    { label: 'Brightness', value: brightness, mono: brightness !== NOT_REPORTED },
+    { label: 'Confidence', value: text(cell.confidence) },
+    { label: 'Satellite', value: text(cell.satellite) },
+    {
+      label: 'Acquisition',
+      value: cell.dayNight === 'D' ? 'Day' : cell.dayNight === 'N' ? 'Night' : text(cell.dayNight),
+    },
+    ...positionFacts({ lat: cell.lat, lon: cell.lon }),
+  );
+  return facts;
+}
+
+const stringOr = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+/**
+ * A fire cell the inspector can describe: exactly the cells the globe draws (the shared
+ * `isValidFireCell` rule) and only the selected one (by id). Returns a normalised copy in
+ * which malformed descriptive fields read as unknown (`NaN` brightness, empty strings), so a
+ * drawn symbol never leads to a crash or a missing sheet.
+ */
+function fireRecord(entity: Record<string, unknown>, id: string): FireCell | null {
+  if (!isValidFireCell(entity) || fireCellId(entity) !== id) return null;
+  const { lat, lon, count, frp, maxFrp } = entity;
+  return {
+    lat,
+    lon,
+    count,
+    frp,
+    maxFrp,
+    brightness: typeof entity.brightness === 'number' ? entity.brightness : Number.NaN,
+    confidence: stringOr(entity.confidence),
+    satellite: stringOr(entity.satellite),
+    acquiredAt: stringOr(entity.acquiredAt),
+    dayNight: stringOr(entity.dayNight),
+    latestAcquiredAt: stringOr(entity.latestAcquiredAt),
+  };
 }
 
 export type Inspected =
   | { readonly kind: 'aircraft'; readonly item: Aircraft }
   | { readonly kind: 'earthquakes'; readonly item: Earthquake }
   | { readonly kind: 'satellites'; readonly item: SatelliteElements }
-  | { readonly kind: 'cyclones'; readonly item: Cyclone };
+  | { readonly kind: 'cyclones'; readonly item: Cyclone }
+  | { readonly kind: 'fires'; readonly item: FireCell }
+  | { readonly kind: 'vessels'; readonly item: Vessel }
+  | { readonly kind: 'launches'; readonly item: Launch }
+  /** A launch pad and its launches (selected on the globe; see `useLaunchPadView`). */
+  | { readonly kind: 'launchPad'; readonly item: LaunchPadGroup };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -312,6 +477,26 @@ export function inspect(feed: FeedId, id: string, entity: unknown): Inspected | 
         typeof entity.name === 'string' &&
         isRecord(entity.movement)
         ? { kind: 'cyclones', item: entity as unknown as Cyclone }
+        : null;
+    case 'fires': {
+      const cell = fireRecord(entity, id);
+      return cell ? { kind: 'fires', item: cell } : null;
+    }
+    case 'launches':
+      return isLaunchRecord(entity, id) ? { kind: 'launches', item: entity } : null;
+    case 'perimeters':
+      return null;
+    case 'vessels':
+      return entity.mmsi === id &&
+        isPoint(entity.position) &&
+        Number.isFinite(entity.position.lat) &&
+        Number.isFinite(entity.position.lon) &&
+        Math.abs(entity.position.lat) <= 90 &&
+        Math.abs(entity.position.lon) <= 180 &&
+        ['name', 'imo', 'vesselType', 'destination', 'lastPositionUtc'].every(
+          (key) => entity[key] === undefined || typeof entity[key] === 'string',
+        )
+        ? { kind: 'vessels', item: entity as unknown as Vessel }
         : null;
   }
 }

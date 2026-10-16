@@ -20,6 +20,7 @@ import type {
   GeoPoint,
   ImageryDescriptor,
   SatelliteTrack,
+  VesselTrackResponse,
 } from '../contracts';
 import type { AnnotationDraft, MapAnnotation } from '../features/annotations/model';
 import { CameraService, HOME_VIEW, MAX_HEIGHT_M, prefersReducedMotion } from './camera';
@@ -42,11 +43,14 @@ import { AircraftRenderer } from './renderers/aircraft';
 import { AnnotationRenderer } from './renderers/annotations';
 import { CycloneRenderer } from './renderers/cyclones';
 import { EarthquakeRenderer } from './renderers/earthquakes';
+import { FireRenderer } from './renderers/fires';
+import { LaunchPadRenderer } from './renderers/launches';
 import { SatelliteRenderer } from './renderers/satellites';
 import { SelectionHalo } from './renderers/selection';
 import { type FeedRenderer, type RenderContext, toMapColors } from './renderers/types';
+import { VesselRenderer } from './renderers/vessels';
 import { cssTokenReader, readPalette } from './tokens';
-import { toViewState } from './view';
+import { sameView, toViewState, viewEdgeSamples } from './view';
 
 /** Render errors tolerated in a burst before the engine stops restarting the loop. */
 const MAX_RENDER_RESTARTS = 3;
@@ -58,6 +62,7 @@ interface Mounted {
   readonly widget: CesiumWidget;
   readonly renderers: ReadonlyMap<FeedId, FeedRenderer>;
   readonly satellites: SatelliteRenderer;
+  readonly vessels: VesselRenderer;
   readonly annotations: AnnotationRenderer;
   readonly halo: SelectionHalo;
   readonly imagery: BaseImagery;
@@ -135,6 +140,7 @@ export class GlobeEngine implements GlobeController {
       requestRender: () => scene.requestRender(),
       cameraPosition: () => scene.camera.positionWC,
       cameraHeightM: () => scene.camera.positionCartographic.height,
+      canvasSizePx: () => ({ width: scene.canvas.clientWidth, height: scene.canvas.clientHeight }),
     };
     const primitives = scene.primitives;
     const satellites = new SatelliteRenderer(primitives, ctx, {
@@ -142,21 +148,38 @@ export class GlobeEngine implements GlobeController {
         if (this.#selection?.feed === 'satellites') this.#refreshHalo();
       },
     });
+    const vessels = new VesselRenderer(primitives, ctx);
     const renderers = new Map<FeedId, FeedRenderer>([
       ['earthquakes', new EarthquakeRenderer(primitives, ctx)],
       ['cyclones', new CycloneRenderer(primitives, ctx)],
       ['satellites', satellites],
       ['aircraft', new AircraftRenderer(primitives, ctx)],
+      ['fires', new FireRenderer(primitives, ctx)],
+      ['launches', new LaunchPadRenderer(primitives, ctx)],
+      ['vessels', vessels],
     ]);
     const cleanup: Array<() => void> = [];
     cleanup.push(scene.renderError.addEventListener((_s, error) => this.#renderError(error)));
     cleanup.push(scene.camera.moveEnd.addEventListener(() => this.#emitView()));
     const cameraIntent = () => this.#cameraIntentListeners.emit(undefined);
+    let userSettleTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleUserSettle = () => {
+      if (userSettleTimer !== null) clearTimeout(userSettleTimer);
+      userSettleTimer = setTimeout(() => {
+        userSettleTimer = null;
+        if (!scene.isDestroyed()) scene.requestRender();
+      }, 550);
+    };
     widget.canvas.addEventListener('pointerdown', cameraIntent);
+    widget.canvas.addEventListener('pointerup', scheduleUserSettle);
     widget.canvas.addEventListener('wheel', cameraIntent, { passive: true });
+    widget.canvas.addEventListener('wheel', scheduleUserSettle, { passive: true });
     cleanup.push(() => {
+      if (userSettleTimer !== null) clearTimeout(userSettleTimer);
       widget.canvas.removeEventListener('pointerdown', cameraIntent);
+      widget.canvas.removeEventListener('pointerup', scheduleUserSettle);
       widget.canvas.removeEventListener('wheel', cameraIntent);
+      widget.canvas.removeEventListener('wheel', scheduleUserSettle);
     });
     const offFirstFrame = scene.postRender.addEventListener(() => {
       offFirstFrame();
@@ -164,20 +187,25 @@ export class GlobeEngine implements GlobeController {
     });
     cleanup.push(offFirstFrame);
     cleanup.push(watchContextLoss(widget.canvas, { onLost: (error) => this.#report(error) }));
+    const cameraPort = cesiumCameraPort(scene, () => this.#emitView());
+    cleanup.push(() => cameraPort.destroy());
 
     return {
       widget,
       renderers,
       satellites,
+      vessels,
       annotations: new AnnotationRenderer(primitives, ctx, scene),
       halo: new SelectionHalo(primitives, colors),
       imagery: new BaseImagery(scene, prefersReducedMotion),
-      camera: new CameraService(cesiumCameraPort(scene), prefersReducedMotion),
+      camera: new CameraService(cameraPort, prefersReducedMotion),
       interaction: new Interaction(widget, {
         pick: (entity) => this.#pickListeners.emit(entity),
         cursor: (position) => this.#cursorListeners.emit(position),
         point: (position) => this.#pointListeners.emit(position),
         drawing: () => this.#drawing,
+        // Open ring centres and spiral gaps answer a click only when nothing drawn is there.
+        pickAssists: [...renderers.values()].flatMap((r) => (r.pickAssists ? [r.pickAssists] : [])),
       }),
       cleanup,
     };
@@ -216,6 +244,10 @@ export class GlobeEngine implements GlobeController {
 
   showTrack(track: SatelliteTrack | null): void {
     this.#mounted?.satellites.showTrack(track);
+  }
+
+  showVesselTrack(track: VesselTrackResponse | null): void {
+    this.#mounted?.vessels.showTrack(track);
   }
 
   setAnnotations(annotations: readonly MapAnnotation[], draft: AnnotationDraft | null): void {
@@ -378,10 +410,17 @@ export class GlobeEngine implements GlobeController {
       const scene = m.widget.scene;
       const centre = this.centrePosition();
       const rectangle = scene.camera.computeViewRectangle(scene.ellipsoid, new Rectangle());
-      const view = toViewState(rectangle, centre, scene.camera.positionCartographic.height);
-      this.#lastView = view;
+      // Cesium bounds only the corners; the edges widen it (view.ts `widenToEdges`).
+      const edges = viewEdgeSamples(scene.canvas.clientWidth, scene.canvas.clientHeight, (x, y) =>
+        geoPointAt(m.widget, new Cartesian2(x, y)),
+      );
+      const view = toViewState(rectangle, centre, scene.camera.positionCartographic.height, edges);
+      // A completion callback can precede Cesium's native moveEnd for the same pose.
+      // Relayout still runs for rotations whose normalised query view did not change.
       for (const renderer of m.renderers.values()) renderer.viewChanged();
       m.annotations.viewChanged();
+      if (sameView(this.#lastView, view)) return;
+      this.#lastView = view;
       this.#viewListeners.emit(view);
     } catch (error) {
       console.error('Globe could not compute the view', error);

@@ -3,6 +3,10 @@ import {
   aircraftAltitudeM,
   aircraftLabel,
   chooseLabelled,
+  FIRE_MAX_PX,
+  FIRE_MIN_PX,
+  fireRampIndex,
+  fireSizePx,
   hasValidPosition,
   isStale,
   LABEL_BUDGET,
@@ -66,6 +70,28 @@ describe('earthquake symbology', () => {
       0, 0, 1, 1, 2, 2, 3, 3, 4, 4,
     ]);
     expect(quakeRampIndex(Number.NaN)).toBe(0);
+  });
+});
+
+describe('fire symbology', () => {
+  it('sizes dynamically based on count and maxFrp within [6, 24] px', () => {
+    expect(fireSizePx(1, 0)).toBe(FIRE_MIN_PX);
+    expect(fireSizePx(1, -5)).toBe(FIRE_MIN_PX);
+    expect(fireSizePx(1, Number.NaN)).toBe(FIRE_MIN_PX);
+    expect(fireSizePx(1, 10)).toBeGreaterThan(FIRE_MIN_PX);
+    expect(fireSizePx(1, 100)).toBeGreaterThan(fireSizePx(1, 10));
+    expect(fireSizePx(1, 5000)).toBeLessThanOrEqual(FIRE_MAX_PX);
+
+    expect(fireSizePx(5, 50)).toBeGreaterThan(fireSizePx(1, 50));
+    expect(fireSizePx(50, 50)).toBeGreaterThan(fireSizePx(5, 50));
+    expect(fireSizePx(1000, 5000)).toBe(FIRE_MAX_PX);
+  });
+
+  it('maps FRP onto the five-step hazard ramp', () => {
+    expect([0, 9.9, 10, 49.9, 50, 99.9, 100, 249.9, 250, 1000].map(fireRampIndex)).toEqual([
+      0, 0, 1, 1, 2, 2, 3, 3, 4, 4,
+    ]);
+    expect(fireRampIndex(Number.NaN)).toBe(0);
   });
 });
 

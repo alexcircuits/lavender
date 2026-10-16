@@ -250,6 +250,31 @@ async fn times_out() {
 }
 
 #[tokio::test]
+async fn per_request_timeout_replaces_the_configured_one() {
+    let server = MockServer::start().await;
+    Mock::given(path("/large"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string("ok")
+                .set_delay(Duration::from_millis(1_500)),
+        )
+        .mount(&server)
+        .await;
+    let f = Fetcher::new(FetchConfig { retries: 0, request_timeout_s: 1, ..config() }).unwrap();
+    let url = Url::parse(&format!("{}/large", server.uri())).unwrap();
+    // A large download may take longer than ordinary requests are allowed ...
+    let patient = FetchOptions { timeout: Some(Duration::from_secs(5)), ..FetchOptions::default() };
+    assert_eq!(&f.get(&url, &policy(&server), &patient).await.unwrap().body[..], b"ok");
+    // ... and a request can also be given less time.
+    let hasty =
+        FetchOptions { timeout: Some(Duration::from_millis(200)), ..FetchOptions::default() };
+    let started = std::time::Instant::now();
+    let err = f.get(&url, &policy(&server), &hasty).await.unwrap_err();
+    assert!(matches!(err, FetchError::Timeout { .. }), "{err:?}");
+    assert!(started.elapsed() < Duration::from_secs(1));
+}
+
+#[tokio::test]
 async fn cancellation_stops_a_request() {
     let server = MockServer::start().await;
     Mock::given(path("/slow"))
@@ -267,4 +292,73 @@ async fn cancellation_stops_a_request() {
     let err = f.get(&url, &policy(&server), &opts).await.unwrap_err();
     canceller.await.unwrap();
     assert_eq!(err, FetchError::Cancelled);
+}
+
+#[tokio::test]
+async fn supports_byte_range_requests_with_206() {
+    let server = MockServer::start().await;
+    Mock::given(path("/range"))
+        .and(wiremock::matchers::header("range", "bytes=10-19"))
+        .respond_with(
+            ResponseTemplate::new(206)
+                .insert_header("content-range", "bytes 10-19/100")
+                .set_body_bytes(b"0123456789".to_vec()),
+        )
+        .mount(&server)
+        .await;
+    let f = Fetcher::new(config()).unwrap();
+    let url = Url::parse(&format!("{}/range", server.uri())).unwrap();
+    let opts = FetchOptions { range: Some((10, 19)), ..FetchOptions::default() };
+    let resp = f.get(&url, &policy(&server), &opts).await.unwrap();
+    assert_eq!(resp.status, 206);
+    assert_eq!(&resp.body[..], b"0123456789");
+}
+
+#[tokio::test]
+async fn supports_byte_range_requests_with_200_when_start_is_zero() {
+    let server = MockServer::start().await;
+    Mock::given(path("/range-zero"))
+        .and(wiremock::matchers::header("range", "bytes=0-9"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(b"0123456789".to_vec()))
+        .mount(&server)
+        .await;
+    let f = Fetcher::new(config()).unwrap();
+    let url = Url::parse(&format!("{}/range-zero", server.uri())).unwrap();
+    let opts = FetchOptions { range: Some((0, 9)), ..FetchOptions::default() };
+    let resp = f.get(&url, &policy(&server), &opts).await.unwrap();
+    assert_eq!(resp.status, 200);
+    assert_eq!(&resp.body[..], b"0123456789");
+}
+
+#[tokio::test]
+async fn refuses_200_for_non_zero_start_range_requests() {
+    let server = MockServer::start().await;
+    Mock::given(path("/range-nonzero"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(b"full content".to_vec()))
+        .mount(&server)
+        .await;
+    let f = Fetcher::new(FetchConfig { retries: 0, ..config() }).unwrap();
+    let url = Url::parse(&format!("{}/range-nonzero", server.uri())).unwrap();
+    let opts = FetchOptions { range: Some((5, 10)), ..FetchOptions::default() };
+    let err = f.get(&url, &policy(&server), &opts).await.unwrap_err();
+    assert!(matches!(err, FetchError::Status { status: 200, .. }), "{err:?}");
+}
+
+#[tokio::test]
+async fn a_zero_redirect_override_sends_exactly_one_request() {
+    let server = MockServer::start().await;
+    Mock::given(path("/old"))
+        .respond_with(ResponseTemplate::new(301).insert_header("location", "/new"))
+        .mount(&server)
+        .await;
+    Mock::given(path("/new"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
+        .mount(&server)
+        .await;
+    let f = Fetcher::new(config()).unwrap();
+    let url = Url::parse(&format!("{}/old", server.uri())).unwrap();
+    let opts = FetchOptions { redirects: Some(0), ..FetchOptions::default() };
+    let err = f.get(&url, &policy(&server), &opts).await.unwrap_err();
+    assert!(matches!(err, FetchError::TooManyRedirects { .. }), "{err:?}");
+    assert_eq!(server.received_requests().await.unwrap().len(), 1);
 }

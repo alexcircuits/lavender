@@ -4,16 +4,4 @@
  * An interval at or above the requested geometric elevation, clipped to the window.
  * Atmospheric refraction, sunlight and naked-eye visibility are not modelled.
  */
-export type SatellitePass = { 
-/**
- * Threshold crossing, or the window start when alreadyAbove is true.
- */
-rise: string, 
-/**
- * Highest geometric elevation within this interval of the requested window.
- */
-peak: string, 
-/**
- * Threshold crossing, or the window end when continuesAfterWindow is true.
- */
-set: string, maxElevationDeg: number, alreadyAbove: boolean, continuesAfterWindow: boolean, };
+export type SatellitePass = { rise: string, peak: string, set: string, maxElevationDeg: number, alreadyAbove: boolean, continuesAfterWindow: boolean, };

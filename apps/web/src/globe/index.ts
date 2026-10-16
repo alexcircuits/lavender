@@ -14,6 +14,7 @@ import type {
   GeoPoint,
   ImageryDescriptor,
   SatelliteTrack,
+  VesselTrackResponse,
 } from '../contracts';
 
 import type { AnnotationDraft, MapAnnotation } from '../features/annotations/model';
@@ -56,6 +57,8 @@ export interface GlobeController {
   setSelection(selection: EntityRef | null): void;
   /** Draws a satellite's ground track / orbit for the selected satellite, or clears it. */
   showTrack(track: SatelliteTrack | null): void;
+  /** Draws the selected vessel's recent track as a trail, or clears it. */
+  showVesselTrack(track: VesselTrackResponse | null): void;
   setAnnotations(annotations: readonly MapAnnotation[], draft: AnnotationDraft | null): void;
   /** Drawing owns clicks so a shape cannot accidentally select a feed entity. */
   setDrawing(active: boolean): void;

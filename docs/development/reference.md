@@ -1,5 +1,7 @@
 # Functions and Modules Reference
 
+Last updated: 2026-10-14.
+
 Start with application operations; open the linked file for exact signatures and
 Rust documentation. Private helper details belong beside their implementation.
 
@@ -49,6 +51,27 @@ resource. Ordinary Fetcher requests still reject unsolicited 304 responses.
 Cache tests use mock HTTP and controlled cache
 ages, not live CelesTrak traffic.
 
+Cyclones combine `CurrentStorms.json` positions with ArcGIS forecast points,
+tracks and cones from the exact advisory. The global feed covers the Atlantic
+and eastern/central North Pacific; a cone describes centre-track uncertainty,
+not the extent of wind or rain. A valid empty status skips GIS requests.
+Invalid status fails the whole document; unavailable or invalid geometry retains
+current status positions with a degraded notice. Earlier geometry is never
+relabelled as the current advisory. Cadence and retry floors are at least ten
+minutes, and cached observations expire after twelve hours. Limits are 32 storms,
+128 KiB status, 512 KiB each for points/tracks, 2 MiB cones, 500 forecast-point
+features, 32 track/cone features each, 25,000 geometry vertices overall, 10,000
+vertices per line/ring and 128 parts/rings per container. Tests use synthetic
+and mock documents; they do not establish live NOAA operational readiness.
+
+Fetcher resolves a hostname once per connection through a bounded resolver
+(at most 64 answers) and gives those validated addresses to Reqwest. Empty,
+mixed public/private and non-public answer sets fail; literal IPs and redirects
+are checked too. Ambient HTTP proxies are disabled. `fetch.allow_http_hosts`
+is an explicit development/internal-service exception that also permits private
+addresses for those hosts; its default is empty. These exceptions still require
+the provider's configured host policy.
+
 | API / file | Purpose and input → output | Errors, side effects and caller |
 |---|---|---|
 | [`FeedProvider::fetch`](../../crates/lavender-core/src/providers/mod.rs) | `&FetchContext`, `Region` → async `Result<Fetched, ProviderError>`; one source's normalized result | May perform allowed network/cache I/O; honors cancellation. The refresh loop calls it. `Fetched` carries items, original age, degraded reason and notices. |
@@ -56,9 +79,11 @@ ages, not live CelesTrak traffic.
 | [`UsgsProvider::fetch` / `usgs::parse`](../../crates/lavender-core/src/providers/usgs.rs) | Fetch configured summary; bytes → `(Vec<Earthquake>, dropped_count)` | Shape/transport errors propagate; invalid features are skipped, text cleaned and coordinates validated. |
 | [`CelestrakProvider::fetch`](../../crates/lavender-core/src/providers/celestrak.rs) | Configured groups → deduplicated `Fetched` satellite elements | Reuses memory/disk data with actual age; writes successful downloads atomically; partial group errors become degraded results. Each group respects cadence/retry floors. |
 | [`celestrak::parse`](../../crates/lavender-core/src/providers/celestrak/parsing.rs) | Bytes + group name → `(Vec<SatelliteElements>, dropped_count)` | Rejects non-array JSON; skips invalid elements. Pure; public export remains `providers::celestrak::parse`. |
+| [`CyclonesProvider::fetch`, `parse_status`, `attach_geometry`](../../crates/lavender-core/src/providers/cyclones.rs) | Configured NOAA roots → `Fetched`; pure status/GIS parsers → bounded typed cyclones | Coalesces refreshes, honors cancellation and keeps usable stale data on upstream failure. Strict status errors fail; GIS failures report degraded positions. |
 | [`FixtureProvider::all`](../../crates/lavender-core/src/providers/fixture.rs) | Directory path → `Vec<Arc<dyn FeedProvider>>` | Builds recorded-data providers; files are read during fetch. Missing/bad files fail the relevant feed; every result is labelled recorded. Used only by explicit fixture mode. |
 | [`Fetcher::new` / `get` / `get_json`](../../crates/lavender-core/src/fetch.rs) | Config; then URL + `HostPolicy` + `FetchOptions` → response bytes or decoded JSON and response metadata | Host/scheme/redirect/timeout/status/size/decode/cancellation failures are `FetchError`. Manages host concurrency, pacing and retry waits; providers call it. Errors avoid full URLs containing keys. |
 | `ProviderError::parse` / `public_message` | Source and error, or existing provider failure → safe error/message | Removes controls and caps public text at 200 characters. Refresh/health/error paths call it; no network side effect. |
+| [`install_redacting_panic_hook`](../../crates/lavender-core/src/diagnostics.rs) | No arguments → `()` | Changes the process panic hook, emitting source location but suppressing payloads/backtraces. Server/desktop executables opt in before processing; core construction leaves hooks alone. |
 
 Private `normalize_aircraft`, `normalize_earthquake` and `normalize_elements` name
 the records they validate. Public `parse` remains understandable within each
@@ -85,6 +110,9 @@ provider module and keeps its existing signature.
 | [`createRuntime`](../../apps/web/src/runtime/createRuntime.ts) | Platform + optional timing options → runtime | `start` loads catalog/status, persists preferences, starts feeds; returns cleanup. Catalog errors update state/retry; last status is retained on failures. App composition owns cleanup. |
 | [`FeedController`](../../apps/web/src/feeds/FeedController.ts) | Platform + stores; `start`, `attachGlobe`, `latest`, `stop` | Subscribes by enabled layer, updates viewport, retains selected records; errors become feed summaries. Runtime owns it. |
 | [`GlobeEngine.applySnapshot`](../../apps/web/src/globe/GlobeEngine.ts) | `FeedSnapshot` → `void` | Changes Cesium primitives and requests rendering. FeedController calls it; engine reports rendering/context failures through globe listeners. |
+| [`migrateWorkspaceDocument`, `encodeWorkspaceDocument`, `decodeWorkspaceDocument`](../../apps/web/src/state/workspaceDocument.ts) | Unknown document or typed workspace ↔ v2 document / base64url payload | Validates fields and bounded annotations; accepts strict v1 documents with empty annotations. Shared documents remain capped at 5,500 decoded bytes. |
+| [`validateAnnotations`](../../apps/web/src/features/annotations/model.ts), [`geometryError`](../../apps/web/src/features/annotations/geometry.ts) | Unknown marks / validated points → bounded marks / validation message | Pure validation: 24 marks, 32 vertices each, 120-character labels, 500-character notes and 64 KiB device annotation payload. Invalid or ambiguous geometry is rejected; distances/areas are approximate. |
+| [`surfaceArcPositions`](../../apps/web/src/globe/renderers/surfaceArc.ts) | Longitude/latitude pairs + remaining vertex budget → positions or `null` | Uses Cesium ellipsoid geodesics with raised chords; rejects near-antipodal or invalid segments and consumes budget only on success. Cyclone rendering uses a 100,000 expanded-vertex cap per apply. |
 
 To add a provider, begin with `FeedProvider`, a parser and an existing provider
 test. To change an analyst interaction, begin with the feature component and
