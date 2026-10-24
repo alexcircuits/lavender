@@ -12,10 +12,13 @@ import {
   type Label,
   LabelCollection,
   LabelStyle,
+  Material,
+  type Polyline,
+  PolylineCollection,
   type PrimitiveCollection,
   VerticalOrigin,
 } from '@cesium/engine';
-import type { Aircraft, FeedSnapshot } from '../../contracts';
+import type { Aircraft, AircraftTrack, FeedSnapshot } from '../../contracts';
 import type { EntityRef } from '../index';
 import {
   AIRCRAFT_GLYPH_PX,
@@ -51,6 +54,7 @@ const LABEL_OFFSET = new Cartesian2(AIRCRAFT_GLYPH_PX / 2 + 4, 0);
  *  imagery (city lights, cloud) where an outline alone does not. */
 const LABEL_BACKGROUND_ALPHA = 0.72;
 const LABEL_PADDING = new Cartesian2(4, 2);
+const TRACK_WIDTH_PX = 2;
 const scratchPosition = new Cartesian3();
 const scratchNormal = new Cartesian3();
 const scratchNorth = new Cartesian3();
@@ -86,8 +90,10 @@ export class AircraftRenderer implements FeedRenderer {
   readonly #primitives: PrimitiveCollection;
   readonly #billboards: BillboardCollection;
   readonly #labels: LabelCollection;
+  readonly #lines: PolylineCollection;
   readonly #entries: KeyedEntries<Aircraft, AircraftEntry>;
   readonly #glyphs = new Map<AircraftGlyphKind, HTMLCanvasElement>();
+  #track: Polyline | null = null;
   #stale = false;
   #selected: string | null = null;
   #tint: Color;
@@ -99,6 +105,7 @@ export class AircraftRenderer implements FeedRenderer {
     this.#primitives = primitives;
     this.#billboards = primitives.add(new BillboardCollection()) as BillboardCollection;
     this.#labels = primitives.add(new LabelCollection()) as LabelCollection;
+    this.#lines = primitives.add(new PolylineCollection()) as PolylineCollection;
     this.#tint = Color.clone(ctx.colors.air);
     this.#ink = Color.clone(ctx.colors.ink);
     this.#outline = Color.clone(ctx.colors.outline);
@@ -127,7 +134,9 @@ export class AircraftRenderer implements FeedRenderer {
   }
 
   clear(): void {
-    if (this.#entries.clear() > 0) this.#ctx.requestRender();
+    const removed = this.#entries.clear();
+    const hadTrack = this.#clearTrack();
+    if (removed > 0 || hadTrack) this.#ctx.requestRender();
   }
 
   setSelected(id: string | null): void {
@@ -145,10 +154,48 @@ export class AircraftRenderer implements FeedRenderer {
     if (this.#updateLabels()) this.#ctx.requestRender();
   }
 
+  /** Draws the selected aircraft's recent track as a trail in selection colour, or clears it. */
+  showTrack(track: AircraftTrack | null): void {
+    const hadTrack = this.#clearTrack();
+    if (track) {
+      const positions = track.points
+        .filter((p) => Number.isFinite(p.position.lat) && Number.isFinite(p.position.lon))
+        .map((p) =>
+          Cartesian3.fromDegrees(
+            p.position.lon,
+            p.position.lat,
+            p.position.altM ?? 0,
+            Ellipsoid.WGS84,
+          ),
+        );
+      if (positions.length >= 2) {
+        const ref: EntityRef = Object.freeze({ feed: 'aircraft', id: track.hex });
+        this.#track = this.#lines.add({
+          positions,
+          width: TRACK_WIDTH_PX,
+          material: Material.fromType('Color', { color: this.#ctx.colors.selection }),
+          id: ref,
+        });
+      }
+    }
+    if (hadTrack || this.#track !== null) {
+      this.#ctx.requestRender();
+    }
+  }
+
   destroy(): void {
     this.#entries.clear();
+    this.#track = null;
     this.#primitives.remove(this.#billboards);
     this.#primitives.remove(this.#labels);
+    this.#primitives.remove(this.#lines);
+  }
+
+  #clearTrack(): boolean {
+    if (!this.#track) return false;
+    this.#lines.remove(this.#track);
+    this.#track = null;
+    return true;
   }
 
   #glyph(kind: AircraftGlyphKind): HTMLCanvasElement {

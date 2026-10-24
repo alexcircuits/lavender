@@ -14,9 +14,13 @@ fastrand.workspace = true
 futures.workspace = true
 grib.workspace = true
 jiff.workspace = true
+keyring = { workspace = true, optional = true }
 lavender-domain.workspace = true
 lavender-geo.workspace = true
 moka.workspace = true
+prost.workspace = true
+quick-xml.workspace = true
+regex.workspace = true
 reqwest.workspace = true
 rstar.workspace = true
 secrecy.workspace = true
@@ -44,6 +48,10 @@ harness = false
 [[bench]]
 name = "snapshot"
 harness = false
+
+[features]
+default = []
+keyring = ["dep:keyring"]
 
 [lints]
 workspace = true

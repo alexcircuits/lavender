@@ -7,12 +7,13 @@ import {
   useGlobalShortcuts,
 } from '../features/commands';
 import { Inspector } from '../features/inspector';
-import { LayerAnnouncer } from '../features/layers';
+import { LayerAnnouncer, useBoundariesLayer } from '../features/layers';
 import { CommandPalette, SearchBar } from '../features/search';
 import type { MountGlobe } from '../globe';
 import { useUi, useWorkspace } from '../runtime';
 import { CreditsButton } from './CreditsButton';
 import { FeedStatusChip } from './FeedStatusChip';
+import { FollowingChip } from './FollowingChip';
 import { IslandBoundary } from './IslandBoundary';
 import { useCollapsed, useRailFocusReturn } from './islandLayout';
 import { MapControls } from './MapControls';
@@ -33,6 +34,7 @@ export interface AppShellProps {
  */
 export function AppShell({ mountGlobe }: AppShellProps) {
   const { hostRef, creditsRef, status } = useMountedGlobe(mountGlobe);
+  useBoundariesLayer();
   const commandContext = useCommandContext();
   useGlobalShortcuts(commandContext);
   const collapsed = useCollapsed();
@@ -92,6 +94,7 @@ export function AppShell({ mountGlobe }: AppShellProps) {
               />
             </div>
             <div className={styles.chipSlot}>
+              <FollowingChip />
               <FeedStatusChip />
             </div>
           </div>

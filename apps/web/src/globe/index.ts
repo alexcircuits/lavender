@@ -8,20 +8,41 @@
  * view changes and the cursor position out. Nothing else crosses the boundary.
  */
 import type {
+  AircraftTrack,
   BBox,
+  BoundaryFeature,
+  CameraSource,
+  CctvDetectionsResponse,
   FeedId,
   FeedSnapshot,
   GeoPoint,
   ImageryDescriptor,
   SatelliteTrack,
+  TransitTrail,
   VesselTrackResponse,
 } from '../contracts';
 
 import type { AnnotationDraft, MapAnnotation } from '../features/annotations/model';
+import type { BoundaryClassVisibility } from './renderers/boundaries';
+import type { LandingPointItem, SubmarineCableItem } from './renderers/cables';
+import type { Located } from './renderers/types';
+import type { TrackingState, TrackingStatus } from './tracking';
+
+export { DEFAULT_BOUNDARY_VISIBILITY } from './renderers/boundaries';
+export type {
+  BoundaryClassVisibility,
+  LandingPointItem,
+  SubmarineCableItem,
+  TrackingState,
+  TrackingStatus,
+};
+
+/** Provenance kind of selectable items on the globe. */
+export type EntitySource = FeedId | 'boundaries' | 'cables' | 'cctv';
 
 /** A selectable thing on the globe. */
 export interface EntityRef {
-  readonly feed: FeedId;
+  readonly feed: EntitySource;
   readonly id: string;
 }
 
@@ -57,8 +78,40 @@ export interface GlobeController {
   setSelection(selection: EntityRef | null): void;
   /** Draws a satellite's ground track / orbit for the selected satellite, or clears it. */
   showTrack(track: SatelliteTrack | null): void;
+  /** Draws the selected aircraft's recent track as a trail, or clears it. */
+  showAircraftTrack(track: AircraftTrack | null): void;
   /** Draws the selected vessel's recent track as a trail, or clears it. */
   showVesselTrack(track: VesselTrackResponse | null): void;
+  /** Draws the selected transit vehicle's recent trail, or clears it. */
+  showTransitTrail(trail: TransitTrail | null): void;
+  /** Replaces submarine cables rendered on the globe. */
+  setCables(items: readonly SubmarineCableItem[]): void;
+  /** Replaces CCTV cameras rendered on the globe. */
+  setCctvCameras(cameras: readonly CameraSource[]): void;
+  /** Sets CCTV detections from the Mojo MLIR perception sidecar. */
+  setCctvDetections(detections: CctvDetectionsResponse | null): void;
+  /** Returns the current CCTV detections, or null if none loaded. */
+  getCctvDetections(): CctvDetectionsResponse | null;
+  /** Replaces what the globe shows for boundaries (Natural Earth vector lines). */
+  setBoundaries(features: readonly BoundaryFeature[]): void;
+  /** Sets boundary visibility per class (international land, disputed, breakaway, maritime). */
+  setBoundaryClassVisibility(visibility: Partial<BoundaryClassVisibility>): void;
+  /** Returns the current visibility per boundary class. */
+  getBoundaryClassVisibility(): BoundaryClassVisibility;
+  /** Centroid location and symbol size for framing a selected boundary. */
+  locateBoundary(id: string): Located | undefined;
+  /** Retrieves a boundary feature by id, if currently loaded. */
+  getBoundaryFeature(id: string): BoundaryFeature | undefined;
+  /** Follows an entity smoothly with the camera. */
+  startFollowing(target: EntityRef): void;
+  /** Stops following the entity and returns camera authority to the user. */
+  stopFollowing(): void;
+  /** Whether the camera is currently following an entity. */
+  isFollowing(): boolean;
+  /** State of the active follow, or null when not following. */
+  getFollowState(): TrackingState | null;
+  /** Called when follow state changes (e.g. tracking -> stale -> lost -> released). */
+  onFollowChange(listener: (state: TrackingState) => void): () => void;
   setAnnotations(annotations: readonly MapAnnotation[], draft: AnnotationDraft | null): void;
   /** Drawing owns clicks so a shape cannot accidentally select a feed entity. */
   setDrawing(active: boolean): void;

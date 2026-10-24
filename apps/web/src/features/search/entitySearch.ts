@@ -158,6 +158,12 @@ function scoreSnapshot(snapshot: FeedSnapshot, q: string): Scored[] {
               },
             ];
       });
+    case 'bikeshare':
+      return [];
+    case 'transit':
+      return [];
+    default:
+      return [];
   }
 }
 

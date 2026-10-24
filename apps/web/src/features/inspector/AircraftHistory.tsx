@@ -4,7 +4,7 @@ import { Button, Table, type TableColumn } from '../../design';
 import { formatDecimal } from '../../lib/coordinates';
 import { formatUtcTime, parseTime } from '../../lib/time';
 import { toApiError } from '../../platform';
-import { usePlatform, useSystem } from '../../runtime';
+import { useGlobe, usePlatform, useSystem } from '../../runtime';
 import styles from './inspector.module.css';
 
 const COLUMNS: readonly TableColumn<TrackPoint>[] = [
@@ -28,12 +28,25 @@ const COLUMNS: readonly TableColumn<TrackPoint>[] = [
 /** On-demand history is bounded on the server and never initiates an upstream fetch. */
 export function AircraftHistory({ hex }: { readonly hex: string }) {
   const platform = usePlatform();
+  const globe = useGlobe();
   const catalog = useSystem((state) => state.catalog);
   const [track, setTrack] = useState<AircraftTrack | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => request.current?.abort(), []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hex change resets history state and track.
+  useEffect(() => {
+    setTrack(null);
+    setError(null);
+  }, [hex]);
+
+  useEffect(() => {
+    if (!globe) return;
+    globe.showAircraftTrack(track);
+    return () => globe.showAircraftTrack(null);
+  }, [globe, track]);
 
   const load = async () => {
     request.current?.abort();

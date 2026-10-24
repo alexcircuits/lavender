@@ -125,10 +125,8 @@ describe('App shell', () => {
     );
     await h.user.click(within(rail).getByRole('button', { name: 'Sources' }));
     expect(screen.queryByRole('region', { name: 'Sources' })).not.toBeInTheDocument();
-    expect(within(rail).getByRole('button', { name: 'Settings (coming later)' })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
+    await h.user.click(within(rail).getByRole('button', { name: 'Settings' }));
+    expect(screen.getByRole('region', { name: 'Settings' })).toBeInTheDocument();
   });
 
   it('keeps map controls disabled until the globe mounts, then drives the camera', async () => {

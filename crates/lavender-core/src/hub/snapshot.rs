@@ -3,7 +3,7 @@
 use super::subscription::FeedMeta;
 use super::{Lease, MAX_PROVIDER_NOTICES, Plan, Shortfall, SlotKey, SlotState};
 use jiff::{SignedDuration, Timestamp};
-use lavender_domain::{Coverage, FeedId, FeedItems, FeedQuery, FeedSnapshot, Freshness};
+use lavender_domain::{Aircraft, Coverage, FeedId, FeedItems, FeedQuery, FeedSnapshot, Freshness};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
@@ -167,7 +167,29 @@ fn filter_items(
                 .iter()
                 .filter_map(|l| if let FeedItems::Aircraft(v) = l { Some(v) } else { None })
                 .collect();
-            let merged = dedup_by(&all, |a| a.hex.clone());
+            let mut by_hex = HashMap::new();
+            let mut order = Vec::new();
+            for a in all.iter().flat_map(|l| l.iter()) {
+                match by_hex.entry(a.hex.clone()) {
+                    std::collections::hash_map::Entry::Vacant(e) => {
+                        order.push(a.hex.clone());
+                        e.insert(a.clone());
+                    }
+                    std::collections::hash_map::Entry::Occupied(mut e) => {
+                        let existing = e.get_mut();
+                        if a.is_military {
+                            existing.is_military = true;
+                        }
+                        if a.seen_pos_s < existing.seen_pos_s {
+                            let is_mil = existing.is_military || a.is_military;
+                            *existing = a.clone();
+                            existing.is_military = is_mil;
+                        }
+                    }
+                }
+            }
+            let merged: Vec<Aircraft> =
+                order.into_iter().filter_map(|hex| by_hex.remove(&hex)).collect();
             let count = merged.len();
             let filtered = merged
                 .into_iter()
@@ -278,6 +300,38 @@ fn filter_items(
                 max_items,
             );
             (FeedItems::Perimeters(v), count, t)
+        }
+        FeedId::Bikeshare => {
+            let all: Vec<&Vec<_>> = lists
+                .iter()
+                .filter_map(|l| if let FeedItems::Bikeshare(v) = l { Some(v) } else { None })
+                .collect();
+            let merged = dedup_by(&all, |s| s.id.clone());
+            let count = merged.len();
+            let filtered = merged
+                .into_iter()
+                .filter(|s| {
+                    in_view(&s.position) && f.system.as_ref().is_none_or(|sys| sys == &s.system_id)
+                })
+                .collect();
+            let (v, t) = cap(filtered, max_items);
+            (FeedItems::Bikeshare(v), u32::try_from(count).unwrap_or(u32::MAX), t)
+        }
+        FeedId::Transit => {
+            let all: Vec<&Vec<_>> = lists
+                .iter()
+                .filter_map(|l| if let FeedItems::Transit(v) = l { Some(v) } else { None })
+                .collect();
+            let merged = dedup_by(&all, |v| v.id.clone());
+            let count = merged.len();
+            let filtered = merged
+                .into_iter()
+                .filter(|v| {
+                    in_view(&v.position) && f.feed.as_ref().is_none_or(|fd| fd == &v.feed_id)
+                })
+                .collect();
+            let (v, t) = cap(filtered, max_items);
+            (FeedItems::Transit(v), u32::try_from(count).unwrap_or(u32::MAX), t)
         }
     }
 }

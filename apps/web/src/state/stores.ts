@@ -14,7 +14,12 @@ import type {
   SystemStatus,
 } from '../contracts';
 import { type MapAnnotation, validateAnnotations } from '../features/annotations/model';
-import type { EntityRef, GlobeController } from '../globe';
+import {
+  type BoundaryClassVisibility,
+  DEFAULT_BOUNDARY_VISIBILITY,
+  type EntityRef,
+  type GlobeController,
+} from '../globe';
 import type { TransportState } from '../platform';
 
 // ── workspace: what the analyst turned on and selected (persisted per device) ─────────────
@@ -46,6 +51,10 @@ export interface WorkspaceState {
   setFilters(feed: FeedId, filters: FeedFilters): void;
   select(selection: EntityRef | null): void;
   setImagery(id: string): void;
+  readonly boundariesEnabled: boolean;
+  readonly boundaryClasses: BoundaryClassVisibility;
+  setBoundariesEnabled(enabled: boolean): void;
+  setBoundaryClasses(classes: Partial<BoundaryClassVisibility>): void;
   /** Applies persisted or default layer choices without touching selection. */
   hydrate(layers: Partial<Record<FeedId, LayerState>>, imageryId: string | null): void;
   restore(
@@ -96,6 +105,25 @@ export const createWorkspaceStore = () =>
       })),
     setImagery: (imageryId) =>
       set((s) => ({ imageryId, revisions: { ...s.revisions, imagery: s.revisions.imagery + 1 } })),
+    boundariesEnabled: true,
+    boundaryClasses: { ...DEFAULT_BOUNDARY_VISIBILITY },
+    setBoundariesEnabled: (boundariesEnabled) =>
+      set((s) => ({
+        boundariesEnabled,
+        selection: !boundariesEnabled && s.selection?.feed === 'boundaries' ? null : s.selection,
+        revisions: {
+          ...s.revisions,
+          layers: s.revisions.layers + 1,
+          selection:
+            s.revisions.selection +
+            (!boundariesEnabled && s.selection?.feed === 'boundaries' ? 1 : 0),
+        },
+      })),
+    setBoundaryClasses: (visibility) =>
+      set((s) => ({
+        boundaryClasses: { ...s.boundaryClasses, ...visibility },
+        revisions: { ...s.revisions, layers: s.revisions.layers + 1 },
+      })),
     hydrate: (layers, imageryId) => set({ layers, imageryId }),
     restore: (layers, imageryId, selection, annotations) =>
       set((s) => ({ layers, imageryId, selection, annotations: annotations ?? s.annotations })),
@@ -190,7 +218,28 @@ export const createSystemStore = () =>
 
 // ── ui: panels, palette and the mounted globe (never persisted) ───────────────────────────
 
-export type SidePanel = 'layers' | 'sources' | 'annotations' | 'launches';
+import {
+  type CoordinateFormat,
+  createPreferencesStore,
+  DEFAULT_USER_PREFERENCES,
+  type MotionPreference,
+  type PreferencesState,
+  type PreferencesStore,
+  type UnitSystem,
+  type UserPreferences,
+} from './preferencesStore';
+
+export type {
+  CoordinateFormat,
+  MotionPreference,
+  PreferencesState,
+  PreferencesStore,
+  UnitSystem,
+  UserPreferences,
+};
+export { DEFAULT_USER_PREFERENCES };
+
+export type SidePanel = 'layers' | 'sources' | 'annotations' | 'launches' | 'settings';
 
 export interface UiState {
   /** The mounted globe's command interface, or null while it loads or after it failed. */
@@ -228,6 +277,7 @@ export interface Stores {
   readonly feeds: FeedsStore;
   readonly system: SystemStore;
   readonly ui: UiStore;
+  readonly preferences: PreferencesStore;
 }
 
 export function createStores(): Stores {
@@ -236,5 +286,6 @@ export function createStores(): Stores {
     feeds: createFeedsStore(),
     system: createSystemStore(),
     ui: createUiStore(),
+    preferences: createPreferencesStore(),
   };
 }

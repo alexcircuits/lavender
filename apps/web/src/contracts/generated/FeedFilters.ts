@@ -16,4 +16,12 @@ militaryOnly?: boolean,
 /**
  * Satellites: catalogue groups to include, for example `stations` or `gps-ops`.
  */
-groups?: Array<string>, minFrp?: number, };
+groups?: Array<string>, minFrp?: number, 
+/**
+ * Bikeshare: specific system ID (e.g. `nyc-citibike`).
+ */
+system?: string, 
+/**
+ * Transit: specific GTFS-RT feed ID (e.g. `mbta`).
+ */
+feed?: string, };

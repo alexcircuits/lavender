@@ -1,0 +1,296 @@
+//! Approved bike-share systems registry.
+//!
+//! Systems are configured statically in this registry. The client provides only
+//! the `system_id` — it is never allowed to provide arbitrary upstream URLs.
+
+use lavender_domain::{BikeshareSystem, GeoPoint};
+
+#[allow(clippy::too_many_arguments)]
+fn sys(
+    id: &'static str,
+    name: &'static str,
+    city: &'static str,
+    lon: f64,
+    lat: f64,
+    load_radius_km: f64,
+    provider: &'static str,
+    gbfs_url: &'static str,
+) -> BikeshareSystem {
+    let center = match GeoPoint::new(lat, lon) {
+        Ok(pt) => pt,
+        Err(_) => GeoPoint { lat, lon, alt_m: None },
+    };
+    BikeshareSystem {
+        id: id.to_string(),
+        name: name.to_string(),
+        city: city.to_string(),
+        center,
+        load_radius_km,
+        provider: provider.to_string(),
+        gbfs_url: gbfs_url.to_string(),
+    }
+}
+
+fn bcycle(
+    id: &'static str,
+    city: &'static str,
+    lon: f64,
+    lat: f64,
+    system_id: &'static str,
+    provider: Option<&'static str>,
+) -> BikeshareSystem {
+    let name = provider.unwrap_or("BCycle");
+    let url = format!("https://gbfs.bcycle.com/{system_id}/gbfs.json");
+    let center = match GeoPoint::new(lat, lon) {
+        Ok(pt) => pt,
+        Err(_) => GeoPoint { lat, lon, alt_m: None },
+    };
+    BikeshareSystem {
+        id: id.to_string(),
+        name: name.to_string(),
+        city: city.to_string(),
+        center,
+        load_radius_km: 100.0,
+        provider: name.to_string(),
+        gbfs_url: url,
+    }
+}
+
+/// Returns the complete registry of default approved bike-share systems.
+#[allow(clippy::too_many_lines)]
+#[must_use]
+pub fn default_approved_systems() -> Vec<BikeshareSystem> {
+    vec![
+        sys(
+            "nyc-citibike",
+            "Citi Bike",
+            "New York, NY",
+            -73.9967,
+            40.7484,
+            140.0,
+            "Citi Bike",
+            "https://gbfs.lyft.com/gbfs/2.3/bkn/en/gbfs.json",
+        ),
+        sys(
+            "chicago-divvy",
+            "Divvy",
+            "Chicago, IL",
+            -87.6298,
+            41.8781,
+            120.0,
+            "Divvy",
+            "https://gbfs.lyft.com/gbfs/2.3/chi/en/gbfs.json",
+        ),
+        sys(
+            "dc-capital-bikeshare",
+            "Capital Bikeshare",
+            "Washington, DC",
+            -77.0369,
+            38.9072,
+            120.0,
+            "Capital Bikeshare",
+            "https://gbfs.lyft.com/gbfs/2.3/dca-cabi/en/gbfs.json",
+        ),
+        sys(
+            "sf-bay-wheels",
+            "Bay Wheels",
+            "San Francisco, CA",
+            -122.4194,
+            37.7749,
+            110.0,
+            "Bay Wheels",
+            "https://gbfs.lyft.com/gbfs/2.3/bay/en/gbfs.json",
+        ),
+        sys(
+            "boston-bluebikes",
+            "Blue Bikes",
+            "Boston, MA",
+            -71.0589,
+            42.3601,
+            100.0,
+            "Blue Bikes",
+            "https://gbfs.bluebikes.com/gbfs/en/gbfs.json",
+        ),
+        sys(
+            "philadelphia-indego",
+            "Indego",
+            "Philadelphia, PA",
+            -75.1652,
+            39.9526,
+            100.0,
+            "Indego",
+            "https://gbfs.bcycle.com/bcycle_indego/gbfs.json",
+        ),
+        sys(
+            "portland-biketown",
+            "BIKETOWN",
+            "Portland, OR",
+            -122.6784,
+            45.5152,
+            95.0,
+            "BIKETOWN",
+            "https://gbfs.biketownpdx.com/gbfs/2.3/en/gbfs.json",
+        ),
+        sys(
+            "la-metro-bike",
+            "Metro Bike",
+            "Los Angeles, CA",
+            -118.2437,
+            34.0522,
+            120.0,
+            "Metro Bike",
+            "https://gbfs.bcycle.com/bcycle_lametro/gbfs.json",
+        ),
+        sys(
+            "austin-capmetro",
+            "CapMetro",
+            "Austin, TX",
+            -97.7431,
+            30.2672,
+            90.0,
+            "CapMetro",
+            "https://austin.publicbikesystem.net/customer/gbfs/v2/en/gbfs.json",
+        ),
+        sys(
+            "honolulu-biki",
+            "Biki",
+            "Honolulu, HI",
+            -157.8583,
+            21.3069,
+            90.0,
+            "Biki",
+            "https://hon.publicbikesystem.net/customer/gbfs/v2/en/gbfs.json",
+        ),
+        sys(
+            "columbus-cogo",
+            "CoGo",
+            "Columbus, OH",
+            -82.9988,
+            39.9612,
+            90.0,
+            "CoGo",
+            "https://gbfs.cogobikeshare.com/gbfs/2.3/en/gbfs.json",
+        ),
+        sys(
+            "chattanooga-bikechatt",
+            "Bike Chattanooga",
+            "Chattanooga, TN",
+            -85.3097,
+            35.0456,
+            90.0,
+            "Bike Chattanooga",
+            "https://chat.publicbikesystem.net/customer/gbfs/v2/en/gbfs.json",
+        ),
+        bcycle("boulder-bcycle", "Boulder, CO", -105.2705, 40.015, "bcycle_boulder", None),
+        bcycle(
+            "milwaukee-bublr",
+            "Milwaukee, WI",
+            -87.9065,
+            43.0389,
+            "bcycle_bublr",
+            Some("Bublr"),
+        ),
+        bcycle("madison-bcycle", "Madison, WI", -89.4012, 43.0731, "bcycle_madison", None),
+        bcycle("nashville-bcycle", "Nashville, TN", -86.7816, 36.1627, "bcycle_nashville", None),
+        bcycle(
+            "salt-lake-greenbike",
+            "Salt Lake City, UT",
+            -111.891,
+            40.7608,
+            "bcycle_greenbikeslc",
+            Some("GREENbike"),
+        ),
+        bcycle(
+            "san-antonio-bcycle",
+            "San Antonio, TX",
+            -98.4936,
+            29.4241,
+            "bcycle_sanantonio",
+            None,
+        ),
+        bcycle(
+            "cincinnati-red-bike",
+            "Cincinnati, OH",
+            -84.512,
+            39.1031,
+            "bcycle_cincyredbike",
+            Some("Red Bike"),
+        ),
+        bcycle("el-paso-bcycle", "El Paso, TX", -106.485, 31.7619, "bcycle_elpaso", None),
+        bcycle(
+            "indianapolis-pacers",
+            "Indianapolis, IN",
+            -86.1581,
+            39.7684,
+            "bcycle_pacersbikeshare",
+            Some("Pacers Bikeshare"),
+        ),
+        bcycle(
+            "fort-lauderdale-broward",
+            "Fort Lauderdale, FL",
+            -80.1373,
+            26.1224,
+            "bcycle_broward",
+            Some("Broward B-cycle"),
+        ),
+        bcycle("memphis-bcycle", "Memphis, TN", -90.049, 35.1495, "bcycle_memphis", None),
+        bcycle("des-moines-bcycle", "Des Moines, IA", -93.625, 41.5868, "bcycle_desmoines", None),
+        bcycle("tucson-tugo", "Tucson, AZ", -110.9747, 32.2226, "bcycle_tugo", Some("Tugo")),
+        bcycle(
+            "fort-worth-trinity",
+            "Fort Worth, TX",
+            -97.3308,
+            32.7555,
+            "bcycle_fortworth",
+            Some("Trinity Metro"),
+        ),
+        bcycle(
+            "omaha-heartland",
+            "Omaha, NE",
+            -95.9345,
+            41.2565,
+            "bcycle_heartland",
+            Some("Heartland B-cycle"),
+        ),
+        bcycle(
+            "lincoln-bikelnk",
+            "Lincoln, NE",
+            -96.7026,
+            40.8136,
+            "bcycle_bikelnk",
+            Some("BikeLNK"),
+        ),
+        bcycle(
+            "greenville-sc-bcycle",
+            "Greenville, SC",
+            -82.394,
+            34.8526,
+            "bcycle_greenville",
+            None,
+        ),
+        bcycle(
+            "buffalo-reddy",
+            "Buffalo, NY",
+            -78.8784,
+            42.8864,
+            "bcycle_reddy",
+            Some("Reddy Bikeshare"),
+        ),
+        bcycle(
+            "las-vegas-rtc-bike-share",
+            "Las Vegas, NV",
+            -115.1398,
+            36.1699,
+            "bcycle_rtcbikeshare",
+            Some("RTC Bike Share"),
+        ),
+        bcycle(
+            "santa-barbara-bcycle",
+            "Santa Barbara, CA",
+            -119.6982,
+            34.4208,
+            "bcycle_santabarbara",
+            None,
+        ),
+    ]
+}

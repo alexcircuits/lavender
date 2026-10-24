@@ -19,6 +19,9 @@
     "allow-wind-manifest",
     "allow-wind-status",
     "allow-wind-grid",
-    "allow-smoke-report"
+    "allow-smoke-report",
+    "allow-secret-status",
+    "allow-secret-set",
+    "allow-secret-clear"
   ]
 }

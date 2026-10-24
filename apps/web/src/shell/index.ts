@@ -1,6 +1,7 @@
 export { AppShell, type AppShellProps } from './AppShell';
 export { CreditsButton } from './CreditsButton';
 export { FeedStatusChip } from './FeedStatusChip';
+export { FollowingChip } from './FollowingChip';
 export { describeHealth, type FeedHealth, feedHealth } from './feedHealth';
 export { IslandBoundary, type IslandBoundaryProps } from './IslandBoundary';
 export { railButton, SHARE_BREAKPOINT_PX, type Surface, useCollapsed } from './islandLayout';

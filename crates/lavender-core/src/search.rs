@@ -88,6 +88,7 @@ fn search_local(query: &SearchQuery, hub: &FeedHub) -> Result<SearchResults, Cor
     Ok(results)
 }
 
+#[allow(clippy::too_many_lines)]
 fn entities(q: &str, hub: &FeedHub, limit: usize) -> Vec<EntityHit> {
     let needle = q.to_lowercase();
     let mut hits = Vec::new();
@@ -165,6 +166,45 @@ fn entities(q: &str, hub: &FeedHub, limit: usize) -> Vec<EntityHit> {
                         id: v.mmsi.clone(),
                         label: v.name.clone().unwrap_or_else(|| format!("MMSI {}", v.mmsi)),
                         detail: v.vessel_type.clone(),
+                        position: Some(v.position),
+                    })
+                })),
+                FeedItems::Bikeshare(list) => hits.extend(list.iter().filter_map(|s| {
+                    let matches = s.id == needle
+                        || s.station_id == needle
+                        || s.name.to_lowercase().contains(&needle);
+                    matches.then(|| EntityHit {
+                        feed,
+                        id: s.id.clone(),
+                        label: s.name.clone(),
+                        detail: Some(format!(
+                            "{} · {} bikes",
+                            s.system_id,
+                            s.bikes_available.unwrap_or(0)
+                        )),
+                        position: Some(s.position),
+                    })
+                })),
+                FeedItems::Transit(list) => hits.extend(list.iter().filter_map(|v| {
+                    let matches = v.id == needle
+                        || v.vehicle_id == needle
+                        || v.label.as_deref().is_some_and(|l| l.to_lowercase().contains(&needle))
+                        || v.route_id
+                            .as_deref()
+                            .is_some_and(|r| r.to_lowercase().contains(&needle));
+                    matches.then(|| EntityHit {
+                        feed,
+                        id: v.id.clone(),
+                        label: v
+                            .label
+                            .clone()
+                            .unwrap_or_else(|| format!("{}:{}", v.feed_id, v.vehicle_id)),
+                        detail: Some(format!(
+                            "{} · {} · route {}",
+                            v.feed_id,
+                            v.mode,
+                            v.route_id.as_deref().unwrap_or("unknown")
+                        )),
                         position: Some(v.position),
                     })
                 })),

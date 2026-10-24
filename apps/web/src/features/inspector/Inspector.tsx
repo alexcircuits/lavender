@@ -1,9 +1,18 @@
-import { type ReactNode, type RefObject, useLayoutEffect, useMemo, useRef } from 'react';
-import type { Catalog, GeoPoint, LayerDescriptor } from '../../contracts';
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import type { Catalog, FeedId, GeoPoint, LayerDescriptor } from '../../contracts';
 import {
   ArrowSquareOutIcon,
   Button,
   CopyIcon,
+  CrosshairIcon,
   EmptyState,
   formatCount,
   IconButton,
@@ -14,7 +23,7 @@ import {
   WarningIcon,
   XIcon,
 } from '../../design';
-import type { EntityRef } from '../../globe';
+import type { EntityRef, TrackingState } from '../../globe';
 import { formatDecimal } from '../../lib/coordinates';
 import { isPadId, isPlaceablePad, launchClock, launchTitle } from '../../lib/launches';
 import { noaaRecordUrl, usgsEventUrl } from '../../lib/safeUrl';
@@ -25,6 +34,7 @@ import type { FeedSummary } from '../../state/stores';
 import { GLOBE_REGION_ID } from '../commands';
 import { FamilySwatch, feedGlyph } from '../layers';
 import { AircraftHistory } from './AircraftHistory';
+import { BoundaryCard } from './BoundaryCard';
 import { CycloneForecast } from './CycloneForecast';
 import { FactSheet } from './FactSheet';
 import {
@@ -298,35 +308,70 @@ interface InspectorBodyProps {
   readonly className?: string | undefined;
 }
 
+function BoundaryInspector({ selection, className }: InspectorBodyProps) {
+  const globe = useGlobe();
+  const boundary = globe?.getBoundaryFeature(selection.id);
+  if (boundary) {
+    return <BoundaryCard feature={boundary} className={className} />;
+  }
+  return (
+    <InspectorFrame title={selection.id} layer={undefined} className={className}>
+      <EmptyState icon={InfoIcon}>Boundary {selection.id} is not loaded.</EmptyState>
+    </InspectorFrame>
+  );
+}
+
 function InspectorBody({ selection, className }: InspectorBodyProps) {
+  const globe = useGlobe();
+  const feed = selection.feed as FeedId;
+
   const entity = useFeeds((s) => s.selectedEntity);
   const storePresent = useFeeds((s) => s.selectedPresent);
   const lastSeen = useFeeds((s) => s.selectedLastSeen);
-  const summary = useFeeds((s) => s.summaries[selection.feed]);
+  const summary = useFeeds((s) => s.summaries[feed]);
   const catalog = useSystem((s) => s.catalog);
-  const enabled = useWorkspace((s) => s.layers[selection.feed]?.enabled ?? false);
+  const enabled = useWorkspace((s) => s.layers[feed]?.enabled ?? false);
   const setLayerEnabled = useWorkspace((s) => s.setLayerEnabled);
-  const globe = useGlobe();
   const nowMs = useNow();
-  const layer = catalog?.layers.find((l) => l.feed === selection.feed);
+  const layer = catalog?.layers.find((l) => l.feed === feed);
   const storeView = useMemo(
-    () => inspect(selection.feed, selection.id, entity),
-    [selection.feed, selection.id, entity],
+    () => inspect(feed, selection.id, entity),
+    [feed, selection.id, entity],
   );
   // A launch pad is not a feed item: its sheet is read from the latest launches snapshot.
-  const padView = useLaunchPadView(selection);
+  const padView = useLaunchPadView({ feed, id: selection.id });
   const view = padView?.view ?? storeView;
   const present = padView ? padView.present : storePresent;
-  const noradId = selection.feed === 'satellites' ? Number(selection.id) : Number.NaN;
+  const noradId = feed === 'satellites' ? Number(selection.id) : Number.NaN;
   const satellite = useSatellitePosition(Number.isInteger(noradId) && noradId > 0 ? noradId : null);
 
+  const isTrackable = feed === 'aircraft' || feed === 'vessels' || feed === 'satellites';
+
+  const [followState, setFollowState] = useState<TrackingState | null>(
+    () => globe?.getFollowState() ?? null,
+  );
+
+  useEffect(() => {
+    if (!globe) return;
+    setFollowState(globe.getFollowState());
+    return globe.onFollowChange((state) => {
+      setFollowState(state.status === 'released' ? null : state);
+    });
+  }, [globe]);
+
+  const isFollowingThis =
+    followState !== null &&
+    followState.status !== 'released' &&
+    followState.target?.feed === feed &&
+    followState.target?.id === selection.id;
+
   if (!view) {
-    const name = layer?.name ?? selection.feed;
+    const name = layer?.name ?? feed;
     const canTurnOn = !enabled && layer?.availability.state === 'available';
     const waiting = enabled && (!summary || summary.phase === 'connecting');
     return (
       <InspectorFrame
-        title={isPadSelection(selection) ? 'Launch pad' : selection.id}
+        title={isPadSelection({ feed, id: selection.id }) ? 'Launch pad' : selection.id}
         layer={layer}
         className={className}
       >
@@ -334,13 +379,13 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
           icon={InfoIcon}
           action={
             canTurnOn ? (
-              <Button size="sm" onClick={() => setLayerEnabled(selection.feed, true)}>
+              <Button size="sm" onClick={() => setLayerEnabled(feed, true)}>
                 Turn on {name}
               </Button>
             ) : null
           }
         >
-          {emptyMessage(selection, name, canTurnOn, waiting)}
+          {emptyMessage({ feed, id: selection.id }, name, canTurnOn, waiting)}
         </EmptyState>
       </InspectorFrame>
     );
@@ -393,6 +438,22 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
       ) : null}
       {view.kind === 'cyclones' ? <CycloneForecast storm={view.item} /> : null}
       <div className={styles.actions}>
+        {isTrackable ? (
+          isFollowingThis ? (
+            <Button variant="secondary" icon={CrosshairIcon} onClick={() => globe?.stopFollowing()}>
+              Stop following
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              icon={CrosshairIcon}
+              disabled={!globe || !position}
+              onClick={() => globe?.startFollowing(selection)}
+            >
+              Follow
+            </Button>
+          )
+        ) : null}
         <Button
           variant="primary"
           icon={NavigationArrowIcon}
@@ -436,6 +497,15 @@ export interface InspectorProps {
 export function Inspector({ className }: InspectorProps) {
   const selection = useWorkspace((s) => s.selection);
   if (!selection) return null;
+  if (selection.feed === 'boundaries') {
+    return (
+      <BoundaryInspector
+        key={`${selection.feed}:${selection.id}`}
+        selection={selection}
+        className={className}
+      />
+    );
+  }
   // A new selection is a new sheet: per-entity state (satellite position) starts fresh.
   return (
     <InspectorBody

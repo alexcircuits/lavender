@@ -18,6 +18,8 @@ import {
   FireIcon,
   type Icon,
   MapTrifoldIcon,
+  NavigationArrowIcon,
+  PathIcon,
   PlanetIcon,
   RocketLaunchIcon,
   StackIcon,
@@ -130,6 +132,8 @@ const ENTITY_ICONS: Readonly<Record<FeedId, Icon>> = {
   launches: RocketLaunchIcon,
   vessels: BoatIcon,
   perimeters: FireIcon,
+  bikeshare: PathIcon,
+  transit: NavigationArrowIcon,
 };
 
 /** Live entities: local matches first, then the server's, each entity once. */

@@ -1,0 +1,12 @@
+.{
+    .name = .lavender_kernels,
+    .version = "0.1.0",
+    .fingerprint = 0xba43d81404f9c4b,
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "tests",
+    },
+}

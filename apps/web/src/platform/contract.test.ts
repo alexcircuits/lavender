@@ -252,6 +252,42 @@ function webAdapter(backend: FakeBackend): LavenderPlatform {
         return new Response(JSON.stringify(e), { status: 502 });
       }
     }
+    if (url.includes('/api/v1/imagery/recent'))
+      return new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              key: 'S30:2026-09-18',
+              product: 'S30',
+              day: '2026-09-18',
+              cloud: { min: 10, max: 15 },
+              availability: 'present',
+              coverage: 'full',
+              granuleCount: 1,
+            },
+          ],
+          rankedLatest: { candidate: null, reason: 'clear', certain: true },
+          tileTemplates: { S30: 'https://gibs' },
+          attribution: {
+            credit: 'NASA EOSDIS',
+            licence: 'Public Domain',
+            statement: 'Attribution',
+          },
+          truncated: false,
+          errors: [],
+        }),
+      );
+    if (url.includes('/api/v1/imagery/thumbnail/probe'))
+      return new Response(
+        JSON.stringify({
+          product: 'S30',
+          day: '2026-09-18',
+          dataPresent: true,
+          acquisitionTime: '2026-09-18T17:12:00Z',
+        }),
+      );
+    if (url.includes('/api/v1/mapillary/status'))
+      return new Response(JSON.stringify({ configured: true }), { status: 200 });
     if (url.includes('/api/v1/feeds/earthquakes'))
       return new Response(JSON.stringify(snapshot('earthquakes', 5)), { status: 200 });
     return new Response(JSON.stringify({ code: 'notFound', message: 'no', retryable: false }), {
@@ -311,6 +347,38 @@ function desktopAdapter(backend: FakeBackend): LavenderPlatform {
           args as unknown as WindCall,
           command.slice('wind_'.length) as WindKind,
         ) as T;
+      case 'recent_imagery':
+        return {
+          candidates: [
+            {
+              key: 'S30:2026-09-18',
+              product: 'S30',
+              day: '2026-09-18',
+              cloud: { min: 10, max: 15 },
+              availability: 'present',
+              coverage: 'full',
+              granuleCount: 1,
+            },
+          ],
+          rankedLatest: { candidate: null, reason: 'clear', certain: true },
+          tileTemplates: { S30: 'https://gibs' },
+          attribution: {
+            credit: 'NASA EOSDIS',
+            licence: 'Public Domain',
+            statement: 'Attribution',
+          },
+          truncated: false,
+          errors: [],
+        } as T;
+      case 'imagery_thumbnail_probe':
+        return {
+          product: 'S30',
+          day: '2026-09-18',
+          dataPresent: true,
+          acquisitionTime: '2026-09-18T17:12:00Z',
+        } as T;
+      case 'mapillary_status':
+        return { configured: true } as T;
       default:
         throw { code: 'notFound', message: `no command ${command}`, retryable: false };
     }
@@ -390,6 +458,24 @@ describe.each([
       minElevationDeg: 0,
       passes: [],
     });
+  });
+
+  it('searches recent imagery and probes thumbnails through either adapter', async () => {
+    const platform = make(new FakeBackend());
+    const bbox = { west: -97.8, south: 30.2, east: -97.7, north: 30.3 };
+    const searchRes = await platform.recentImagery(bbox, 3);
+    expect(searchRes.attribution.credit).toBe('NASA EOSDIS');
+    expect(searchRes.candidates[0]?.product).toBe('S30');
+    expect(searchRes.candidates[0]?.coverage).toBe('full');
+
+    const probeRes = await platform.imageryThumbnailProbe('S30', '2026-09-18', bbox);
+    expect(probeRes.product).toBe('S30');
+    expect(probeRes.dataPresent).toBe(true);
+  });
+
+  it('reports Mapillary credentials status through either adapter', async () => {
+    const platform = make(new FakeBackend());
+    await expect(platform.mapillaryStatus()).resolves.toEqual({ configured: true });
   });
 
   it('subscribes, updates and unsubscribes', async () => {

@@ -10,7 +10,13 @@ import { createContext, type ReactNode, useContext } from 'react';
 import { useStore } from 'zustand';
 import type { GlobeController } from '../globe';
 import type { LavenderPlatform } from '../platform';
-import type { FeedsState, SystemState, UiState, WorkspaceState } from '../state/stores';
+import type {
+  FeedsState,
+  PreferencesState,
+  SystemState,
+  UiState,
+  WorkspaceState,
+} from '../state/stores';
 import type { Runtime } from './createRuntime';
 
 const RuntimeContext = createContext<Runtime | null>(null);
@@ -46,6 +52,10 @@ export function useSystem<T>(selector: (state: SystemState) => T): T {
 
 export function useUi<T>(selector: (state: UiState) => T): T {
   return useStore(useRuntime().stores.ui, selector);
+}
+
+export function usePreferences<T>(selector: (state: PreferencesState) => T): T {
+  return useStore(useRuntime().stores.preferences, selector);
 }
 
 /** The mounted globe, or null while it loads (controls render disabled until then). */

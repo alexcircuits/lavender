@@ -1,0 +1,203 @@
+/* Settings panel tokens only. Follows design-system.md §7. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-3);
+  overflow-y: auto;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.sectionHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0_5);
+}
+
+.sectionTitle {
+  color: var(--ink);
+  font: var(--type-label);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: var(--type-caption-size);
+}
+
+.sectionDescription {
+  color: var(--ink-2);
+  font: var(--type-caption);
+  max-width: var(--measure-prose);
+}
+
+.settingRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1_5);
+}
+
+.settingHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.settingLabel {
+  color: var(--ink);
+  font: var(--type-body);
+  font-weight: 500;
+}
+
+.settingSubtext {
+  color: var(--ink-3);
+  font: var(--type-caption);
+}
+
+.select {
+  appearance: none;
+  background: var(--well);
+  border: 1px solid var(--hairline);
+  border-radius: calc(var(--r-sm) * var(--corner-k));
+  color: var(--ink);
+  font: var(--type-body);
+  padding: var(--s-1_5) var(--s-2_5);
+  cursor: pointer;
+  outline: none;
+  width: 100%;
+}
+
+.select:focus-visible {
+  border-color: var(--accent);
+}
+
+.notice {
+  composes: sq from global;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-2_5) var(--s-3);
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  background: var(--well);
+  border: 1px solid var(--hairline);
+  color: var(--ink-2);
+  font: var(--type-caption);
+}
+
+.secretList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.secretCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-2_5) var(--s-3);
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  background: var(--well);
+  border: 1px solid var(--hairline);
+}
+
+.secretHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.secretLabelGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0_5);
+}
+
+.secretName {
+  color: var(--ink);
+  font: var(--type-body);
+  font-weight: 500;
+}
+
+.secretKeyName {
+  color: var(--ink-3);
+  font: var(--type-code);
+  font-size: var(--type-caption-size);
+}
+
+.secretForm {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-1);
+}
+
+.secretInput {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: calc(var(--r-sm) * var(--corner-k));
+  color: var(--ink);
+  font: var(--type-code);
+  padding: var(--s-1) var(--s-2);
+  outline: none;
+}
+
+.secretInput:focus-visible {
+  border-color: var(--accent);
+}
+
+.polyglotGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-2);
+}
+
+.archCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0_5);
+  padding: var(--s-2);
+  border-radius: calc(var(--r-sm) * var(--corner-k));
+  background: var(--well);
+  border: 1px solid var(--hairline);
+}
+
+.archTitle {
+  color: var(--ink);
+  font: var(--type-caption);
+  font-weight: 600;
+}
+
+.archDetail {
+  color: var(--ink-3);
+  font: var(--type-caption);
+  font-size: calc(var(--type-caption-size) * 0.9);
+}
+
+.docLink {
+  color: var(--accent);
+  text-decoration: none;
+  font: var(--type-caption);
+  font-weight: 500;
+}
+
+.docLink:hover {
+  text-decoration: underline;
+}

@@ -7,6 +7,8 @@ import {
   BoatIcon,
   FireIcon,
   type Icon,
+  NavigationArrowIcon,
+  PathIcon,
   PlanetIcon,
   RocketLaunchIcon,
   WaveformIcon,
@@ -62,6 +64,8 @@ export const FEED_GLYPH: Readonly<Record<FeedId, Icon>> = {
   launches: RocketLaunchIcon,
   vessels: BoatIcon,
   perimeters: FireIcon,
+  bikeshare: PathIcon,
+  transit: NavigationArrowIcon,
 };
 
 const NOUNS: Readonly<Record<FeedId, readonly [string, string]>> = {
@@ -73,6 +77,8 @@ const NOUNS: Readonly<Record<FeedId, readonly [string, string]>> = {
   launches: ['launch', 'launches'],
   vessels: ['vessel', 'vessels'],
   perimeters: ['perimeter', 'perimeters'],
+  bikeshare: ['station', 'stations'],
+  transit: ['vehicle', 'vehicles'],
 };
 
 /** "contact" / "contacts", the word a count of this feed's items is read with. */

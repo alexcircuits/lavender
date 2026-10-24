@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::entities::{
-    Aircraft, Cyclone, Earthquake, FireCell, FirePerimeter, Launch, SatelliteElements, Vessel,
+    Aircraft, BikeshareStation, Cyclone, Earthquake, FireCell, FirePerimeter, Launch,
+    SatelliteElements, TransitVehicle, Vessel,
 };
 use crate::{BBox, DomainError};
 
@@ -22,11 +23,13 @@ pub enum FeedId {
     Launches,
     Vessels,
     Perimeters,
+    Bikeshare,
+    Transit,
 }
 
 impl FeedId {
     /// Every feed, in catalog order.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 10] = [
         Self::Aircraft,
         Self::Earthquakes,
         Self::Satellites,
@@ -35,6 +38,8 @@ impl FeedId {
         Self::Launches,
         Self::Vessels,
         Self::Perimeters,
+        Self::Bikeshare,
+        Self::Transit,
     ];
 
     #[must_use]
@@ -48,6 +53,8 @@ impl FeedId {
             Self::Launches => "launches",
             Self::Vessels => "vessels",
             Self::Perimeters => "perimeters",
+            Self::Bikeshare => "bikeshare",
+            Self::Transit => "transit",
         }
     }
 }
@@ -91,6 +98,14 @@ pub struct FeedFilters {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub min_frp: Option<f64>,
+    /// Bikeshare: specific system ID (e.g. `nyc-citibike`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub system: Option<String>,
+    /// Transit: specific GTFS-RT feed ID (e.g. `mbta`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub feed: Option<String>,
 }
 
 /// What a subscriber wants from a feed.
@@ -159,6 +174,8 @@ pub enum FeedItems {
     Launches(Vec<Launch>),
     Vessels(Vec<Vessel>),
     Perimeters(Vec<FirePerimeter>),
+    Bikeshare(Vec<BikeshareStation>),
+    Transit(Vec<TransitVehicle>),
 }
 
 impl FeedItems {
@@ -173,6 +190,8 @@ impl FeedItems {
             Self::Launches(v) => v.len(),
             Self::Vessels(v) => v.len(),
             Self::Perimeters(v) => v.len(),
+            Self::Bikeshare(v) => v.len(),
+            Self::Transit(v) => v.len(),
         }
     }
 
@@ -193,6 +212,8 @@ impl FeedItems {
             FeedId::Launches => Self::Launches(Vec::new()),
             FeedId::Vessels => Self::Vessels(Vec::new()),
             FeedId::Perimeters => Self::Perimeters(Vec::new()),
+            FeedId::Bikeshare => Self::Bikeshare(Vec::new()),
+            FeedId::Transit => Self::Transit(Vec::new()),
         }
     }
 }

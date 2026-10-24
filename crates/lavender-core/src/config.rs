@@ -4,9 +4,11 @@
 
 use std::time::Duration;
 
-use lavender_domain::{BBox, LicenceMode};
+use lavender_domain::{BBox, BikeshareSystem, LicenceMode};
 use serde::Deserialize;
 use url::Url;
+
+use crate::sources;
 
 #[allow(clippy::expect_used)] // Only called with constant literals; `defaults_are_valid` covers them.
 fn url(s: &str) -> Url {
@@ -24,6 +26,11 @@ pub struct CoreConfig {
     pub hub: HubConfig,
     pub providers: ProvidersConfig,
     pub geocoder: GeocoderConfig,
+    pub routing: RoutingConfig,
+    pub bikeshare: BikeshareConfig,
+    pub transit: TransitConfig,
+    pub terrain: TerrainConfig,
+    pub traffic: TrafficConfig,
 }
 
 impl Default for CoreConfig {
@@ -35,6 +42,11 @@ impl Default for CoreConfig {
             hub: HubConfig::default(),
             providers: ProvidersConfig::default(),
             geocoder: GeocoderConfig::default(),
+            routing: RoutingConfig::default(),
+            bikeshare: BikeshareConfig::default(),
+            transit: TransitConfig::default(),
+            terrain: TerrainConfig::default(),
+            traffic: TrafficConfig::default(),
         }
     }
 }
@@ -115,6 +127,8 @@ impl Default for HubConfig {
 pub struct ProvidersConfig {
     pub usgs: UsgsConfig,
     pub adsb_lol: AdsbLolConfig,
+    pub opensky: OpenSkyConfig,
+    pub adsbdb: AdsbdbConfig,
     pub celestrak: CelestrakConfig,
     pub cyclones: CyclonesConfig,
     pub firms: FirmsConfig,
@@ -164,6 +178,252 @@ impl Default for GeocoderConfig {
             max_pending: 4,
             attribution: None,
         }
+    }
+}
+
+/// Routing service configuration with pacing and caching.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct RoutingConfig {
+    pub enabled: bool,
+    pub car_endpoint: Option<String>,
+    pub bike_endpoint: Option<String>,
+    pub foot_endpoint: Option<String>,
+    pub cache_max_entries: u64,
+    pub cache_ttl_s: u64,
+    pub min_request_interval_ms: u64,
+    pub max_queue_depth: usize,
+    pub request_timeout_s: u64,
+    pub max_response_bytes: usize,
+    pub max_leg_km: f64,
+    pub max_total_km: f64,
+}
+
+impl Default for RoutingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            car_endpoint: None,
+            bike_endpoint: None,
+            foot_endpoint: None,
+            cache_max_entries: 200,
+            cache_ttl_s: 600,
+            min_request_interval_ms: 1000,
+            max_queue_depth: 8,
+            request_timeout_s: 12,
+            max_response_bytes: 8 * 1024 * 1024,
+            max_leg_km: 600.0,
+            max_total_km: 2500.0,
+        }
+    }
+}
+
+impl RoutingConfig {
+    pub(crate) fn validation_errors(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        let validate_ep = |name: &str, ep: &Option<String>, errs: &mut Vec<String>| {
+            if let Some(s) = ep {
+                match Url::parse(s) {
+                    Ok(u) => {
+                        if !matches!(u.scheme(), "https" | "http")
+                            || u.host_str().is_none()
+                            || !u.username().is_empty()
+                            || u.password().is_some()
+                        {
+                            errs.push(format!(
+                                "{name}: must have an HTTP(S) host and no credentials"
+                            ));
+                        }
+                    }
+                    Err(_) => errs.push(format!("{name}: must be a valid URL")),
+                }
+            }
+        };
+        validate_ep("routing.car_endpoint", &self.car_endpoint, &mut errors);
+        validate_ep("routing.bike_endpoint", &self.bike_endpoint, &mut errors);
+        validate_ep("routing.foot_endpoint", &self.foot_endpoint, &mut errors);
+
+        if self.min_request_interval_ms < 50 {
+            errors.push("routing.min_request_interval_ms: must be at least 50 ms".to_owned());
+        }
+        if self.max_queue_depth == 0 || self.max_queue_depth > 256 {
+            errors.push("routing.max_queue_depth: must be between 1 and 256".to_owned());
+        }
+        if self.max_leg_km <= 0.0 {
+            errors.push("routing.max_leg_km: must be positive".to_owned());
+        }
+        if self.max_total_km < self.max_leg_km {
+            errors.push("routing.max_total_km: must be at least max_leg_km".to_owned());
+        }
+        errors
+    }
+}
+
+/// Bike-share (GBFS) configuration.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct BikeshareConfig {
+    pub enabled: bool,
+    pub cache_ttl_s: u64,
+    pub discovery_ttl_s: u64,
+    pub systems: Vec<BikeshareSystem>,
+}
+
+impl Default for BikeshareConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            cache_ttl_s: 60,
+            discovery_ttl_s: 300,
+            systems: crate::providers::bikeshare::default_approved_systems(),
+        }
+    }
+}
+
+impl BikeshareConfig {
+    pub(crate) fn validation_errors(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        if self.cache_ttl_s < 10 || self.cache_ttl_s > 86400 {
+            errors.push("bikeshare.cache_ttl_s: must be between 10 and 86400".to_string());
+        }
+        if self.discovery_ttl_s < 60 || self.discovery_ttl_s > 86400 {
+            errors.push("bikeshare.discovery_ttl_s: must be between 60 and 86400".to_string());
+        }
+        for system in &self.systems {
+            if system.id.trim().is_empty() {
+                errors.push("bikeshare.systems: system id cannot be empty".to_string());
+            }
+            if let Err(e) =
+                crate::providers::bikeshare::BikeshareEngine::validate_no_arbitrary_url(&system.id)
+            {
+                errors.push(format!("bikeshare.systems: invalid system id: {e}"));
+            }
+            if let Ok(u) = Url::parse(&system.gbfs_url) {
+                if !matches!(u.scheme(), "https" | "http") || u.host_str().is_none() {
+                    errors.push(format!(
+                        "bikeshare.systems.{}: gbfs_url must be a valid HTTP(S) URL",
+                        system.id
+                    ));
+                }
+            } else {
+                errors
+                    .push(format!("bikeshare.systems.{}: gbfs_url must be a valid URL", system.id));
+            }
+        }
+        errors
+    }
+}
+
+/// GTFS-Realtime transit configuration.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct TransitConfig {
+    pub enabled: bool,
+    pub feeds: Vec<lavender_domain::TransitFeed>,
+    pub feed_bytes_limit: usize,
+    pub process_bytes_limit: usize,
+    pub max_keys: usize,
+}
+
+impl Default for TransitConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            feeds: crate::providers::transit::default_approved_feeds(),
+            feed_bytes_limit: crate::providers::transit::history::DEFAULT_FEED_BYTES_LIMIT,
+            process_bytes_limit: crate::providers::transit::history::DEFAULT_PROCESS_BYTES_LIMIT,
+            max_keys: crate::providers::transit::history::DEFAULT_MAX_KEYS,
+        }
+    }
+}
+
+impl TransitConfig {
+    pub(crate) fn validation_errors(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        for feed in &self.feeds {
+            if !crate::providers::transit::valid_transit_feed_id(&feed.id) {
+                errors.push(format!("transit.feeds: invalid feed id '{}'", feed.id));
+            }
+        }
+        errors
+    }
+}
+
+/// Re:Earth terrain point-heights configuration.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct TerrainConfig {
+    pub enabled: bool,
+    pub upstream_url: String,
+    pub max_points: usize,
+    pub chunk_size: usize,
+    pub cache_capacity: usize,
+    pub cache_ttl_days: u64,
+}
+
+impl Default for TerrainConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            upstream_url: "https://terrain.reearth.land/heights.json".to_string(),
+            max_points: crate::providers::terrain::client::TERRAIN_DEFAULT_MAX_POINTS,
+            chunk_size: crate::providers::terrain::client::TERRAIN_DEFAULT_CHUNK_SIZE,
+            cache_capacity: crate::providers::terrain::client::TERRAIN_DEFAULT_CACHE_CAPACITY,
+            cache_ttl_days: crate::providers::terrain::client::TERRAIN_DEFAULT_TTL_DAYS,
+        }
+    }
+}
+
+impl TerrainConfig {
+    pub(crate) fn validation_errors(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        if self.max_points == 0 {
+            errors.push("terrain.max_points must be greater than 0".to_string());
+        }
+        if self.chunk_size == 0 {
+            errors.push("terrain.chunk_size must be greater than 0".to_string());
+        }
+        if self.cache_capacity == 0 {
+            errors.push("terrain.cache_capacity must be greater than 0".to_string());
+        }
+        errors
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct TrafficConfig {
+    pub enabled: bool,
+    pub daily_budget: u64,
+    pub cache_dir: std::path::PathBuf,
+    pub max_disk_bytes: u64,
+    pub tomtom_base_url: String,
+    pub openfreemap_tile_url: String,
+}
+
+impl Default for TrafficConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            daily_budget: 6000,
+            cache_dir: std::path::PathBuf::from(".lavender-cache/tomtom"),
+            max_disk_bytes: 500 * 1024 * 1024,
+            tomtom_base_url: "https://api.tomtom.com/traffic/map/4/tile/flow/relative".to_string(),
+            openfreemap_tile_url: "https://tiles.openfreemap.org/planet".to_string(),
+        }
+    }
+}
+
+impl TrafficConfig {
+    pub(crate) fn validation_errors(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        if self.daily_budget == 0 {
+            errors.push("traffic.daily_budget must be greater than 0".to_string());
+        }
+        if self.max_disk_bytes == 0 {
+            errors.push("traffic.max_disk_bytes must be greater than 0".to_string());
+        }
+        errors
     }
 }
 
@@ -280,6 +540,59 @@ impl Default for AdsbLolConfig {
             cell_deg: 5.0,
             max_cells: 4,
             min_request_interval_ms: 2_500,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct OpenSkyConfig {
+    pub enabled: bool,
+    pub base_url: Url,
+    pub auth_url: Url,
+    pub cadence_s: u64,
+    /// Grid cell size for regional bounding box queries.
+    pub cell_deg: f64,
+    /// Cells per subscription before falling back to the worldwide feed.
+    pub max_cells: u32,
+    /// Minimum spacing between requests to OpenSky.
+    pub min_request_interval_ms: u64,
+}
+
+impl Default for OpenSkyConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            base_url: url("https://opensky-network.org/api/"),
+            auth_url: url(
+                "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token",
+            ),
+            cadence_s: 30,
+            cell_deg: 5.0,
+            max_cells: 4,
+            min_request_interval_ms: 5_000,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct AdsbdbConfig {
+    pub enabled: bool,
+    pub base_url: Url,
+    pub cache_max_entries: u64,
+    pub cache_ttl_s: u64,
+    pub min_request_interval_ms: u64,
+}
+
+impl Default for AdsbdbConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            base_url: url("https://api.adsbdb.com/v0/"),
+            cache_max_entries: 2048,
+            cache_ttl_s: 86400,
+            min_request_interval_ms: 200,
         }
     }
 }
@@ -628,12 +941,49 @@ impl CoreConfig {
         https("providers.wind.ifs_base_url", &self.providers.wind.ifs_base_url);
         https("providers.perimeters.wfigs_base_url", &self.providers.perimeters.wfigs_base_url);
         https("providers.perimeters.inciweb_base_url", &self.providers.perimeters.inciweb_base_url);
+        if self.providers.opensky.enabled {
+            https("providers.opensky.base_url", &self.providers.opensky.base_url);
+        }
+        if self.providers.adsbdb.enabled {
+            https("providers.adsbdb.base_url", &self.providers.adsbdb.base_url);
+        }
         if let Some(base) = &self.geocoder.base_url {
             https("geocoder.base_url", base);
+        }
+
+        if self.providers.opensky.enabled {
+            let auth = &self.providers.opensky.auth_url;
+            let host = auth.host_str().unwrap_or_default();
+            if auth.scheme() != "https" && !self.fetch.allow_http_hosts.iter().any(|h| h == host) {
+                errors.push(format!(
+                    "providers.opensky.auth_url: must be an https:// URL (got {})",
+                    auth.scheme()
+                ));
+            }
+            if self.licence_mode == LicenceMode::Commercial
+                && !self.licence_acknowledged.iter().any(|s| s == sources::OPENSKY)
+            {
+                errors.push(
+                    "providers.opensky: OpenSky is licensed for non-commercial/evaluation use only; commercial use requires explicit licence acknowledgement".to_owned(),
+                );
+            }
+        }
+        if self.providers.adsbdb.enabled
+            && self.licence_mode == LicenceMode::Commercial
+            && !self.licence_acknowledged.iter().any(|s| s == sources::ADS_B_DB)
+        {
+            errors.push(
+                "providers.adsbdb: adsbdb route enrichment requires permission for commercial redistribution; commercial use requires explicit licence acknowledgement".to_owned(),
+            );
         }
         errors.extend(self.geocoder.validation_errors());
         errors.extend(self.providers.aisstream.validation_errors(&self.fetch.allow_http_hosts));
         errors.extend(self.providers.perimeters.validation_errors());
+        errors.extend(self.routing.validation_errors());
+        errors.extend(self.bikeshare.validation_errors());
+        errors.extend(self.transit.validation_errors());
+        errors.extend(self.terrain.validation_errors());
+        errors.extend(self.traffic.validation_errors());
 
         let wind = &self.providers.wind;
         if wind.ttl_s < 60 {

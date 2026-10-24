@@ -498,5 +498,11 @@ export function inspect(feed: FeedId, id: string, entity: unknown): Inspected | 
         )
         ? { kind: 'vessels', item: entity as unknown as Vessel }
         : null;
+    case 'bikeshare':
+      return null;
+    case 'transit':
+      return null;
+    default:
+      return null;
   }
 }

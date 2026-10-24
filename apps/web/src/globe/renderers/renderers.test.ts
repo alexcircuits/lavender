@@ -202,6 +202,26 @@ describe('AircraftRenderer', () => {
     renderer.destroy();
     expect(primitives.length).toBe(0);
   });
+
+  it('draws the selected aircraft track in the selection colour and clears it', () => {
+    const primitives = new PrimitiveCollection();
+    const { ctx } = context();
+    const renderer = new AircraftRenderer(primitives, ctx);
+    const lines = primitives.get(2) as { length: number; get(i: number): { id: unknown } };
+    renderer.showTrack({
+      hex: '4aca2d',
+      sources: ['test'],
+      points: [
+        { time: '2026-10-21T12:00:00Z', position: { lat: 51, lon: 0, altM: 10_000 } },
+        { time: '2026-10-21T12:01:00Z', position: { lat: 52, lon: 1, altM: 10_500 } },
+      ],
+    });
+    expect(lines.length).toBe(1);
+    expect(lines.get(0).id).toEqual({ feed: 'aircraft', id: '4aca2d' });
+    renderer.showTrack(null);
+    expect(lines.length).toBe(0);
+    renderer.destroy();
+  });
 });
 
 describe('EarthquakeRenderer', () => {

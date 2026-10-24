@@ -6,7 +6,12 @@
  */
 import type {
   AircraftTrack,
+  BBox,
+  BoundaryClass,
+  BoundaryResponse,
+  CameraSource,
   Catalog,
+  CctvDetectionsResponse,
   FeedQuery,
   FeedSnapshot,
   SatellitePasses,
@@ -17,10 +22,13 @@ import type {
   SearchResults,
   ServerFrame,
   SystemStatus,
+  TransitTrail,
   VesselTrackResponse,
   WindManifest,
 } from '../../contracts';
+import type { SubmarineCableItem } from '../../globe';
 import { LocalPreferences } from '../preferences';
+import type { RecentImageryResponse, ThumbnailProbeResponse } from '../recentImageryTypes';
 import {
   type CallOptions,
   type DiagnosticsSink,
@@ -29,6 +37,7 @@ import {
   type LavenderPlatform,
   PlatformError,
   type PreferenceStore,
+  type SecretStatusResponse,
   type TransportState,
   toApiError,
   type WindGridRequest,
@@ -125,6 +134,69 @@ export class TauriPlatform implements LavenderPlatform {
   /** The command answers raw bytes (`tauri::ipc::Response`), which arrive as an ArrayBuffer. */
   windGrid(request: WindGridRequest, options?: CallOptions): Promise<ArrayBuffer> {
     return this.#call('wind_grid', { ...windArgs(request), id: request.id }, options);
+  }
+
+  recentImagery(bbox: BBox, days?: number, options?: CallOptions): Promise<RecentImageryResponse> {
+    return this.#call('recent_imagery', { bbox, days }, options);
+  }
+
+  imageryThumbnailProbe(
+    product: string,
+    day: string,
+    bbox: BBox,
+    options?: CallOptions,
+  ): Promise<ThumbnailProbeResponse> {
+    return this.#call('imagery_thumbnail_probe', { product, day, bbox }, options);
+  }
+
+  mapillaryStatus(options?: CallOptions): Promise<{ configured: boolean }> {
+    return this.#call('mapillary_status', {}, options);
+  }
+
+  boundaries(
+    bbox: BBox,
+    options?: {
+      readonly classes?: readonly BoundaryClass[];
+      readonly zoom?: number;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    },
+  ): Promise<BoundaryResponse> {
+    return this.#call('boundaries', { bbox, ...options }, options);
+  }
+
+  cctvDetections(cameraId: string, options?: CallOptions): Promise<CctvDetectionsResponse> {
+    return this.#call('cctv_detections', { cameraId }, options);
+  }
+
+  cctvSources(bbox?: BBox, limit?: number, options?: CallOptions): Promise<CameraSource[]> {
+    return this.#call('cctv_sources', { bbox, limit }, options);
+  }
+
+  transitTrail(feedId: string, vehicleId: string, options?: CallOptions): Promise<TransitTrail> {
+    return this.#call('transit_trail', { feedId, vehicleId }, options);
+  }
+
+  submarineCables(
+    bbox?: BBox,
+    zoom?: number,
+    limit?: number,
+    options?: CallOptions,
+  ): Promise<SubmarineCableItem[]> {
+    return this.#call('cables', { bbox, zoom, limit }, options);
+  }
+
+  async secretStatus(options?: CallOptions): Promise<SecretStatusResponse> {
+    const status = await this.#call<Record<string, boolean>>('secret_status', {}, options);
+    return { managedBy: 'keychain', status };
+  }
+
+  setSecret(key: string, value: string, options?: CallOptions): Promise<void> {
+    return this.#call('secret_set', { key, value }, options);
+  }
+
+  clearSecret(key: string, options?: CallOptions): Promise<void> {
+    return this.#call('secret_clear', { key }, options);
   }
 
   /** IPC to an in-process core has no connection to lose. */

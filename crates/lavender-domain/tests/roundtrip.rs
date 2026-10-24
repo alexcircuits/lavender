@@ -220,6 +220,8 @@ fn entities_and_feeds_round_trip() {
         military_only: Some(true),
         groups: Some(vec!["x".into()]),
         min_frp: Some(10.0),
+        system: None,
+        feed: None,
     };
     let json = roundtrip(&q);
     assert_eq!(json["filters"], json!({"militaryOnly": true, "groups": ["x"], "minFrp": 10.0}));
@@ -435,4 +437,299 @@ fn vessel_and_wind_integer_fields_remain_json_and_typescript_numbers() {
     .unwrap();
     assert_eq!(roundtrip(&manifest)["fetchedAt"].as_u64(), Some(1_729_000_000_000));
     assert!(WindManifest::decl(&config).contains("fetchedAt?: number"));
+}
+
+#[test]
+fn route_contracts_round_trip() {
+    let step = RouteStep {
+        index: 0,
+        r#type: "depart".into(),
+        modifier: None,
+        exit: None,
+        name: "Main St".into(),
+        r#ref: Some("A1".into()),
+        distance_m: 500,
+        duration_s: 45,
+        lon: 13.4,
+        lat: 52.5,
+        instruction: "Head out on Main St (A1)".into(),
+    };
+    let step_json = roundtrip(&step);
+    assert_eq!(step_json["type"], "depart");
+    assert_eq!(step_json["name"], "Main St");
+    assert_eq!(step_json["ref"], "A1");
+    assert_eq!(step_json["distanceM"], 500);
+
+    let route = Route {
+        ok: true,
+        profile: "car".into(),
+        distance_m: 12000,
+        duration_s: 850,
+        geometry: vec![[13.4, 52.5], [13.41, 52.51]],
+        steps: Some(vec![step]),
+        steps_truncated: Some(false),
+    };
+    let route_json = roundtrip(&route);
+    assert_eq!(route_json["ok"], true);
+    assert_eq!(route_json["profile"], "car");
+    assert_eq!(route_json["distanceM"], 12000);
+    assert_eq!(route_json["stepsTruncated"], false);
+}
+
+#[test]
+fn bikeshare_contracts_round_trip() {
+    let system = BikeshareSystem {
+        id: "nyc-citibike".into(),
+        name: "Citi Bike".into(),
+        city: "New York, NY".into(),
+        center: GeoPoint::new(40.7484, -73.9967).unwrap(),
+        load_radius_km: 140.0,
+        provider: "Citi Bike".into(),
+        gbfs_url: "https://gbfs.lyft.com/gbfs/2.3/bkn/en/gbfs.json".into(),
+    };
+    let system_json = roundtrip(&system);
+    assert_eq!(system_json["id"], "nyc-citibike");
+    assert_eq!(system_json["name"], "Citi Bike");
+    assert_eq!(system_json["city"], "New York, NY");
+    assert_eq!(system_json["loadRadiusKm"], 140.0);
+
+    let station = BikeshareStation {
+        id: "nyc-citibike:3790".into(),
+        station_id: "3790".into(),
+        system_id: "nyc-citibike".into(),
+        name: "Broadway & 24th St".into(),
+        position: GeoPoint::new(40.742, -73.989).unwrap(),
+        capacity: Some(30),
+        bikes_available: Some(12),
+        docks_available: Some(18),
+        is_installed: true,
+        is_renting: true,
+        is_returning: true,
+        last_reported: Some(1_729_000_000),
+    };
+    let station_json = roundtrip(&station);
+    assert_eq!(station_json["id"], "nyc-citibike:3790");
+    assert_eq!(station_json["stationId"], "3790");
+    assert_eq!(station_json["name"], "Broadway & 24th St");
+    assert_eq!(station_json["capacity"], 30);
+    assert_eq!(station_json["bikesAvailable"], 12);
+    assert_eq!(station_json["docksAvailable"], 18);
+    assert_eq!(station_json["isInstalled"], true);
+    assert_eq!(station_json["isRenting"], true);
+    assert_eq!(station_json["isReturning"], true);
+    assert_eq!(station_json["lastReported"], 1_729_000_000);
+}
+
+#[test]
+fn transit_contracts_round_trip() {
+    let feed = TransitFeed {
+        id: "mbta".into(),
+        name: "MBTA".into(),
+        operator: "Massachusetts Bay Transportation Authority".into(),
+        region: "Boston, MA".into(),
+        center: GeoPoint::new(42.3601, -71.0589).unwrap(),
+        load_radius_km: 70.0,
+        url: "https://cdn.mbta.com/realtime/VehiclePositions.pb".into(),
+        license: "MassDOT Developers License Agreement".into(),
+        attribution: "MBTA / MassDOT".into(),
+        default_enabled: true,
+        default_mode: "bus".into(),
+    };
+    let feed_json = roundtrip(&feed);
+    assert_eq!(feed_json["id"], "mbta");
+    assert_eq!(feed_json["name"], "MBTA");
+    assert_eq!(feed_json["loadRadiusKm"], 70.0);
+    assert_eq!(feed_json["defaultMode"], "bus");
+
+    let vehicle = TransitVehicle {
+        id: "mbta:1234".into(),
+        vehicle_id: "1234".into(),
+        feed_id: "mbta".into(),
+        position: GeoPoint::new(42.355, -71.065).unwrap(),
+        bearing: Some(180.0),
+        speed_mps: Some(12.5),
+        timestamp: Some(1_729_000_000),
+        timestamp_source: "vehicle".into(),
+        route_id: Some("1".into()),
+        trip_id: Some("trip-abc".into()),
+        direction_id: Some(0),
+        label: Some("1234".into()),
+        stop_id: Some("stop-xyz".into()),
+        status: Some("IN_TRANSIT_TO".into()),
+        occupancy: Some("FEW_SEATS_AVAILABLE".into()),
+        mode: "bus".into(),
+    };
+    let vehicle_json = roundtrip(&vehicle);
+    assert_eq!(vehicle_json["id"], "mbta:1234");
+    assert_eq!(vehicle_json["vehicleId"], "1234");
+    assert_eq!(vehicle_json["feedId"], "mbta");
+    assert_eq!(vehicle_json["bearing"], 180.0);
+    assert_eq!(vehicle_json["speedMps"], 12.5);
+    assert_eq!(vehicle_json["timestampSource"], "vehicle");
+    assert_eq!(vehicle_json["status"], "IN_TRANSIT_TO");
+    assert_eq!(vehicle_json["mode"], "bus");
+
+    let trail = TransitTrail {
+        version: 1,
+        feed_id: "mbta".into(),
+        vehicle_id: "1234".into(),
+        fixes: vec![[1_729_000_000_000.0, 42.355, -71.065, 0.0, 1.0]],
+        epochs: vec![TransitEpoch {
+            id: 1,
+            trip: "trip-abc".into(),
+            route: "1".into(),
+            mode: "bus".into(),
+        }],
+        truncated: false,
+    };
+    let trail_json = roundtrip(&trail);
+    assert_eq!(trail_json["version"], 1);
+    assert_eq!(trail_json["feedId"], "mbta");
+    assert_eq!(trail_json["vehicleId"], "1234");
+    assert_eq!(trail_json["fixes"].as_array().unwrap().len(), 1);
+    assert_eq!(trail_json["epochs"].as_array().unwrap().len(), 1);
+    assert_eq!(trail_json["truncated"], false);
+}
+
+#[test]
+fn terrain_contracts_round_trip() {
+    use lavender_domain::{TerrainHeightsRequest, TerrainHeightsResponse, TerrainPointResult};
+
+    let req = TerrainHeightsRequest { points: vec![[12.34567, 45.67891], [139.75, 35.68]] };
+    let req_json = roundtrip(&req);
+    assert_eq!(req_json["points"][0], json!([12.34567, 45.67891]));
+    assert_eq!(req_json["points"][1], json!([139.75, 35.68]));
+
+    let resp = TerrainHeightsResponse {
+        results: vec![
+            TerrainPointResult {
+                id: Some("pt-1".into()),
+                ellipsoid: 125.5,
+                elevation: Some(105.0),
+                geoid: Some(20.5),
+            },
+            TerrainPointResult { id: None, ellipsoid: 60.0, elevation: None, geoid: None },
+        ],
+    };
+    let resp_json = roundtrip(&resp);
+    assert_eq!(resp_json["results"][0]["id"], "pt-1");
+    assert_eq!(resp_json["results"][0]["ellipsoid"], 125.5);
+    assert_eq!(resp_json["results"][0]["elevation"], 105.0);
+    assert_eq!(resp_json["results"][0]["geoid"], 20.5);
+    assert!(resp_json["results"][1].get("id").is_none());
+    assert_eq!(resp_json["results"][1]["ellipsoid"], 60.0);
+}
+
+#[test]
+fn traffic_contracts_round_trip() {
+    use lavender_domain::{TrafficRoadSegment, TrafficStatus, TrafficTileResponse};
+
+    let status =
+        TrafficStatus { has_key: true, daily_count: 142, budget: 6000, date: "2026-10-22".into() };
+    let status_json = roundtrip(&status);
+    assert_eq!(status_json["hasKey"], true);
+    assert_eq!(status_json["dailyCount"], 142);
+    assert_eq!(status_json["budget"], 6000);
+    assert_eq!(status_json["date"], "2026-10-22");
+
+    let tile_resp = TrafficTileResponse {
+        z: 12,
+        x: 935,
+        y: 1686,
+        roads: vec![TrafficRoadSegment {
+            coords: vec![[-97.7431, 30.2672], [-97.7445, 30.2685]],
+            traffic_level: 0.85,
+            closure: false,
+            road_type: Some("primary".into()),
+        }],
+    };
+    let tile_json = roundtrip(&tile_resp);
+    assert_eq!(tile_json["z"], 12);
+    assert_eq!(tile_json["x"], 935);
+    assert_eq!(tile_json["y"], 1686);
+    assert_eq!(tile_json["roads"][0]["coords"][0], json!([-97.7431, 30.2672]));
+    assert_eq!(tile_json["roads"][0]["trafficLevel"], 0.85);
+    assert_eq!(tile_json["roads"][0]["closure"], false);
+    assert_eq!(tile_json["roads"][0]["roadType"], "primary");
+}
+
+#[test]
+fn aircraft_enrichment_contracts_round_trip() {
+    let route = AircraftRouteEnrichment {
+        callsign: "BAW123".into(),
+        found: true,
+        airline: Some("British Airways".into()),
+        origin: Some(AirportInfo {
+            code: "LHR".into(),
+            name: "London Heathrow".into(),
+            lat: Some(51.47),
+            lon: Some(-0.454),
+        }),
+        destination: Some(AirportInfo {
+            code: "JFK".into(),
+            name: "John F Kennedy Intl".into(),
+            lat: Some(40.64),
+            lon: Some(-73.78),
+        }),
+    };
+    let route_json = roundtrip(&route);
+    assert_eq!(route_json["callsign"], "BAW123");
+    assert_eq!(route_json["found"], true);
+    assert_eq!(route_json["airline"], "British Airways");
+    assert_eq!(route_json["origin"]["code"], "LHR");
+    assert_eq!(route_json["destination"]["code"], "JFK");
+
+    let not_found_route = AircraftRouteEnrichment {
+        callsign: "UNKNOWN".into(),
+        found: false,
+        airline: None,
+        origin: None,
+        destination: None,
+    };
+    let not_found_json = roundtrip(&not_found_route);
+    assert_eq!(not_found_json["callsign"], "UNKNOWN");
+    assert_eq!(not_found_json["found"], false);
+    assert!(not_found_json.get("airline").is_none());
+
+    let aircraft_type = AircraftTypeEnrichment {
+        hex: "4ca1b2".into(),
+        found: true,
+        type_code: Some("B738".into()),
+        type_name: Some("Boeing 737-800".into()),
+        registration: Some("EI-ABC".into()),
+    };
+    let type_json = roundtrip(&aircraft_type);
+    assert_eq!(type_json["hex"], "4ca1b2");
+    assert_eq!(type_json["found"], true);
+    assert_eq!(type_json["typeCode"], "B738");
+    assert_eq!(type_json["typeName"], "Boeing 737-800");
+    assert_eq!(type_json["registration"], "EI-ABC");
+
+    let boundary = BoundaryFeature {
+        id: "disp-1".into(),
+        name: Some("Line of Control".into()),
+        class: BoundaryClass::DisputedLine,
+        status: Some("Line of control".into()),
+        sovereign: None,
+        claimants: vec!["India".into(), "Pakistan".into()],
+        note: Some("Admin. by India, Claimed by Pakistan".into()),
+        lines: vec![vec![GeoPoint::new(34.0, 74.0).unwrap(), GeoPoint::new(34.5, 74.5).unwrap()]],
+        bbox: BBox::new(74.0, 34.0, 74.5, 34.5).unwrap(),
+    };
+    let b_json = roundtrip(&boundary);
+    assert_eq!(b_json["id"], "disp-1");
+    assert_eq!(b_json["name"], "Line of Control");
+    assert_eq!(b_json["class"], "disputedLine");
+    assert_eq!(b_json["status"], "Line of control");
+    assert_eq!(b_json["claimants"][0], "India");
+    assert_eq!(b_json["claimants"][1], "Pakistan");
+
+    let resp = BoundaryResponse {
+        features: vec![boundary],
+        total: 1,
+        attribution: "Made with Natural Earth".into(),
+    };
+    let resp_json = roundtrip(&resp);
+    assert_eq!(resp_json["total"], 1);
+    assert_eq!(resp_json["attribution"], "Made with Natural Earth");
 }

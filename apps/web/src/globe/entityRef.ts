@@ -15,15 +15,17 @@ const PICKABLE = {
   fires: true,
   launches: true,
   vessels: true,
-  // No perimeter renderer is merged yet; the perimeters layer change makes these pickable.
-  perimeters: false,
+  perimeters: true,
+  bikeshare: true,
+  transit: true,
 } as const satisfies Record<FeedId, boolean>;
 
-const FEEDS: ReadonlySet<string> = new Set(
-  Object.entries(PICKABLE)
+const FEEDS: ReadonlySet<string> = new Set([
+  ...Object.entries(PICKABLE)
     .filter(([, pickable]) => pickable)
     .map(([feed]) => feed),
-);
+  'boundaries',
+]);
 
 export function isEntityRef(value: unknown): value is EntityRef {
   if (typeof value !== 'object' || value === null) return false;

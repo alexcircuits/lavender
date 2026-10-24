@@ -104,6 +104,8 @@ pub struct HubDeps {
     pub health: Arc<HealthTracker>,
     pub cache_dir: Option<PathBuf>,
     pub satellite_catalog: Arc<crate::satellite_catalog::SatelliteCatalog>,
+    pub track_sink: Option<Arc<crate::analytics::TrackBatchBuffer>>,
+    pub rule_engine: Option<Arc<crate::analytics::NimRuleEngine>>,
 }
 
 #[derive(Debug)]
@@ -292,6 +294,18 @@ impl FeedHub {
         for provider in self.inner.providers.values() {
             provider.shutdown();
         }
+    }
+
+    /// Returns the analytics Parquet batch buffer if configured.
+    #[must_use]
+    pub fn track_batch_buffer(&self) -> Option<&Arc<crate::analytics::TrackBatchBuffer>> {
+        self.inner.deps.track_sink.as_ref()
+    }
+
+    /// Returns the Nim CEP tactical rule engine if configured.
+    #[must_use]
+    pub fn rule_engine(&self) -> Option<&Arc<crate::analytics::NimRuleEngine>> {
+        self.inner.deps.rule_engine.as_ref()
     }
 
     #[must_use]

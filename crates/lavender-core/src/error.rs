@@ -37,6 +37,39 @@ impl From<FetchError> for CoreError {
     }
 }
 
+impl From<crate::providers::overpass::OverpassError> for CoreError {
+    fn from(err: crate::providers::overpass::OverpassError) -> Self {
+        Self::BadRequest(err.to_string())
+    }
+}
+
+impl From<crate::providers::weather::WeatherError> for CoreError {
+    fn from(err: crate::providers::weather::WeatherError) -> Self {
+        match err {
+            crate::providers::weather::WeatherError::InvalidTile
+            | crate::providers::weather::WeatherError::ProductNotFound(_)
+            | crate::providers::weather::WeatherError::InvalidImage
+            | crate::providers::weather::WeatherError::XxeAttack
+            | crate::providers::weather::WeatherError::XmlTooLarge
+            | crate::providers::weather::WeatherError::InvalidMetadata(_) => {
+                Self::BadRequest(err.to_string())
+            }
+            _ => Self::Upstream(err.to_string()),
+        }
+    }
+}
+
+impl From<crate::providers::mapillary::MapillaryError> for CoreError {
+    fn from(err: crate::providers::mapillary::MapillaryError) -> Self {
+        match err {
+            crate::providers::mapillary::MapillaryError::InvalidAddress(_) => {
+                Self::BadRequest(err.to_string())
+            }
+            _ => Self::Upstream(err.to_string()),
+        }
+    }
+}
+
 impl From<&CoreError> for ApiError {
     fn from(err: &CoreError) -> Self {
         if let CoreError::Api(api) = err {

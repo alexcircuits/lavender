@@ -8,7 +8,12 @@
 import type {
   AircraftTrack,
   ApiError,
+  BBox,
+  BoundaryClass,
+  BoundaryResponse,
+  CameraSource,
   Catalog,
+  CctvDetectionsResponse,
   FeedQuery,
   FeedSnapshot,
   SatellitePasses,
@@ -18,11 +23,27 @@ import type {
   SearchQuery,
   SearchResults,
   SystemStatus,
+  TransitTrail,
   VesselTrackResponse,
   WeatherOverlay,
   WindManifest,
   WindModel,
 } from '../contracts';
+import type { RecentImageryResponse, ThumbnailProbeResponse } from './recentImageryTypes';
+
+/** Submarine cable item as returned by the cables API. */
+export interface SubmarineCableApiItem {
+  readonly id: string;
+  readonly name: string;
+  readonly color?: string | undefined;
+  readonly coordinates: readonly (readonly (readonly [number, number])[])[];
+  readonly bbox?: {
+    readonly west: number;
+    readonly south: number;
+    readonly east: number;
+    readonly north: number;
+  } | undefined;
+}
 
 /** What a live subscription delivers. */
 export type FeedEvent =
@@ -99,6 +120,46 @@ export interface LavenderPlatform {
    * optional scalar (layout on `WindGridDef`; read it with `decodeWindGrid`).
    */
   windGrid(request: WindGridRequest, options?: CallOptions): Promise<ArrayBuffer>;
+  /** Searches NASA CMR for recent HLS imagery and VIIRS overviews over the area. */
+  recentImagery(bbox: BBox, days?: number, options?: CallOptions): Promise<RecentImageryResponse>;
+  /** Probes Worldview Snapshots to verify whether pixels exist for a day and area. */
+  imageryThumbnailProbe(
+    product: string,
+    day: string,
+    bbox: BBox,
+    options?: CallOptions,
+  ): Promise<ThumbnailProbeResponse>;
+  /** Whether Mapillary credentials are configured on the backend. */
+  mapillaryStatus(options?: CallOptions): Promise<{ configured: boolean }>;
+  /** Queries administrative and territorial boundary features. */
+  boundaries(
+    bbox: BBox,
+    options?: {
+      readonly classes?: readonly BoundaryClass[];
+      readonly zoom?: number;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    },
+  ): Promise<BoundaryResponse>;
+  /** Computer vision detections from the Mojo MLIR perception sidecar for a CCTV camera. */
+  cctvDetections(cameraId: string, options?: CallOptions): Promise<CctvDetectionsResponse>;
+  /** CCTV cameras in viewport or worldwide. */
+  cctvSources(bbox?: BBox, limit?: number, options?: CallOptions): Promise<CameraSource[]>;
+  /** Historical transit trail for vehicle playback. */
+  transitTrail(feedId: string, vehicleId: string, options?: CallOptions): Promise<TransitTrail>;
+  /** Submarine telecommunication cables across ocean basins. */
+  submarineCables(
+    bbox?: BBox,
+    zoom?: number,
+    limit?: number,
+    options?: CallOptions,
+  ): Promise<SubmarineCableApiItem[]>;
+  /** Returns whether upstream credentials are configured without exposing values. */
+  secretStatus?(options?: CallOptions): Promise<SecretStatusResponse>;
+  /** Desktop only: stores an upstream provider credential into the secure credential store. */
+  setSecret?(key: string, value: string, options?: CallOptions): Promise<void>;
+  /** Desktop only: removes an upstream provider credential from the secure credential store. */
+  clearSecret?(key: string, options?: CallOptions): Promise<void>;
   /** Reports transport changes; calls the listener immediately with the current state. */
   onTransportState(listener: (state: TransportState) => void): () => void;
   readonly preferences: PreferenceStore;
@@ -107,6 +168,11 @@ export interface LavenderPlatform {
    * verification asked for one (`LAVENDER_SMOKE_OUT`) and ignores it otherwise.
    */
   readonly diagnostics?: DiagnosticsSink;
+}
+
+export interface SecretStatusResponse {
+  readonly managedBy: 'operator' | 'keychain' | 'memory';
+  readonly status: Readonly<Record<string, boolean>>;
 }
 
 export interface DiagnosticsSink {

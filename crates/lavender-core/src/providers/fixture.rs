@@ -267,6 +267,8 @@ impl FeedProvider for FixtureProvider {
             }
             FeedId::Vessels => self.vessels().await?,
             FeedId::Perimeters => return self.perimeters().await,
+            FeedId::Bikeshare => (FeedItems::Bikeshare(Vec::new()), 0),
+            FeedId::Transit => (FeedItems::Transit(Vec::new()), 0),
         };
         let mut fetched = Fetched::fresh(items).with_dropped("Fixture", dropped);
         if self.feed == FeedId::Aircraft {

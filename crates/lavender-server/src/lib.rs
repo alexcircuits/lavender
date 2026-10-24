@@ -18,7 +18,7 @@ use axum::extract::{Request, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::Response;
-use axum::routing::{any, get};
+use axum::routing::{any, get, post};
 use lavender_core::LavenderCore;
 use lavender_domain::ErrorCode;
 use tower_http::catch_panic::CatchPanicLayer;
@@ -115,6 +115,7 @@ fn panic_response(_err: Box<dyn Any + Send + 'static>) -> Response {
 }
 
 /// Builds the application router.
+#[allow(clippy::too_many_lines)]
 pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
     let tile_hosts: Vec<String> =
         core.catalog().imagery.iter().flat_map(|i| i.tile_hosts.clone()).collect();
@@ -147,6 +148,8 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/feeds/{feed}", get(routes::feed))
         .route("/search", get(routes::search))
         .route("/aircraft/{hex}/track", get(routes::aircraft_track))
+        .route("/aircraft/{hex}/type", get(routes::aircraft_type))
+        .route("/aircraft/route/{callsign}", get(routes::aircraft_route))
         .route("/vessels/{mmsi}/track", get(routes::vessel_track))
         .route("/satellites/{norad}/track", get(routes::satellite_track))
         .route("/satellites/{norad}/passes", get(routes::satellite_passes))
@@ -154,10 +157,48 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/wind/manifest", get(routes::wind_manifest))
         .route("/wind/status", get(routes::wind_status))
         .route("/wind/grid/{id}", get(routes::wind_grid))
+        .route("/regions/at", get(routes::region_at))
+        .route("/regions/search", get(routes::search_regions))
+        .route("/infrastructure", get(routes::infrastructure))
+        .route("/infrastructure/cables", get(routes::infrastructure_cables))
+        .route("/infrastructure/cables/{id}", get(routes::infrastructure_cable_by_id))
+        .route("/infrastructure/landings", get(routes::infrastructure_landings))
+        .route("/boundaries", get(routes::boundaries))
+        .route("/boundaries/{id}", get(routes::boundary_by_id))
+        .route("/overpass", post(routes::overpass_query))
+        .route("/overpass/status", get(routes::overpass_status))
+        .route("/military-installations", get(routes::military_installations))
+        .route("/weather/manifest", get(routes::weather_manifest))
+        .route("/tiles/weather/{product}/{time}/{z}/{x}/{y}", get(routes::weather_tile))
+        .route("/imagery/recent", get(routes::imagery_recent))
+        .route("/imagery/thumbnail/probe", get(routes::imagery_thumbnail_probe))
+        .route("/imagery/thumbnail", get(routes::imagery_thumbnail))
+        .route("/mapillary/status", get(routes::mapillary_status))
+        .route("/tiles/mapillary/{z}/{x}/{y}", get(routes::mapillary_tile))
+        .route("/mapillary/search", get(routes::mapillary_search))
+        .route("/cctv/sources", get(routes::cctv_sources))
+        .route("/cctv/health", get(routes::cctv_health))
+        .route("/cctv/stream/{id}", get(routes::cctv_stream))
+        .route("/cctv/{id}/detections", get(routes::cctv_detections))
+        .route("/cctv/frame/{id}", get(routes::cctv_frame))
+        .route("/cctv/media/{id}", get(routes::cctv_media))
+        .route("/route", get(routes::calculate_route))
+        .route("/bikeshare/systems", get(routes::bikeshare_systems))
+        .route("/bikeshare/{system_id}", get(routes::bikeshare_stations))
+        .route("/transit/feeds", get(routes::transit_feeds))
+        .route("/transit/{feed_id}/vehicles", get(routes::transit_vehicles))
+        .route("/transit/{feed_id}/{vehicle_id}/trail", get(routes::transit_trail))
+        .route("/transit/trail/{feed_id}/{vehicle_id}", get(routes::transit_trail))
+        .route("/terrain/heights", post(routes::terrain_heights).get(routes::terrain_heights_get))
+        .route("/traffic/status", get(routes::traffic_status))
+        .route("/tiles/traffic/{z}/{x}/{y}", get(routes::traffic_tile))
+        .route("/traffic/flow/{z}/{x}/{y}", get(routes::traffic_flow_pbf))
+        .route("/secrets/status", get(routes::secret_status))
+        .route("/secrets", post(routes::secrets_reject))
         .route("/stream", get(ws::stream))
         .fallback(routes::api_not_found)
         .layer(middleware::from_fn(security::require_same_origin))
-        .layer(middleware::from_fn_with_state(limiter, security::rate_limit));
+        .layer(middleware::from_fn_with_state(limiter.clone(), security::rate_limit));
 
     let static_files = static_service(&settings.static_dir);
 
@@ -166,7 +207,29 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
     // timeouts and caught panics.
     Router::new()
         .route("/healthz", get(routes::healthz))
-        .nest("/api/v1", api)
+        .nest("/api/v1", api.clone())
+        .route("/api/overpass", post(routes::overpass_query))
+        .route("/api/overpass/status", get(routes::overpass_status))
+        .route("/api/boundaries", get(routes::boundaries))
+        .route("/api/boundaries/{id}", get(routes::boundary_by_id))
+        .route("/api/military-installations", get(routes::military_installations))
+        .route("/api/weather/manifest", get(routes::weather_manifest))
+        .route("/api/imagery/recent", get(routes::imagery_recent))
+        .route("/api/mapillary/status", get(routes::mapillary_status))
+        .route("/api/mapillary/tiles/coverage/{z}/{x}/{y}", get(routes::mapillary_tile))
+        .route("/api/mapillary/search", get(routes::mapillary_search))
+        .route("/api/cctv/sources", get(routes::cctv_sources))
+        .route("/api/cctv/health", get(routes::cctv_health))
+        .route("/api/cctv/stream/{id}", get(routes::cctv_stream))
+        .route("/api/cctv/{id}/detections", get(routes::cctv_detections))
+        .route("/api/cctv/frame/{id}", get(routes::cctv_frame))
+        .route("/api/cctv/media/{id}", get(routes::cctv_media))
+        .route("/api/adsbdb/type/{hex}", get(routes::aircraft_type))
+        .route("/api/adsbdb/route/{callsign}", get(routes::aircraft_route))
+        .route("/api/flights", get(routes::legacy_flights))
+        .route("/api/flights/track", get(routes::legacy_flights_track))
+        .route("/api/military/track", get(routes::legacy_flights_track))
+        .route("/api/route", get(routes::calculate_route))
         .nest(
             "/api/wind",
             Router::new()
@@ -174,6 +237,24 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
                 .route("/manifest", get(routes::wind_manifest))
                 .route("/status", get(routes::wind_status))
                 .route("/grid/{id}", get(routes::wind_grid)),
+        )
+        .route("/api/gbfs", any(routes::legacy_gbfs_reject))
+        .route("/api/gbfs/{*path}", any(routes::legacy_gbfs_reject))
+        .route("/api/transit/feeds", get(routes::transit_feeds))
+        .route("/api/transit/vehicles/{feed_id}", get(routes::transit_vehicles))
+        .route("/api/transit/trail/{feed_id}/{vehicle_id}", get(routes::transit_trail))
+        .route(
+            "/api/terrain/heights",
+            post(routes::terrain_heights).get(routes::terrain_heights_get),
+        )
+        .route("/api/traffic/status", get(routes::traffic_status))
+        .nest(
+            "/api/tomtom",
+            Router::new()
+                .route("/status", get(routes::traffic_status))
+                .route("/flow/{z}/{x}/{y}", get(routes::traffic_flow_pbf))
+                .layer(middleware::from_fn(security::require_same_origin))
+                .layer(middleware::from_fn_with_state(limiter, security::rate_limit)),
         )
         .route("/api", any(routes::api_not_found))
         .route("/api/{*rest}", any(routes::api_not_found))

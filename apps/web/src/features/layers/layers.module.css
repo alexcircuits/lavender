@@ -245,3 +245,20 @@
   font: var(--type-caption);
   font-variant-numeric: tabular-nums;
 }
+
+.boundaryNotice {
+  margin-top: var(--s-1_5);
+  padding: var(--s-1_5) var(--s-2);
+  border-left: 2px solid var(--warning);
+  background: var(--well);
+  border-radius: var(--r-xs);
+  color: var(--ink-2);
+  font: var(--type-caption);
+  line-height: 1.4;
+}
+
+.boundaryAttribution {
+  margin-top: var(--s-1);
+  color: var(--ink-2);
+  font: var(--type-micro);
+}

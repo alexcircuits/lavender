@@ -197,6 +197,8 @@ pub struct FetchOptions {
     /// Time allowed for this request, body included, replacing `fetch.request_timeout_s`
     /// (for example for large downloads).
     pub timeout: Option<Duration>,
+    /// Additional custom HTTP headers to pass along with the request.
+    pub extra_headers: Vec<(header::HeaderName, HeaderValue)>,
 }
 
 impl Default for FetchOptions {
@@ -211,6 +213,7 @@ impl Default for FetchOptions {
             auth_header: None,
             range: None,
             timeout: None,
+            extra_headers: Vec::new(),
         }
     }
 }
@@ -223,6 +226,8 @@ pub struct FetchResponse {
     /// Validators are scoped to the original request URL. Responses from a different
     /// redirect target do not expose validators for reuse against that original resource.
     pub validators: Option<CacheValidators>,
+    /// HTTP response headers.
+    pub headers: HeaderMap,
 }
 
 #[derive(Debug)]
@@ -284,6 +289,10 @@ impl Fetcher {
             semaphores: Mutex::new(HashMap::new()),
             pacing: Mutex::new(HashMap::new()),
         })
+    }
+
+    pub fn client(&self) -> &reqwest::Client {
+        &self.client
     }
 
     fn semaphore(&self, host: &str) -> Arc<Semaphore> {
@@ -437,6 +446,9 @@ impl Fetcher {
             if let Some(auth) = &opts.auth_header {
                 request = request.header(header::AUTHORIZATION, auth);
             }
+            for (k, v) in &opts.extra_headers {
+                request = request.header(k, v);
+            }
             if let Some((start, end)) = opts.range {
                 request = request.header(header::RANGE, format!("bytes={start}-{end}"));
             }
@@ -466,6 +478,7 @@ impl Fetcher {
                     body: Bytes::new(),
                     elapsed: started.elapsed(),
                     validators,
+                    headers: response.headers().clone(),
                 });
             }
             if status.is_redirection() {
@@ -499,6 +512,7 @@ impl Fetcher {
             {
                 return Err((FetchError::BodyTooLarge { host, limit }, None));
             }
+            let response_headers = response.headers().clone();
             let body = read_capped(response, &host, limit).await.map_err(|e| (e, None))?;
             drop(permit);
             return Ok(FetchResponse {
@@ -506,6 +520,7 @@ impl Fetcher {
                 body,
                 elapsed: started.elapsed(),
                 validators,
+                headers: response_headers,
             });
         }
         Err((FetchError::TooManyRedirects { host: host_of(url) }, None))

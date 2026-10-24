@@ -7,6 +7,7 @@
 //! desktop app are thin adapters around it.
 
 pub mod aircraft_history;
+pub mod analytics;
 pub mod audit;
 pub mod config;
 pub mod core;
@@ -24,9 +25,36 @@ pub mod settings;
 pub mod sources;
 pub mod vessel_store;
 
+pub mod regions {
+    pub use crate::providers::regions::*;
+}
+
 pub use crate::core::{LavenderCore, LavenderCoreBuilder};
 pub use config::CoreConfig;
 pub use error::CoreError;
 pub use hub::{FeedSubscription, RegionBudget, SubscriptionEvent};
+pub use providers::boundaries::{BOUNDARIES_ATTRIBUTION, BoundaryStore};
+pub use providers::cables::{CableStore, LandingPoint, SubmarineCable};
+pub use providers::cctv::{CctvCatalog, build_synthetic_cctv_svg};
+pub use providers::imagery_search::{
+    DEFAULT_CATALOG_DAYS, ImageryAttribution, ImageryCandidate, ImageryError, ImageryErrorDetail,
+    ImagerySearchProvider, RecentImageryResponse, ThumbnailProbeResponse, ValidatedBox,
+    gibs_template, rank_latest, wvs_snapshot_url,
+};
+pub use providers::infrastructure::{InfrastructureIndex, InfrastructureItem, InfrastructureKind};
+pub use providers::installations::{
+    InstallationKind, InstallationStore, MilitaryInstallation, military_installation_cache_key,
+    quantize_military_installation_box,
+};
+pub use providers::overpass::{
+    OverpassClient, OverpassError, OverpassPayload, SanitizedQuery, is_overpass_boundary_query,
+    overpass_payload_is_data, parse_overpass_upstreams, sanitize_overpass_body,
+};
+pub use providers::regions::{RegionIndex, RegionRecord};
+pub use providers::weather::{
+    WeatherBounds, WeatherError, WeatherManifest, WeatherMetadata, WeatherProvider,
+};
+#[cfg(feature = "keyring")]
+pub use secrets::KeyringSecretStore;
 pub use secrets::{EnvSecretStore, FixtureSecretStore, MemorySecretStore, SecretKey, SecretStore};
 pub use settings::{FileSettingsStore, MemorySettingsStore, SettingsStore};

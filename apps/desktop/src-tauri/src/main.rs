@@ -10,19 +10,18 @@ mod subscriptions;
 use std::sync::Arc;
 
 use lavender_core::config::CoreConfig;
-use lavender_core::{FileSettingsStore, LavenderCore, MemorySecretStore};
+use lavender_core::{FileSettingsStore, LavenderCore};
 use tauri::Manager;
 
 use crate::subscriptions::Subscriptions;
 
-/// Builds the core with the OS app directories. Secrets are session-only until the
-/// keychain store lands (ENG-997).
+/// Builds the core with the OS app directories and persistent OS keychain store (ENG-997).
 fn build_core(app: &tauri::App) -> Result<LavenderCore, String> {
     let paths = app.path();
     let config_dir = paths.app_config_dir().map_err(|e| e.to_string())?;
     let cache_dir = paths.app_cache_dir().map_err(|e| e.to_string())?;
     LavenderCore::builder(CoreConfig::default())
-        .secrets(Arc::new(MemorySecretStore::default()))
+        .secrets(Arc::new(lavender_core::KeyringSecretStore::new("lavender")))
         .settings(Arc::new(FileSettingsStore::new(config_dir.join("settings.json"))))
         .cache_dir(cache_dir)
         .build()
@@ -75,6 +74,9 @@ fn main() {
             commands::wind_status,
             commands::wind_grid,
             commands::smoke_report,
+            commands::secret_status,
+            commands::secret_set,
+            commands::secret_clear,
         ])
         .build(tauri::generate_context!());
     match result {

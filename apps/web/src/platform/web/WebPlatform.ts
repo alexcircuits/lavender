@@ -5,7 +5,12 @@
  */
 import type {
   AircraftTrack,
+  BBox,
+  BoundaryClass,
+  BoundaryResponse,
+  CameraSource,
   Catalog,
+  CctvDetectionsResponse,
   ClientFrame,
   FeedQuery,
   FeedSnapshot,
@@ -17,10 +22,12 @@ import type {
   SearchResults,
   ServerFrame,
   SystemStatus,
+  TransitTrail,
   VesselTrackResponse,
   WindManifest,
 } from '../../contracts';
 import { LocalPreferences } from '../preferences';
+import type { RecentImageryResponse, ThumbnailProbeResponse } from '../recentImageryTypes';
 import {
   type CallOptions,
   type FeedEvent,
@@ -29,6 +36,8 @@ import {
   type LavenderPlatform,
   PlatformError,
   type PreferenceStore,
+  type SecretStatusResponse,
+  type SubmarineCableApiItem,
   type SubscribeOptions,
   type TransportState,
   toApiError,
@@ -202,6 +211,108 @@ export class WebPlatform implements LavenderPlatform {
   windGrid(request: WindGridRequest, options?: CallOptions): Promise<ArrayBuffer> {
     const id = encodeURIComponent(request.id);
     return this.#getBinary(`/wind/grid/${id}.bin${windParams(request)}`, options);
+  }
+
+  recentImagery(bbox: BBox, days?: number, options?: CallOptions): Promise<RecentImageryResponse> {
+    const boxStr = `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`;
+    const qs = new URLSearchParams({ bbox: boxStr });
+    if (days !== undefined) qs.set('days', String(days));
+    return this.#get(`/imagery/recent?${qs.toString()}`, options);
+  }
+
+  imageryThumbnailProbe(
+    product: string,
+    day: string,
+    bbox: BBox,
+    options?: CallOptions,
+  ): Promise<ThumbnailProbeResponse> {
+    const boxStr = `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`;
+    const qs = new URLSearchParams({
+      product,
+      day,
+      bbox: boxStr,
+    });
+    return this.#get(`/imagery/thumbnail/probe?${qs.toString()}`, options);
+  }
+
+  mapillaryStatus(options?: CallOptions): Promise<{ configured: boolean }> {
+    return this.#get('/mapillary/status', options);
+  }
+
+  boundaries(
+    bbox: BBox,
+    options?: {
+      readonly classes?: readonly BoundaryClass[];
+      readonly zoom?: number;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    },
+  ): Promise<BoundaryResponse> {
+    const qs = new URLSearchParams({
+      west: String(bbox.west),
+      south: String(bbox.south),
+      east: String(bbox.east),
+      north: String(bbox.north),
+    });
+    if (options?.classes && options.classes.length > 0) {
+      qs.set('classes', options.classes.join(','));
+    }
+    if (options?.zoom !== undefined) {
+      qs.set('zoom', String(options.zoom));
+    }
+    if (options?.limit !== undefined) {
+      qs.set('limit', String(options.limit));
+    }
+    return this.#get(`/boundaries?${qs.toString()}`, options);
+  }
+
+  cctvDetections(cameraId: string, options?: CallOptions): Promise<CctvDetectionsResponse> {
+    return this.#get(`/cctv/${encodeURIComponent(cameraId)}/detections`, options);
+  }
+
+  cctvSources(bbox?: BBox, limit?: number, options?: CallOptions): Promise<CameraSource[]> {
+    const qs = new URLSearchParams();
+    if (bbox) {
+      qs.set('west', String(bbox.west));
+      qs.set('south', String(bbox.south));
+      qs.set('east', String(bbox.east));
+      qs.set('north', String(bbox.north));
+    }
+    if (limit !== undefined) {
+      qs.set('limit', String(limit));
+    }
+    const query = qs.toString();
+    return this.#get(`/cctv/sources${query ? `?${query}` : ''}`, options);
+  }
+
+  transitTrail(feedId: string, vehicleId: string, options?: CallOptions): Promise<TransitTrail> {
+    return this.#get(
+      `/transit/${encodeURIComponent(feedId)}/${encodeURIComponent(vehicleId)}/trail`,
+      options,
+    );
+  }
+
+  submarineCables(
+    bbox?: BBox,
+    zoom?: number,
+    limit?: number,
+    options?: CallOptions,
+  ): Promise<SubmarineCableApiItem[]> {
+    const qs = new URLSearchParams();
+    if (bbox) {
+      qs.set('west', String(bbox.west));
+      qs.set('south', String(bbox.south));
+      qs.set('east', String(bbox.east));
+      qs.set('north', String(bbox.north));
+    }
+    if (zoom !== undefined) qs.set('zoom', String(zoom));
+    if (limit !== undefined) qs.set('limit', String(limit));
+    const query = qs.toString();
+    return this.#get(`/infrastructure/cables${query ? `?${query}` : ''}`, options);
+  }
+
+  secretStatus(options?: CallOptions): Promise<SecretStatusResponse> {
+    return this.#get('/secrets/status', options);
   }
 
   // ── live stream ─────────────────────────────────────────────────────────────────────

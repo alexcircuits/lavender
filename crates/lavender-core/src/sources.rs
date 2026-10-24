@@ -29,6 +29,30 @@ pub const ECMWF_IFS_ATTRIBUTION: &str = "This service is based on data and produ
 
 pub const NIFC_WFIGS: &str = "nifc-wfigs";
 pub const INCIWEB: &str = "inciweb";
+pub const MAPILLARY: &str = "mapillary";
+
+pub const CCTV_AUSTIN: &str = "cctv-austin";
+pub const CCTV_CALTRANS: &str = "cctv-caltrans";
+pub const CCTV_TFL: &str = "cctv-tfl";
+pub const CCTV_ONTARIO: &str = "cctv-ontario";
+pub const CCTV_FINTRAFFIC: &str = "cctv-fintraffic";
+pub const CCTV_DRIVEBC: &str = "cctv-drivebc";
+pub const CCTV_TXDOT: &str = "cctv-txdot";
+pub const CCTV_TALLINN: &str = "cctv-tallinn";
+pub const CCTV_TARKTEE: &str = "cctv-tarktee";
+pub const CCTV_WARENDORF: &str = "cctv-warendorf";
+pub const CCTV_NSW: &str = "cctv-nsw";
+pub const CCTV_CALGARY: &str = "cctv-calgary";
+pub const CCTV_DELDOT: &str = "cctv-deldot";
+pub const CCTV_VEGVESEN: &str = "cctv-vegvesen";
+pub const OSRM: &str = "osrm-fossgis";
+pub const GBFS: &str = "gbfs";
+pub const GTFS_RT: &str = "gtfs-rt";
+pub const REEARTH_TERRAIN: &str = "reearth-terrain";
+pub const TOMTOM_TRAFFIC: &str = "tomtom-traffic";
+pub const OPENFREEMAP: &str = "openfreemap";
+pub const OPENSKY: &str = "opensky-network";
+pub const ADS_B_DB: &str = "adsbdb";
 
 /// A source plus what it needs to run.
 #[derive(Debug, Clone)]
@@ -47,6 +71,20 @@ fn source(
     notes: Option<&str>,
 ) -> SourceDef {
     source_with_secrets(id, name, homepage, attribution, licence, commercial, notes, Vec::new())
+}
+
+fn sensitive_source(
+    id: &str,
+    name: &str,
+    homepage: &str,
+    attribution: &str,
+    licence: (&str, &str),
+    commercial: CommercialUse,
+    notes: Option<&str>,
+) -> SourceDef {
+    let mut s = source(id, name, homepage, attribution, licence, commercial, notes);
+    s.info.privacy = Privacy::Sensitive;
+    s
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -233,6 +271,259 @@ pub fn all() -> Vec<SourceDef> {
             CommercialUse::Allowed,
             Some(
                 "Used only to link a perimeter to its incident page; page content stays on InciWeb. InciWeb states its information is for information purposes only and refers to the local wildfire agency for official information.",
+            ),
+        ),
+        source_with_secrets(
+            MAPILLARY,
+            "Mapillary",
+            "https://www.mapillary.com/",
+            "Mapillary street-level imagery (CC BY-SA 4.0)",
+            (
+                "Creative Commons Attribution-ShareAlike 4.0 International",
+                "https://creativecommons.org/licenses/by-sa/4.0/",
+            ),
+            CommercialUse::Allowed,
+            Some("Vector coverage tiles and street-level imagery metadata."),
+            vec![SecretKey::MapillaryClientToken],
+        ),
+        sensitive_source(
+            CCTV_AUSTIN,
+            "City of Austin Open Data (Traffic Cameras)",
+            "https://data.austintexas.gov/",
+            "City of Austin Open Data portal",
+            ("Public domain / City of Austin Open Data", "https://data.austintexas.gov/"),
+            CommercialUse::Allowed,
+            Some("Public traffic cameras; privacy-sensitive CCTV layer."),
+        ),
+        sensitive_source(
+            CCTV_CALTRANS,
+            "Caltrans CCTV (California DOT)",
+            "https://cwwp2.dot.ca.gov/",
+            "California Department of Transportation (Caltrans)",
+            ("Public domain / Caltrans highway camera feed", "https://dot.ca.gov/"),
+            CommercialUse::Allowed,
+            Some("Statewide highway traffic cameras; privacy-sensitive CCTV layer."),
+        ),
+        sensitive_source(
+            CCTV_TFL,
+            "Transport for London (JamCams)",
+            "https://tfl.gov.uk/",
+            "Powered by TfL Open Data",
+            (
+                "Powered by TfL Open Data (requires registration)",
+                "https://tfl.gov.uk/info-for/open-data-users/terms-and-conditions",
+            ),
+            CommercialUse::RequiresAgreement,
+            Some("London traffic cameras; requires registration for commercial use."),
+        ),
+        sensitive_source(
+            CCTV_ONTARIO,
+            "Ontario 511 (Ministry of Transportation Ontario)",
+            "https://511on.ca/",
+            "Ministry of Transportation Ontario (511on.ca)",
+            (
+                "Open Government Licence – Ontario",
+                "https://www.ontario.ca/page/open-government-licence-ontario",
+            ),
+            CommercialUse::Allowed,
+            Some("Provincial highway cameras; privacy-sensitive CCTV layer."),
+        ),
+        sensitive_source(
+            CCTV_FINTRAFFIC,
+            "Fintraffic Weather Cameras (Digitraffic)",
+            "https://www.digitraffic.fi/",
+            "Fintraffic / digitraffic.fi (CC BY 4.0)",
+            (
+                "Creative Commons Attribution 4.0 International",
+                "https://creativecommons.org/licenses/by/4.0/",
+            ),
+            CommercialUse::Allowed,
+            Some("Road weather camera presets across Finland."),
+        ),
+        sensitive_source(
+            CCTV_DRIVEBC,
+            "DriveBC Highway Webcams",
+            "https://www.drivebc.ca/",
+            "DriveBC, Open Government Licence – British Columbia",
+            (
+                "Open Government Licence – British Columbia",
+                "https://www2.gov.bc.ca/gov/content/data/open-data/open-government-licence-bc",
+            ),
+            CommercialUse::Allowed,
+            Some("British Columbia provincial highway cameras."),
+        ),
+        sensitive_source(
+            CCTV_TXDOT,
+            "TxDOT ITS Traffic Cameras",
+            "https://its.txdot.gov/",
+            "Texas Department of Transportation (TxDOT)",
+            ("Public TxDOT traffic camera data", "https://www.txdot.gov/"),
+            CommercialUse::Allowed,
+            Some("Texas statewide traffic and ITS camera feeds."),
+        ),
+        sensitive_source(
+            CCTV_TALLINN,
+            "Tallinn Traffic Cameras (Ristmikud)",
+            "https://ristmikud.tallinn.ee/",
+            "City of Tallinn (ristmikud.tallinn.ee)",
+            ("Public City of Tallinn traffic camera data", "https://www.tallinn.ee/"),
+            CommercialUse::NonCommercialOnly,
+            Some("Curated intersection cameras in Tallinn; non-commercial only."),
+        ),
+        sensitive_source(
+            CCTV_TARKTEE,
+            "Transpordiamet Tarktee Road Cameras",
+            "https://tarktee.ee/",
+            "Estonian Transport Administration (Transpordiamet)",
+            ("Public Transpordiamet road weather camera data", "https://transpordiamet.ee/"),
+            CommercialUse::Allowed,
+            Some("DATEX2 road weather camera feeds in Estonia."),
+        ),
+        sensitive_source(
+            CCTV_WARENDORF,
+            "Kreis Warendorf Municipal Webcam",
+            "https://www.kreis-warendorf.de/",
+            "Stadt Warendorf / Kreis Warendorf",
+            ("Public municipal webcam data", "https://www.warendorf.de/"),
+            CommercialUse::NonCommercialOnly,
+            Some("Curated Marktplatz municipal webcam; non-commercial only."),
+        ),
+        sensitive_source(
+            CCTV_NSW,
+            "Live Traffic NSW (Transport for NSW)",
+            "https://www.livetraffic.com/",
+            "Live Traffic NSW — Transport for NSW (CC BY 4.0)",
+            (
+                "Creative Commons Attribution 4.0 International",
+                "https://creativecommons.org/licenses/by/4.0/",
+            ),
+            CommercialUse::Allowed,
+            Some("Transport for NSW live camera network."),
+        ),
+        sensitive_source(
+            CCTV_CALGARY,
+            "City of Calgary Traffic Cameras",
+            "https://data.calgary.ca/",
+            "The City of Calgary",
+            (
+                "Open Government Licence – City of Calgary",
+                "https://data.calgary.ca/stories/s/Open-Calgary-Terms-of-Use/u45n-7awa/",
+            ),
+            CommercialUse::Allowed,
+            Some("Open Calgary traffic camera feeds."),
+        ),
+        sensitive_source(
+            CCTV_DELDOT,
+            "Delaware DOT Traffic Cameras",
+            "https://tmc.deldot.gov/",
+            "Delaware Department of Transportation (DelDOT)",
+            ("Public DelDOT traffic camera data", "https://deldot.gov/"),
+            CommercialUse::Allowed,
+            Some("Delaware statewide traffic cameras."),
+        ),
+        sensitive_source(
+            CCTV_VEGVESEN,
+            "Statens vegvesen Road Cameras (Norway)",
+            "https://www.vegvesen.no/",
+            "Statens vegvesen (Norway)",
+            (
+                "Norwegian Licence for Open Government Data (NLOD)",
+                "https://data.norge.no/nlod/en/2.0",
+            ),
+            CommercialUse::Allowed,
+            Some("Norwegian national road cameras (DATEX 3.1)."),
+        ),
+        source(
+            OSRM,
+            "OSRM on FOSSGIS",
+            "https://routing.openstreetmap.de/about.html",
+            "Routing data © OpenStreetMap contributors (ODbL). Improve this map: https://www.openstreetmap.org/fixthemap",
+            (
+                "FOSSGIS server terms of use / ODbL",
+                "https://www.fossgis.de/arbeitsgruppen/osm-server/nutzungsbedingungen/",
+            ),
+            CommercialUse::NonCommercialOnly,
+            Some(
+                "Paced routing over OpenStreetMap via FOSSGIS OSRM servers (1 req/s floor, bounded queue). High-traffic commercial use requires self-hosting or agreement.",
+            ),
+        ),
+        source(
+            GBFS,
+            "General Bikeshare Feed Specification (GBFS)",
+            "https://gbfs.org/",
+            "Station and availability data provided by regional bikeshare operators under GBFS open data terms.",
+            ("GBFS Open Data Terms", "https://gbfs.org/"),
+            CommercialUse::Allowed,
+            Some("Live and static bikeshare station feeds from approved municipal systems."),
+        ),
+        source(
+            GTFS_RT,
+            "General Transit Feed Specification - Realtime (GTFS-RT)",
+            "https://gtfs.org/realtime/",
+            "Live public transit vehicle positions provided by regional transit agencies under open data terms.",
+            ("GTFS-RT Open Data Terms", "https://gtfs.org/realtime/"),
+            CommercialUse::Allowed,
+            Some(
+                "Live public transit vehicle position feeds from approved transit agency endpoints.",
+            ),
+        ),
+        source(
+            REEARTH_TERRAIN,
+            "Re:Earth Terrain / Mapterhorn",
+            "https://terrain.reearth.land/",
+            "Terrain: Re:Earth Terrain · Mapterhorn (CC BY 4.0)",
+            (
+                "Creative Commons Attribution 4.0 International",
+                "https://creativecommons.org/licenses/by/4.0/",
+            ),
+            CommercialUse::Allowed,
+            Some("Batched ellipsoidal ground height queries; CC BY 4.0 open elevation data."),
+        ),
+        source_with_secrets(
+            TOMTOM_TRAFFIC,
+            "TomTom Traffic Flow",
+            "https://developer.tomtom.com/traffic-api/documentation/traffic-flow/raster-flow-tiles",
+            "Traffic flow data © TomTom",
+            ("TomTom Commercial API Terms", "https://developer.tomtom.com/terms-and-conditions"),
+            CommercialUse::Unknown,
+            Some(
+                "TomTom relative traffic flow vector tiles proxied with daily budget governor. Requires a TomTom API key.",
+            ),
+            vec![SecretKey::TomTomApiKey],
+        ),
+        source(
+            OPENFREEMAP,
+            "OpenFreeMap / OpenMapTiles",
+            "https://openfreemap.org/",
+            "Vector tiles: OpenFreeMap © OpenMapTiles; data © OpenStreetMap contributors (ODbL 1.0)",
+            ("Open Database License (ODbL) 1.0", "https://opendatacommons.org/licenses/odbl/1-0/"),
+            CommercialUse::Allowed,
+            Some("OpenFreeMap public vector tiles for road transportation geometry matching."),
+        ),
+        source_with_secrets(
+            OPENSKY,
+            "The OpenSky Network",
+            "https://opensky-network.org/",
+            "Aircraft data: The OpenSky Network (opensky-network.org)",
+            (
+                "OpenSky Terms of Use (non-commercial)",
+                "https://opensky-network.org/about/terms-of-use",
+            ),
+            CommercialUse::NonCommercialOnly,
+            Some(
+                "Evaluation and non-commercial aircraft feed with daily credit governor. Commercial use requires an OpenSky commercial licence.",
+            ),
+            vec![SecretKey::OpenSkyClientId, SecretKey::OpenSkyClientSecret],
+        ),
+        source(
+            ADS_B_DB,
+            "adsbdb",
+            "https://www.adsbdb.com/",
+            "Aircraft type and route data: adsbdb (adsbdb.com)",
+            ("adsbdb API Terms", "https://www.adsbdb.com/"),
+            CommercialUse::RequiresAgreement,
+            Some(
+                "Community aircraft route and type enrichment cache. Route redistribution requires publisher permission.",
             ),
         ),
     ]

@@ -1,0 +1,17 @@
+{
+  "last_updated": "2024-04-15T10:00:00Z",
+  "ttl": 300,
+  "version": "3.0",
+  "data": {
+    "feeds": [
+      {
+        "name": "station_information",
+        "url": "https://gbfs.example.com/3.0/station_information.json"
+      },
+      {
+        "name": "station_status",
+        "url": "https://gbfs.example.com/3.0/station_status.json"
+      }
+    ]
+  }
+}

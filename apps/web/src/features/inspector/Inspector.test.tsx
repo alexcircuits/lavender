@@ -59,7 +59,7 @@ async function setup(feed: FeedId) {
 /** The inspector island, if open (the toaster is a region too). */
 const inspector = () => document.querySelector('[data-inspector]');
 
-function select(h: Harness, feed: FeedId, id: string) {
+function select(h: Harness, feed: FeedId | 'boundaries', id: string) {
   act(() => h.runtime.stores.workspace.getState().select({ feed, id }));
 }
 
@@ -97,8 +97,8 @@ describe('Inspector', () => {
     expect(fact('Facts', 'Position time')).toBe('Not reported');
     expect(fact('Facts', 'Position age')).toBe('Not reported');
     expect(fact('Provenance', 'Observed')).toBe('Not reported');
-    // The recent track is the platform's retained data; no follow action is offered.
-    expect(within(region).queryByRole('button', { name: /Follow/ })).not.toBeInTheDocument();
+    // Follow button is available for tracked entities (vessels)
+    expect(within(region).getByRole('button', { name: 'Follow' })).toBeInTheDocument();
     await waitFor(() =>
       expect(h.platform.vesselTrack).toHaveBeenCalledWith('123456789', expect.anything()),
     );
@@ -337,11 +337,11 @@ describe('Inspector', () => {
     expect(fact('Provenance', 'Source')).toBe('adsb.lol');
     expect(fact('Provenance', 'Observed')).toBe('11:59:57 UTC');
     expect(fact('Provenance', 'Fetched')).toBe('12:00:00 UTC');
-    // v1 actions only: no dead Track/Follow buttons.
-    expect(within(region).queryByRole('button', { name: /Track|Follow/ })).not.toBeInTheDocument();
+    // Follow button is available for aircraft
+    expect(within(region).getByRole('button', { name: 'Follow' })).toBeInTheDocument();
   });
 
-  it('flies to the entity and copies its coordinates without moving the camera itself', async () => {
+  it('flies to the entity, follows it, and copies its coordinates without moving the camera itself', async () => {
     const h = await setup('aircraft');
     h.platform.live('aircraft')?.onEvent({
       kind: 'snapshot',
@@ -349,6 +349,13 @@ describe('Inspector', () => {
     });
     select(h, 'aircraft', '4aca2d');
     expect(h.globe?.globe.flyTo).not.toHaveBeenCalled();
+    expect(h.globe?.globe.startFollowing).not.toHaveBeenCalled();
+
+    await h.user.click(screen.getByRole('button', { name: 'Follow' }));
+    expect(h.globe?.globe.startFollowing).toHaveBeenCalledWith({
+      feed: 'aircraft',
+      id: '4aca2d',
+    });
 
     await h.user.click(screen.getByRole('button', { name: 'Fly to' }));
     expect(h.globe?.globe.flyTo).toHaveBeenCalledWith({
@@ -365,6 +372,34 @@ describe('Inspector', () => {
     writeText.mockRejectedValueOnce(new Error('denied'));
     await h.user.click(screen.getByRole('button', { name: 'Copy coordinates' }));
     expect(await screen.findByText('Coordinates not copied')).toBeInTheDocument();
+  });
+
+  it('loads the aircraft track, draws it on the globe and clears it when selection changes', async () => {
+    const h = await setup('aircraft');
+    const track = {
+      hex: '4aca2d',
+      sources: ['test'],
+      points: [
+        { time: '2026-10-21T11:50:00Z', position: { lat: 60.1, lon: 24.9, altM: 10_000 } },
+        { time: '2026-10-21T11:55:00Z', position: { lat: 60.1699, lon: 24.9384, altM: 10_500 } },
+      ],
+    };
+    h.platform.aircraftTrack.mockResolvedValue(track);
+    h.platform.live('aircraft')?.onEvent({
+      kind: 'snapshot',
+      snapshot: aircraftSnapshot([aircraft('4aca2d')]),
+    });
+    select(h, 'aircraft', '4aca2d');
+
+    const loadBtn = screen.getByRole('button', { name: 'Load recent history' });
+    await h.user.click(loadBtn);
+
+    await waitFor(() => {
+      expect(h.globe?.globe.showAircraftTrack).toHaveBeenLastCalledWith(track);
+    });
+
+    select(h, 'aircraft', 'otherhex');
+    expect(h.globe?.globe.showAircraftTrack).toHaveBeenLastCalledWith(null);
   });
 
   it('shows an earthquake and links its USGS event page only', async () => {
@@ -520,5 +555,50 @@ describe('Inspector', () => {
     await h.user.keyboard('{Escape}');
     await waitFor(() => expect(inspector()).toBeNull());
     expect(h.runtime.stores.workspace.getState().selection).toBeNull();
+  });
+
+  it('shows a selected boundary with classification, disclaimer, attribution, and actions', async () => {
+    const h = await setup('aircraft');
+    const mockBoundary = {
+      id: 'disp-line-42',
+      name: 'Line of Control (Jammu & Kashmir)',
+      class: 'disputedLine' as const,
+      status: 'Disputed',
+      claimants: ['India', 'Pakistan'],
+      note: 'Ceasefire line established in 1972',
+      lines: [
+        [
+          { lat: 34.0, lon: 74.0 },
+          { lat: 34.5, lon: 74.5 },
+        ],
+      ],
+      bbox: { west: 74.0, south: 34.0, east: 74.5, north: 34.5 },
+    };
+
+    expect(h.globe).toBeDefined();
+    if (h.globe) {
+      vi.mocked(h.globe.globe.getBoundaryFeature).mockReturnValue(mockBoundary);
+    }
+
+    select(h, 'boundaries', 'disp-line-42');
+
+    const region = screen.getByRole('region', { name: 'Line of Control (Jammu & Kashmir)' });
+    expect(within(region).getAllByText('Disputed boundary line')[0]).toBeInTheDocument();
+    expect(fact('Boundary details', 'Classification')).toBe('Disputed boundary line');
+    expect(fact('Boundary details', 'Status')).toBe('Disputed');
+    expect(fact('Boundary details', 'Claimants')).toBe('India, Pakistan');
+    expect(fact('Boundary details', 'Note')).toBe('Ceasefire line established in 1972');
+    expect(
+      screen.getByText(
+        /Natural Earth shows de facto boundaries; disputed-area classification represents one point of view/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Made with Natural Earth (public domain)')).toBeInTheDocument();
+
+    await h.user.click(screen.getByRole('button', { name: 'Fly to' }));
+    expect(h.globe?.globe.flyTo).toHaveBeenCalledWith({
+      kind: 'bbox',
+      bbox: mockBoundary.bbox,
+    });
   });
 });

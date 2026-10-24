@@ -3,4 +3,4 @@
 /**
  * A live data feed, which the interface shows as a layer.
  */
-export type FeedId = "aircraft" | "earthquakes" | "satellites" | "cyclones" | "fires" | "launches" | "vessels" | "perimeters";
+export type FeedId = "aircraft" | "earthquakes" | "satellites" | "cyclones" | "fires" | "launches" | "vessels" | "perimeters" | "bikeshare" | "transit";

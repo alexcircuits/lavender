@@ -1,0 +1,27 @@
+{
+  "last_updated": "2024-04-15T10:00:00Z",
+  "ttl": 60,
+  "version": "3.0",
+  "data": {
+    "stations": [
+      {
+        "station_id": "v3-st-101",
+        "num_bikes_available": 22,
+        "num_docks_available": 18,
+        "is_installed": true,
+        "is_renting": true,
+        "is_returning": true,
+        "last_reported": "2024-04-15T10:00:15Z"
+      },
+      {
+        "station_id": "v3-st-102",
+        "num_bikes_available": 5,
+        "num_docks_available": 25,
+        "is_installed": true,
+        "is_renting": true,
+        "is_returning": true,
+        "last_reported": "2024-04-15T10:00:20Z"
+      }
+    ]
+  }
+}

@@ -59,13 +59,14 @@ export function NavRail({ className }: NavRailProps) {
             <BookOpenIcon size={18} weight="bold" aria-hidden />
           </a>
         </Tooltip>
-        {/* Visible so the layout is stable, but honest: it does nothing yet. */}
         <IconButton
-          label="Settings (coming later)"
+          label="Settings"
           icon={GearSixIcon}
+          pressed={current === 'settings'}
           tooltipSide="right"
-          aria-disabled="true"
-          className={cx(styles.railButton, styles.soon)}
+          className={styles.railButton}
+          data-rail-panel="settings"
+          onClick={() => setSidePanel(current === 'settings' ? null : 'settings')}
         />
       </div>
     </nav>

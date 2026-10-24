@@ -1,0 +1,35 @@
+{
+  "last_updated": "2024-04-15T10:00:00Z",
+  "ttl": 300,
+  "version": "3.0",
+  "data": {
+    "stations": [
+      {
+        "station_id": "v3-st-101",
+        "name": [
+          { "text": "Tour Eiffel", "language": "fr" },
+          { "text": "Eiffel Tower", "language": "en" }
+        ],
+        "lat": 48.8584,
+        "lon": 2.2945,
+        "capacity": 40,
+        "is_installed": true,
+        "is_renting": true,
+        "is_returning": true
+      },
+      {
+        "station_id": "v3-st-102",
+        "name": [
+          { "text": "Arc de Triomphe", "language": "fr" },
+          { "text": "Triumphal Arch", "language": "en" }
+        ],
+        "lat": 48.8738,
+        "lon": 2.2950,
+        "capacity": 30,
+        "is_installed": true,
+        "is_renting": true,
+        "is_returning": true
+      }
+    ]
+  }
+}

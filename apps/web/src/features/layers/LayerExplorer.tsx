@@ -12,6 +12,7 @@ import {
   XIcon,
 } from '../../design';
 import { useUi, useWorkspace } from '../../runtime';
+import { BoundariesRow } from './BoundariesRow';
 import { FAMILY_ORDER, familyLabel } from './families';
 import { LayerRow } from './LayerRow';
 import styles from './layers.module.css';
@@ -72,12 +73,36 @@ export function LayerExplorer({ catalog, className }: LayerExplorerProps) {
     );
   }, [catalog]);
 
+  const hasNaturalEarth = catalog.sources.some((s) => s.id === 'natural-earth');
+  const q = filter.trim().toLowerCase();
+  const matchesBoundaries =
+    q === '' ||
+    ['boundaries', 'borders', 'disputed', 'breakaway', 'maritime', 'natural earth'].some(
+      (term) => term.includes(q) || q.includes(term),
+    );
+
+  const boundariesSection =
+    hasNaturalEarth && matchesBoundaries ? (
+      <section
+        key="boundaries-context"
+        className={styles.group}
+        aria-labelledby="layer-group-boundaries"
+      >
+        <h3 id="layer-group-boundaries" className={styles.groupLabel}>
+          Context
+        </h3>
+        <List aria-label="Context layers" dense>
+          <BoundariesRow onOpenSources={() => setSidePanel('sources')} />
+        </List>
+      </section>
+    ) : null;
+
   let body: ReactNode;
-  if (catalog.layers.length === 0) {
+  if (catalog.layers.length === 0 && !boundariesSection) {
     body = (
       <EmptyState icon={StackIcon}>This server offers no layers yet. Check its sources.</EmptyState>
     );
-  } else if (groups.length === 0) {
+  } else if (groups.length === 0 && !boundariesSection) {
     body = (
       <EmptyState
         icon={MagnifyingGlassIcon}
@@ -98,7 +123,7 @@ export function LayerExplorer({ catalog, className }: LayerExplorerProps) {
       </EmptyState>
     );
   } else {
-    body = groups.map((group) => (
+    const layerSections = groups.map((group) => (
       <section
         key={group.family}
         className={styles.group}
@@ -114,6 +139,13 @@ export function LayerExplorer({ catalog, className }: LayerExplorerProps) {
         </List>
       </section>
     ));
+
+    body = (
+      <>
+        {layerSections}
+        {boundariesSection}
+      </>
+    );
   }
 
   return (

@@ -196,7 +196,12 @@ export class FeedController {
   #refreshSelected(): void {
     const feeds = this.#stores.feeds.getState();
     const selection = this.#stores.workspace.getState().selection;
-    if (!selection) {
+    if (
+      !selection ||
+      selection.feed === 'boundaries' ||
+      selection.feed === 'cables' ||
+      selection.feed === 'cctv'
+    ) {
       this.#heldKey = null;
       feeds.setSelectedEntity(null, null, false);
       return;

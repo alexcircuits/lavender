@@ -2,11 +2,12 @@
 
 use super::{HubDeps, MAX_BACKOFF, MAX_PROVIDER_NOTICES, SlotState};
 use crate::aircraft_history::AircraftHistory;
+use crate::analytics::{KinematicEventC, TrackObservation};
 use crate::providers::{FeedProvider, FetchContext, Fetched, MAX_ERROR_CHARS, Region};
 use futures::FutureExt;
 use jiff::Timestamp;
-use lavender_domain::FeedItems;
 use lavender_domain::text::clean;
+use lavender_domain::{Aircraft, FeedItems, Vessel};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -86,10 +87,16 @@ async fn refresh_region(
                 // when an aircraft position was observed upstream.
                 let observation_base = fetched.as_of;
                 let state = provider_answer_to_state(fetched);
-                if let (Some(items), Some(as_of)) = (&state.items, observation_base)
-                    && let FeedItems::Aircraft(aircraft) = items.as_ref()
-                {
-                    aircraft_history.capture(aircraft, as_of);
+                if let (Some(items), Some(as_of)) = (&state.items, observation_base) {
+                    match items.as_ref() {
+                        FeedItems::Aircraft(aircraft) => {
+                            ingest_aircraft(aircraft, as_of, source, deps, aircraft_history);
+                        }
+                        FeedItems::Vessels(vessels) => {
+                            ingest_vessels(vessels, as_of, source, deps);
+                        }
+                        _ => {}
+                    }
                 }
                 if let Some(items) = &state.items
                     && let FeedItems::Satellites(sats) = items.as_ref()
@@ -123,6 +130,128 @@ async fn refresh_region(
         tokio::select! {
             () = tokio::time::sleep(delay) => {}
             () = cancel.cancelled() => return,
+        }
+    }
+}
+
+fn ingest_aircraft(
+    aircraft: &[Aircraft],
+    as_of: Timestamp,
+    source: &str,
+    deps: &HubDeps,
+    aircraft_history: &AircraftHistory,
+) {
+    aircraft_history.capture(aircraft, as_of);
+    if let Some(sink) = &deps.track_sink {
+        let observations = aircraft.iter().map(|plane| {
+            #[allow(clippy::cast_possible_truncation)]
+            let altitude_m =
+                plane.altitude_geom_ft.or(plane.altitude_baro_ft).map(|ft| (ft * 0.3048) as f32);
+            #[allow(clippy::cast_possible_truncation)]
+            let speed_knots = plane.ground_speed_kt.map(|s| s as f32);
+            #[allow(clippy::cast_possible_truncation)]
+            let heading_deg = plane.track_deg.map(|t| t as f32);
+            let source_id = if plane.source.is_empty() { source } else { &plane.source };
+            TrackObservation::new(
+                &plane.hex,
+                as_of,
+                plane.position.lon,
+                plane.position.lat,
+                altitude_m,
+                speed_knots,
+                heading_deg,
+                source_id,
+            )
+        });
+        if let Err(err) = sink.push_batch(observations) {
+            tracing::warn!(error = %err, "failed to push aircraft track observations");
+        }
+    }
+    if let Some(rule_engine) = &deps.rule_engine {
+        for plane in aircraft {
+            #[allow(clippy::cast_possible_truncation)]
+            let altitude_m = plane
+                .altitude_geom_ft
+                .or(plane.altitude_baro_ft)
+                .map_or(0.0, |ft| (ft * 0.3048) as f32);
+            #[allow(clippy::cast_possible_truncation)]
+            let speed_knots = plane.ground_speed_kt.map_or(0.0, |s| s as f32);
+            #[allow(clippy::cast_possible_truncation)]
+            let heading_deg = plane.track_deg.map_or(0.0, |t| t as f32);
+            let is_transponder_on =
+                plane.squawk.as_deref().is_none_or(|sq| sq != "0000" && sq != "OFF");
+            let event = KinematicEventC::new(
+                &plane.hex,
+                plane.position.lat,
+                plane.position.lon,
+                altitude_m,
+                speed_knots,
+                heading_deg,
+                as_of.as_second(),
+                is_transponder_on,
+            );
+            if let Some(alert) = rule_engine.evaluate(&event) {
+                tracing::warn!(
+                    entity_id = %alert.entity_id,
+                    rule_id = alert.rule_id,
+                    severity = alert.severity,
+                    confidence = alert.confidence,
+                    message = %alert.message,
+                    "Tactical alerting rule triggered for aircraft"
+                );
+            }
+        }
+    }
+}
+
+fn ingest_vessels(vessels: &[Vessel], as_of: Timestamp, source: &str, deps: &HubDeps) {
+    if let Some(sink) = &deps.track_sink {
+        let observations = vessels.iter().map(|vessel| {
+            #[allow(clippy::cast_possible_truncation)]
+            let speed_knots = vessel.speed_knots.map(|s| s as f32);
+            #[allow(clippy::cast_possible_truncation)]
+            let heading_deg = vessel.heading_deg.or(vessel.course_deg).map(|d| d as f32);
+            TrackObservation::new(
+                &vessel.mmsi,
+                as_of,
+                vessel.position.lon,
+                vessel.position.lat,
+                Some(0.0),
+                speed_knots,
+                heading_deg,
+                source,
+            )
+        });
+        if let Err(err) = sink.push_batch(observations) {
+            tracing::warn!(error = %err, "failed to push vessel track observations");
+        }
+    }
+    if let Some(rule_engine) = &deps.rule_engine {
+        for vessel in vessels {
+            #[allow(clippy::cast_possible_truncation)]
+            let speed_knots = vessel.speed_knots.map_or(0.0, |s| s as f32);
+            #[allow(clippy::cast_possible_truncation)]
+            let heading_deg = vessel.heading_deg.or(vessel.course_deg).map_or(0.0, |d| d as f32);
+            let event = KinematicEventC::new(
+                &vessel.mmsi,
+                vessel.position.lat,
+                vessel.position.lon,
+                0.0,
+                speed_knots,
+                heading_deg,
+                as_of.as_second(),
+                true,
+            );
+            if let Some(alert) = rule_engine.evaluate(&event) {
+                tracing::warn!(
+                    entity_id = %alert.entity_id,
+                    rule_id = alert.rule_id,
+                    severity = alert.severity,
+                    confidence = alert.confidence,
+                    message = %alert.message,
+                    "Tactical alerting rule triggered for vessel"
+                );
+            }
         }
     }
 }
@@ -209,5 +338,150 @@ mod tests {
                 "the configured provider would return a cooling cache at {delay:?}, skipping its next refresh"
             );
         }
+    }
+
+    #[test]
+    fn aircraft_ingestion_buffers_track_observations_and_converts_units() {
+        use crate::analytics::TrackBatchBuffer;
+        use lavender_domain::GeoPoint;
+
+        let sink = Arc::new(TrackBatchBuffer::new(100, 60));
+        let deps = HubDeps {
+            fetcher: Arc::new(
+                crate::fetch::Fetcher::new(crate::config::FetchConfig::default()).unwrap(),
+            ),
+            secrets: Arc::new(crate::secrets::MemorySecretStore::default()),
+            health: Arc::new(crate::health::HealthTracker::default()),
+            cache_dir: None,
+            satellite_catalog: Arc::new(crate::satellite_catalog::SatelliteCatalog::default()),
+            track_sink: Some(sink.clone()),
+            rule_engine: None,
+        };
+        let history = AircraftHistory::default();
+        let as_of = Timestamp::from_second(1_700_000_000).unwrap();
+        let planes = vec![Aircraft {
+            hex: "4b1812".to_string(),
+            callsign: Some("SWR123".to_string()),
+            registration: None,
+            type_code: None,
+            category: None,
+            position: GeoPoint::new(47.45, 8.55).unwrap(),
+            altitude_baro_ft: Some(10_000.0),
+            altitude_geom_ft: Some(10_200.0),
+            on_ground: false,
+            ground_speed_kt: Some(420.0),
+            track_deg: Some(250.0),
+            vertical_rate_fpm: None,
+            squawk: Some("7000".to_string()),
+            emergency: None,
+            is_military: false,
+            seen_pos_s: 0.0,
+            source: "adsb-lol".to_string(),
+        }];
+
+        ingest_aircraft(&planes, as_of, "adsb-lol", &deps, &history);
+
+        assert_eq!(sink.len(), 1);
+        let obs = sink.snapshot().unwrap();
+        assert_eq!(obs.len(), 1);
+        assert_eq!(obs[0].entity_id, "4b1812");
+        assert_eq!(obs[0].timestamp, as_of);
+        assert!((obs[0].lon - 8.55).abs() < 1e-5);
+        assert!((obs[0].lat - 47.45).abs() < 1e-5);
+        // 10200 ft * 0.3048 = 3108.96 m
+        assert!((obs[0].altitude_m.unwrap() - 3108.96).abs() < 0.1);
+        assert!((obs[0].speed_knots.unwrap() - 420.0).abs() < 0.1);
+        assert!((obs[0].heading_deg.unwrap() - 250.0).abs() < 0.1);
+        assert_eq!(obs[0].source_id, "adsb-lol");
+    }
+
+    #[test]
+    fn vessel_ingestion_buffers_track_observations() {
+        use crate::analytics::TrackBatchBuffer;
+        use lavender_domain::GeoPoint;
+
+        let sink = Arc::new(TrackBatchBuffer::new(100, 60));
+        let deps = HubDeps {
+            fetcher: Arc::new(
+                crate::fetch::Fetcher::new(crate::config::FetchConfig::default()).unwrap(),
+            ),
+            secrets: Arc::new(crate::secrets::MemorySecretStore::default()),
+            health: Arc::new(crate::health::HealthTracker::default()),
+            cache_dir: None,
+            satellite_catalog: Arc::new(crate::satellite_catalog::SatelliteCatalog::default()),
+            track_sink: Some(sink.clone()),
+            rule_engine: None,
+        };
+        let as_of = Timestamp::from_second(1_700_000_100).unwrap();
+        let vessels = vec![Vessel {
+            mmsi: "211281610".to_string(),
+            name: Some("EVER GIVEN".to_string()),
+            imo: None,
+            vessel_type: None,
+            destination: None,
+            position: GeoPoint::new(53.5, 9.9).unwrap(),
+            speed_knots: Some(14.5),
+            course_deg: Some(182.0),
+            heading_deg: Some(180.0),
+            last_position_utc: None,
+            last_position_epoch: None,
+        }];
+
+        ingest_vessels(&vessels, as_of, "aisstream", &deps);
+
+        assert_eq!(sink.len(), 1);
+        let obs = sink.snapshot().unwrap();
+        assert_eq!(obs.len(), 1);
+        assert_eq!(obs[0].entity_id, "211281610");
+        assert_eq!(obs[0].timestamp, as_of);
+        assert!((obs[0].lon - 9.9).abs() < 1e-5);
+        assert!((obs[0].lat - 53.5).abs() < 1e-5);
+        assert_eq!(obs[0].altitude_m, Some(0.0));
+        assert!((obs[0].speed_knots.unwrap() - 14.5).abs() < 0.1);
+        assert!((obs[0].heading_deg.unwrap() - 180.0).abs() < 0.1);
+        assert_eq!(obs[0].source_id, "aisstream");
+    }
+
+    #[test]
+    fn aircraft_evaluates_tactical_alert_rules() {
+        use crate::analytics::NimRuleEngine;
+        use lavender_domain::GeoPoint;
+
+        let engine = Arc::new(NimRuleEngine::fallback());
+        let deps = HubDeps {
+            fetcher: Arc::new(
+                crate::fetch::Fetcher::new(crate::config::FetchConfig::default()).unwrap(),
+            ),
+            secrets: Arc::new(crate::secrets::MemorySecretStore::default()),
+            health: Arc::new(crate::health::HealthTracker::default()),
+            cache_dir: None,
+            satellite_catalog: Arc::new(crate::satellite_catalog::SatelliteCatalog::default()),
+            track_sink: None,
+            rule_engine: Some(engine),
+        };
+        let history = AircraftHistory::default();
+        let as_of = Timestamp::from_second(1_700_000_000).unwrap();
+        // Supersonic (700 kt) at low altitude (1500 ft = 457m <= 2000m)
+        let planes = vec![Aircraft {
+            hex: "ff0011".to_string(),
+            callsign: Some("FAST1".to_string()),
+            registration: None,
+            type_code: None,
+            category: None,
+            position: GeoPoint::new(45.0, 10.0).unwrap(),
+            altitude_baro_ft: Some(1500.0),
+            altitude_geom_ft: None,
+            on_ground: false,
+            ground_speed_kt: Some(700.0),
+            track_deg: Some(90.0),
+            vertical_rate_fpm: None,
+            squawk: Some("7700".to_string()),
+            emergency: None,
+            is_military: true,
+            seen_pos_s: 0.0,
+            source: "adsb-lol".to_string(),
+        }];
+
+        ingest_aircraft(&planes, as_of, "adsb-lol", &deps, &history);
     }
 }

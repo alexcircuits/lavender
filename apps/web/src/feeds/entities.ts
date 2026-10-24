@@ -4,6 +4,7 @@
  */
 import type {
   Aircraft,
+  BikeshareStation,
   Cyclone,
   Earthquake,
   FeedId,
@@ -12,6 +13,7 @@ import type {
   FirePerimeter,
   Launch,
   SatelliteElements,
+  TransitVehicle,
   Vessel,
 } from '../contracts';
 import { fireCellId, isValidFireCell } from './fireCells';
@@ -24,7 +26,9 @@ export type FeedItem =
   | FireCell
   | Launch
   | Vessel
-  | FirePerimeter;
+  | FirePerimeter
+  | BikeshareStation
+  | TransitVehicle;
 
 /**
  * The stable id of an item within its feed, or null when the item has none (a fire cell that
@@ -48,6 +52,12 @@ export function itemId(items: FeedItems, item: FeedItem): string | null {
       return (item as Vessel).mmsi;
     case 'perimeters':
       return (item as FirePerimeter).id;
+    case 'bikeshare':
+      return (item as BikeshareStation).stationId;
+    case 'transit':
+      return (item as TransitVehicle).vehicleId;
+    default:
+      return null;
   }
 }
 

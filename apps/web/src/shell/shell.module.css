@@ -142,8 +142,21 @@
 }
 
 .chipSlot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
   flex: none;
   pointer-events: auto;
+}
+
+.followingChip {
+  box-shadow: var(--float-edge);
+}
+
+.followingChipInner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
 }
 
 .feedChip {

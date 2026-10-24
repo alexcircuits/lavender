@@ -19,6 +19,8 @@ export interface InteractionHandlers {
   readonly drawing?: () => boolean;
   /** Hit areas that answer a click only when no drawn symbol is under the cursor. */
   readonly pickAssists?: readonly PickAssist[];
+  /** Fallback resolver for area/polygon entities when a click hits the ground directly. */
+  readonly pointPick?: (point: GeoPoint) => EntityRef | null;
 }
 
 const scratchCartesian = new Cartesian3();
@@ -88,6 +90,12 @@ export class Interaction {
     let entity: EntityRef | null = null;
     try {
       entity = this.#pickEntity(position);
+      if (!entity && this.#handlers.pointPick) {
+        const pt = geoPointAt(this.#widget, position);
+        if (pt) {
+          entity = this.#handlers.pointPick(pt);
+        }
+      }
     } catch (error) {
       console.error('Globe pick failed', error);
     }

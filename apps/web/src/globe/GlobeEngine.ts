@@ -6,20 +6,34 @@
 // cursor (interaction.ts), view normalisation (view.ts) and one renderer per feed
 // (renderers/*). Explicit rendering throughout: nothing renders unless something changed.
 import '@cesium/engine/Source/Widget/CesiumWidget.css';
-import { Cartesian2, Cartesian3, Math as CesiumMath, Color, Rectangle } from '@cesium/core';
+import {
+  Cartesian2,
+  Cartesian3,
+  Math as CesiumMath,
+  Color,
+  Ellipsoid,
+  Rectangle,
+} from '@cesium/core';
 import {
   CesiumWidget,
   CreditDisplay,
   EllipsoidTerrainProvider,
   ImageryLayer,
   Ion,
+  PointPrimitiveCollection,
+  PolylineCollection,
 } from '@cesium/engine';
 import type {
+  AircraftTrack,
+  BoundaryFeature,
+  CameraSource,
+  CctvDetectionsResponse,
   FeedId,
   FeedSnapshot,
   GeoPoint,
   ImageryDescriptor,
   SatelliteTrack,
+  TransitTrail,
   VesselTrackResponse,
 } from '../contracts';
 import type { AnnotationDraft, MapAnnotation } from '../features/annotations/model';
@@ -41,15 +55,32 @@ import { geoPointAt, Interaction } from './interaction';
 import { Listeners } from './listeners';
 import { AircraftRenderer } from './renderers/aircraft';
 import { AnnotationRenderer } from './renderers/annotations';
+import { BikeshareRenderer } from './renderers/bikeshare';
+import {
+  type BoundaryClassVisibility,
+  BoundaryRenderer,
+  DEFAULT_BOUNDARY_VISIBILITY,
+} from './renderers/boundaries';
+import { CableRenderer, type SubmarineCableItem } from './renderers/cables';
+import { CctvRenderer } from './renderers/cctv';
 import { CycloneRenderer } from './renderers/cyclones';
 import { EarthquakeRenderer } from './renderers/earthquakes';
 import { FireRenderer } from './renderers/fires';
 import { LaunchPadRenderer } from './renderers/launches';
+import { PerimeterRenderer } from './renderers/perimeters';
 import { SatelliteRenderer } from './renderers/satellites';
 import { SelectionHalo } from './renderers/selection';
-import { type FeedRenderer, type RenderContext, toMapColors } from './renderers/types';
+import { aircraftAltitudeM, hasValidPosition } from './renderers/symbology';
+import { TransitRenderer } from './renderers/transit';
+import {
+  type FeedRenderer,
+  type Located,
+  type RenderContext,
+  toMapColors,
+} from './renderers/types';
 import { VesselRenderer } from './renderers/vessels';
 import { cssTokenReader, readPalette } from './tokens';
+import { EntityTrackingService, type TrackingState } from './tracking';
 import { sameView, toViewState, viewEdgeSamples } from './view';
 
 /** Render errors tolerated in a burst before the engine stops restarting the loop. */
@@ -61,8 +92,15 @@ const MIN_ZOOM_DISTANCE_M = 100;
 interface Mounted {
   readonly widget: CesiumWidget;
   readonly renderers: ReadonlyMap<FeedId, FeedRenderer>;
+  readonly aircraft: AircraftRenderer;
   readonly satellites: SatelliteRenderer;
   readonly vessels: VesselRenderer;
+  readonly transit: TransitRenderer;
+  readonly bikeshare: BikeshareRenderer;
+  readonly boundaries: BoundaryRenderer;
+  readonly cables: CableRenderer;
+  readonly cctv: CctvRenderer;
+  readonly tracking: EntityTrackingService;
   readonly annotations: AnnotationRenderer;
   readonly halo: SelectionHalo;
   readonly imagery: BaseImagery;
@@ -83,6 +121,8 @@ export class GlobeEngine implements GlobeController {
   readonly #viewListeners = new Listeners<ViewState>('view');
   readonly #cursorListeners = new Listeners<GeoPoint | null>('cursor');
   readonly #cameraIntentListeners = new Listeners<void>('camera intent');
+  readonly #followListeners = new Listeners<TrackingState>('follow');
+  #following: EntityRef | null = null;
   #mounted: Mounted | null = null;
   readonly #pointListeners = new Listeners<GeoPoint | null>('map point');
   #drawing = false;
@@ -146,22 +186,76 @@ export class GlobeEngine implements GlobeController {
     const satellites = new SatelliteRenderer(primitives, ctx, {
       onMoved: () => {
         if (this.#selection?.feed === 'satellites') this.#refreshHalo();
+        if (this.#following?.feed === 'satellites') {
+          const located = satellites.locate(this.#following.id);
+          if (located) {
+            tracking.updateTargetPosition(located.position);
+          }
+        }
       },
     });
     const vessels = new VesselRenderer(primitives, ctx);
+    const aircraft = new AircraftRenderer(primitives, ctx);
+    const transit = new TransitRenderer(primitives, ctx);
+    const bikeshare = new BikeshareRenderer(primitives, ctx);
+    const boundaryPolylines = primitives.add(new PolylineCollection());
+    const boundaries = new BoundaryRenderer(boundaryPolylines, ctx);
+    const cablePolylines = primitives.add(new PolylineCollection());
+    const cablePoints = primitives.add(new PointPrimitiveCollection());
+    const cables = new CableRenderer(cablePolylines, cablePoints, ctx);
+    const cctv = new CctvRenderer(primitives, ctx);
     const renderers = new Map<FeedId, FeedRenderer>([
       ['earthquakes', new EarthquakeRenderer(primitives, ctx)],
       ['cyclones', new CycloneRenderer(primitives, ctx)],
       ['satellites', satellites],
-      ['aircraft', new AircraftRenderer(primitives, ctx)],
+      ['aircraft', aircraft],
       ['fires', new FireRenderer(primitives, ctx)],
       ['launches', new LaunchPadRenderer(primitives, ctx)],
       ['vessels', vessels],
+      ['perimeters', new PerimeterRenderer(primitives, ctx)],
+      ['bikeshare', bikeshare],
+      ['transit', transit],
     ]);
+    const tracking = new EntityTrackingService({
+      camera: scene.camera,
+      prefersReducedMotion,
+      requestRender: () => scene.requestRender(),
+    });
+    tracking.onStateChanged((state) => {
+      this.#followListeners.emit(state);
+      if (state.status === 'released') {
+        this.#following = null;
+      }
+    });
     const cleanup: Array<() => void> = [];
+    cleanup.push(() => tracking.destroy());
+    cleanup.push(() => boundaries.destroy());
+    cleanup.push(() => cables.destroy());
+    cleanup.push(() => cctv.destroy());
+    if (scene.preUpdate?.addEventListener) {
+      cleanup.push(
+        scene.preUpdate.addEventListener(() => {
+          if (this.isFollowing() && !scene.isDestroyed()) {
+            tracking.tick(performance.now());
+          }
+        }),
+      );
+    }
+    cleanup.push(
+      scene.postRender.addEventListener(() => {
+        if (this.isFollowing() && !scene.isDestroyed()) {
+          scene.requestRender();
+        }
+      }),
+    );
     cleanup.push(scene.renderError.addEventListener((_s, error) => this.#renderError(error)));
     cleanup.push(scene.camera.moveEnd.addEventListener(() => this.#emitView()));
-    const cameraIntent = () => this.#cameraIntentListeners.emit(undefined);
+    const cameraIntent = () => {
+      if (this.isFollowing()) {
+        this.stopFollowing();
+      }
+      this.#cameraIntentListeners.emit(undefined);
+    };
     let userSettleTimer: ReturnType<typeof setTimeout> | null = null;
     const scheduleUserSettle = () => {
       if (userSettleTimer !== null) clearTimeout(userSettleTimer);
@@ -193,8 +287,15 @@ export class GlobeEngine implements GlobeController {
     return {
       widget,
       renderers,
+      aircraft,
       satellites,
       vessels,
+      transit,
+      bikeshare,
+      boundaries,
+      cables,
+      cctv,
+      tracking,
       annotations: new AnnotationRenderer(primitives, ctx, scene),
       halo: new SelectionHalo(primitives, colors),
       imagery: new BaseImagery(scene, prefersReducedMotion),
@@ -206,6 +307,10 @@ export class GlobeEngine implements GlobeController {
         drawing: () => this.#drawing,
         // Open ring centres and spiral gaps answer a click only when nothing drawn is there.
         pickAssists: [...renderers.values()].flatMap((r) => (r.pickAssists ? [r.pickAssists] : [])),
+        pointPick: (pt) => {
+          const breakaway = boundaries.findBreakawayAt(pt.lon, pt.lat);
+          return breakaway ? { feed: 'boundaries', id: breakaway.id } : null;
+        },
       }),
       cleanup,
     };
@@ -221,6 +326,7 @@ export class GlobeEngine implements GlobeController {
       console.error(`Globe could not draw the ${snapshot.feed} snapshot`, error);
     }
     if (this.#selection?.feed === snapshot.feed) this.#refreshHalo();
+    if (this.#following?.feed === snapshot.feed) this.#updateTrackingTarget(snapshot);
   }
 
   clearFeed(feed: FeedId): void {
@@ -228,6 +334,7 @@ export class GlobeEngine implements GlobeController {
     if (!m) return;
     m.renderers.get(feed)?.clear();
     if (this.#selection?.feed === feed) this.#refreshHalo();
+    if (this.#following?.feed === feed) this.stopFollowing();
     m.widget.scene.requestRender();
   }
 
@@ -238,6 +345,9 @@ export class GlobeEngine implements GlobeController {
     for (const renderer of m.renderers.values()) {
       renderer.setSelected(renderer.feed === selection?.feed ? selection.id : null);
     }
+    m.boundaries.setSelected(selection?.feed === 'boundaries' ? selection.id : null);
+    m.cables.setSelected(selection?.feed === 'cables' ? selection.id : null);
+    m.cctv.setSelected(selection?.feed === 'cctv' ? selection.id : null);
     m.halo.set(this.#selection);
     this.#refreshHalo();
   }
@@ -246,8 +356,109 @@ export class GlobeEngine implements GlobeController {
     this.#mounted?.satellites.showTrack(track);
   }
 
+  showAircraftTrack(track: AircraftTrack | null): void {
+    this.#mounted?.aircraft.showTrack(track);
+  }
+
   showVesselTrack(track: VesselTrackResponse | null): void {
     this.#mounted?.vessels.showTrack(track);
+  }
+
+  showTransitTrail(trail: TransitTrail | null): void {
+    this.#mounted?.transit.showTrail(trail);
+  }
+
+  setCables(items: readonly SubmarineCableItem[]): void {
+    const m = this.#mounted;
+    if (!m) return;
+    m.cables.setCables(items);
+    if (this.#selection?.feed === 'cables') this.#refreshHalo();
+    m.widget.scene.requestRender();
+  }
+
+  setCctvCameras(cameras: readonly CameraSource[]): void {
+    const m = this.#mounted;
+    if (!m) return;
+    m.cctv.setCameras(cameras);
+    if (this.#selection?.feed === 'cctv') this.#refreshHalo();
+    m.widget.scene.requestRender();
+  }
+
+  setCctvDetections(detections: CctvDetectionsResponse | null): void {
+    this.#mounted?.cctv.setDetections(detections);
+  }
+
+  getCctvDetections(): CctvDetectionsResponse | null {
+    return this.#mounted?.cctv.getDetections() ?? null;
+  }
+
+  setBoundaries(features: readonly BoundaryFeature[]): void {
+    const m = this.#mounted;
+    if (!m) return;
+    m.boundaries.setFeatures(features);
+    if (this.#selection?.feed === 'boundaries') this.#refreshHalo();
+    m.widget.scene.requestRender();
+  }
+
+  setBoundaryClassVisibility(visibility: Partial<BoundaryClassVisibility>): void {
+    const m = this.#mounted;
+    if (!m) return;
+    m.boundaries.setVisibility(visibility);
+    if (this.#selection?.feed === 'boundaries') this.#refreshHalo();
+    m.widget.scene.requestRender();
+  }
+
+  getBoundaryClassVisibility(): BoundaryClassVisibility {
+    return this.#mounted?.boundaries.getVisibility() ?? { ...DEFAULT_BOUNDARY_VISIBILITY };
+  }
+
+  locateBoundary(id: string): Located | undefined {
+    return this.#mounted?.boundaries.locate(id);
+  }
+
+  getBoundaryFeature(id: string): BoundaryFeature | undefined {
+    return this.#mounted?.boundaries.getFeature(id);
+  }
+
+  startFollowing(target: EntityRef): void {
+    const m = this.#mounted;
+    if (!m) return;
+    this.#following = target;
+    m.tracking.startTracking(target);
+
+    if (target.feed === 'boundaries') return;
+    let located: Located | undefined;
+    if (target.feed === 'cables') {
+      located = m.cables.locate(target.id);
+    } else if (target.feed === 'cctv') {
+      located = m.cctv.locate(target.id);
+    } else {
+      const renderer = m.renderers.get(target.feed);
+      located = renderer?.locate?.(target.id);
+    }
+    if (located) {
+      m.tracking.updateTargetPosition(located.position);
+    }
+    m.widget.scene.requestRender();
+  }
+
+  stopFollowing(): void {
+    this.#following = null;
+    this.#mounted?.tracking.release('manual');
+  }
+
+  isFollowing(): boolean {
+    const state = this.#mounted?.tracking.getState();
+    return state !== undefined && state.status !== 'released';
+  }
+
+  getFollowState(): TrackingState | null {
+    const state = this.#mounted?.tracking.getState();
+    return state && state.status !== 'released' ? state : null;
+  }
+
+  onFollowChange(listener: (state: TrackingState) => void): () => void {
+    return this.#followListeners.add(listener);
   }
 
   setAnnotations(annotations: readonly MapAnnotation[], draft: AnnotationDraft | null): void {
@@ -373,11 +584,13 @@ export class GlobeEngine implements GlobeController {
   destroy(): void {
     const m = this.#mounted;
     this.#mounted = null;
+    this.#following = null;
     this.#pickListeners.clear();
     this.#viewListeners.clear();
     this.#cursorListeners.clear();
     this.#cameraIntentListeners.clear();
     this.#pointListeners.clear();
+    this.#followListeners.clear();
     if (!m) return;
     try {
       for (const c of m.cleanup.splice(0)) c();
@@ -391,11 +604,69 @@ export class GlobeEngine implements GlobeController {
     }
   }
 
+  #updateTrackingTarget(snapshot: FeedSnapshot): void {
+    const m = this.#mounted;
+    if (!m || !this.#following || this.#following.feed !== snapshot.feed) return;
+    const id = this.#following.id;
+
+    if (snapshot.items.kind === 'aircraft') {
+      const item = snapshot.items.items.find((a) => a.hex === id);
+      if (item && hasValidPosition(item)) {
+        const pos = Cartesian3.fromDegrees(
+          item.position.lon,
+          item.position.lat,
+          aircraftAltitudeM(item),
+          Ellipsoid.WGS84,
+        );
+        m.tracking.updateTargetPosition(
+          pos,
+          item.trackDeg ?? undefined,
+          item.groundSpeedKt ?? undefined,
+          Date.now(),
+        );
+      }
+    } else if (snapshot.items.kind === 'vessels') {
+      const item = snapshot.items.items.find((v) => v.mmsi === id);
+      if (item && hasValidPosition(item)) {
+        const pos = Cartesian3.fromDegrees(
+          item.position.lon,
+          item.position.lat,
+          0,
+          Ellipsoid.WGS84,
+        );
+        m.tracking.updateTargetPosition(
+          pos,
+          item.headingDeg ?? item.courseDeg ?? undefined,
+          item.speedKnots ?? undefined,
+          Date.now(),
+        );
+      }
+    } else {
+      const located = m.renderers.get(snapshot.feed)?.locate(id);
+      if (located) {
+        m.tracking.updateTargetPosition(located.position, undefined, undefined, Date.now());
+      }
+    }
+  }
+
   #refreshHalo(): void {
     const m = this.#mounted;
     if (!m) return;
     const selection = this.#selection;
-    m.halo.follow(selection ? m.renderers.get(selection.feed)?.locate(selection.id) : undefined);
+    if (selection?.feed === 'boundaries') {
+      const located = m.boundaries.locate(selection.id);
+      m.halo.follow(
+        located ? { position: located.position, symbolPx: located.symbolPx } : undefined,
+      );
+    } else if (selection?.feed === 'cables') {
+      m.halo.follow(m.cables.locate(selection.id));
+    } else if (selection?.feed === 'cctv') {
+      m.halo.follow(m.cctv.locate(selection.id));
+    } else if (selection) {
+      m.halo.follow(m.renderers.get(selection.feed)?.locate(selection.id));
+    } else {
+      m.halo.follow(undefined);
+    }
     m.widget.scene.requestRender();
   }
 

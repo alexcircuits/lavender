@@ -17,6 +17,9 @@ const COMMANDS: &[&str] = &[
     "wind_status",
     "wind_grid",
     "smoke_report",
+    "secret_status",
+    "secret_set",
+    "secret_clear",
 ];
 
 fn main() {

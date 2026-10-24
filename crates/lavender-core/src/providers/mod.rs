@@ -6,14 +6,31 @@
 //! cleaned and length-capped, because parser errors can quote upstream content.
 
 pub mod adsb_lol;
+pub mod aircraft_enrichment;
 pub mod aisstream;
+pub mod bikeshare;
+pub mod boundaries;
+pub mod cables;
+pub mod cctv;
 pub mod celestrak;
 pub mod cyclones;
 pub mod firms;
 pub mod fixture;
+pub mod imagery_search;
+pub mod infrastructure;
+pub mod installations;
 pub mod launches;
+pub mod mapillary;
+pub mod opensky;
+pub mod overpass;
 pub mod perimeters;
+pub mod regions;
+pub mod routing;
+pub mod terrain;
+pub mod traffic;
+pub mod transit;
 pub mod usgs;
+pub mod weather;
 pub mod wind;
 
 use std::path::Path;

@@ -139,6 +139,7 @@ fn a_304_without_a_cached_representation_is_an_explicit_error() {
         body: Bytes::new(),
         elapsed: Duration::ZERO,
         validators: None,
+        headers: reqwest::header::HeaderMap::new(),
     };
     let error = refreshed_group(response, None, "stations").unwrap_err();
     assert!(error.to_string().contains("without a cached representation"));

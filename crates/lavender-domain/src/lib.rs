@@ -23,12 +23,19 @@ pub use catalog::{
     ProviderScope,
 };
 pub use entities::{
-    Aircraft, Cyclone, CycloneConeGeometry, CycloneForecastPoint, CycloneGeometryStatus,
-    CycloneMovement, CycloneTrackGeometry, Earthquake, FireCell, FireCluster, FireDetection,
-    Launch, LaunchPad, SatelliteElements, Vessel, VesselDimensions, VesselEta, VesselTrackResponse,
-    VesselTrackSample, VesselVoyage,
+    Aircraft, AircraftRouteEnrichment, AircraftTypeEnrichment, AirportInfo, CameraHealth,
+    CameraSource, CctvStreamInfo, Cyclone, CycloneConeGeometry, CycloneForecastPoint,
+    CycloneGeometryStatus, CycloneMovement, CycloneTrackGeometry, Earthquake, FireCell,
+    FireCluster, FireDetection, Launch, LaunchPad, SatelliteElements, Vessel, VesselDimensions,
+    VesselEta, VesselTrackResponse, VesselTrackSample, VesselVoyage,
 };
+pub use entities::{BikeshareStation, BikeshareSystem};
+pub use entities::{BoundaryClass, BoundaryFeature, BoundaryResponse};
 pub use entities::{FirePerimeter, PerimeterDetail};
+pub use entities::{Route, RouteStep};
+pub use entities::{TerrainHeightsRequest, TerrainHeightsResponse, TerrainPointResult};
+pub use entities::{TrafficRoadSegment, TrafficStatus, TrafficTileResponse};
+pub use entities::{TransitEpoch, TransitFeed, TransitTrail, TransitVehicle};
 pub use error::{ApiError, DomainError, ErrorCode};
 pub use feed::{Coverage, FeedFilters, FeedId, FeedItems, FeedQuery, FeedSnapshot, Freshness};
 pub use geo::{BBox, GeoPoint};

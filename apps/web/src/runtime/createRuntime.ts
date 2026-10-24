@@ -8,7 +8,7 @@ import type { ImageryDescriptor } from '../contracts';
 import { FeedController } from '../feeds/FeedController';
 import type { GlobeController } from '../globe';
 import { type LavenderPlatform, toApiError } from '../platform';
-import { createStores, type Stores } from '../state/stores';
+import { createStores, type Stores, type UserPreferences } from '../state/stores';
 import {
   readWorkspace,
   readWorkspaceAnnotations,
@@ -17,6 +17,8 @@ import {
   WORKSPACE_PREF_KEY,
 } from './workspacePrefs';
 import { browserWorkspaceLocation, type WorkspaceLocation, WorkspaceShare } from './workspaceShare';
+
+export const USER_PREFERENCES_PREF_KEY = 'user_preferences';
 
 export interface RuntimeOptions {
   /** How often backend status is refreshed for the status bar and Sources panel. */
@@ -61,6 +63,11 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
   );
 
   const initialPreferences = platform.preferences.get<unknown>(WORKSPACE_PREF_KEY);
+  const initialUserPrefs =
+    platform.preferences.get<Partial<UserPreferences>>(USER_PREFERENCES_PREF_KEY);
+  if (initialUserPrefs && typeof initialUserPrefs === 'object') {
+    stores.preferences.getState().hydrate(initialUserPrefs);
+  }
   const initialState = workspace.getState();
   initialState.restore(
     initialState.layers,
@@ -80,7 +87,7 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
   const activeImagery = (): ImageryDescriptor | null => {
     const catalog = system.getState().catalog;
     if (!catalog) return null;
-    const chosen = workspace.getState().imageryId;
+    const chosen = workspace.getState().imageryId ?? stores.preferences.getState().defaultImagery;
     return (
       catalog.imagery.find((i) => i.id === chosen) ??
       catalog.imagery.find((i) => i.isDefault) ??
@@ -199,6 +206,26 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
     cleanup.push(() => clearInterval(statusTimer));
 
     let persistTimer: ReturnType<typeof setTimeout> | null = null;
+    let userPrefsTimer: ReturnType<typeof setTimeout> | null = null;
+    cleanup.push(
+      stores.preferences.subscribe((prefs) => {
+        if (userPrefsTimer) clearTimeout(userPrefsTimer);
+        userPrefsTimer = setTimeout(() => {
+          userPrefsTimer = null;
+          platform.preferences.set(USER_PREFERENCES_PREF_KEY, {
+            coordinateFormat: prefs.coordinateFormat,
+            unitSystem: prefs.unitSystem,
+            motion: prefs.motion,
+            labelArbitration: prefs.labelArbitration,
+            defaultImagery: prefs.defaultImagery,
+          });
+        }, persistDelayMs);
+      }),
+    );
+    cleanup.push(() => {
+      if (userPrefsTimer) clearTimeout(userPrefsTimer);
+    });
+
     cleanup.push(
       workspace.subscribe((s, prev) => {
         if (

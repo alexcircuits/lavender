@@ -1,0 +1,38 @@
+{
+  "now": 1760000000.125,
+  "ac": [
+    {
+      "hex": "4ca1b2",
+      "flight": "RYR12AB ",
+      "r": "EI-ABC",
+      "t": "B738",
+      "category": "A3",
+      "lat": 53.3498,
+      "lon": -6.2603,
+      "alt_baro": 35000,
+      "alt_geom": 35200,
+      "gs": 450.2,
+      "track": 91.5,
+      "baro_rate": -64,
+      "squawk": "7700",
+      "emergency": "none",
+      "seen_pos": 1.125,
+      "seen": 0.5,
+      "dbFlags": 0
+    },
+    {
+      "hex": "ae0001",
+      "flight": "RCH101",
+      "r": "08-8191",
+      "t": "C17",
+      "category": "A5",
+      "lat": 38.9072,
+      "lon": -77.0369,
+      "alt_baro": 25000,
+      "gs": 420.0,
+      "track": 45.0,
+      "seen_pos": 2.0,
+      "dbFlags": 1
+    }
+  ]
+}

@@ -7,17 +7,33 @@ import type { LavenderPlatform } from './types';
 import { WebPlatform } from './web/WebPlatform';
 
 export type {
+  CandidateAvailability,
+  CloudRange,
+  CoverageLevel,
+  Granule,
+  ImageryAttribution,
+  ImageryCandidate,
+  ImageryErrorDetail,
+  RankedLatest,
+  RankReason,
+  RecentImageryResponse,
+  ThumbnailProbeResponse,
+  TimeRange,
+} from './recentImageryTypes';
+export type {
   CallOptions,
   DiagnosticsSink,
   FeedEvent,
   FeedSubscription,
   LavenderPlatform,
   PreferenceStore,
+  SecretStatusResponse,
   TransportState,
   WindGridRequest,
   WindRequest,
 } from './types';
 export { PlatformError, toApiError } from './types';
+export { fetchWasmResponse } from './wasmLoader';
 export { decodeWindGrid, type WindGridData } from './windGrid';
 
 /** Whether the page runs inside the Lavender desktop app (Tauri 2 sets this global). */

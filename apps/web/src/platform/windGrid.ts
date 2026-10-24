@@ -11,6 +11,12 @@ import { PlatformError } from './types';
 export interface WindGridData {
   readonly nx: number;
   readonly ny: number;
+  readonly lo1?: number;
+  readonly la1?: number;
+  readonly dx?: number;
+  readonly dy?: number;
+  readonly di?: number;
+  readonly dj?: number;
   /** Eastward wind, m/s, row-major from the north-west corner. */
   readonly u: Float32Array;
   /** Northward wind, m/s, same layout. */
@@ -43,6 +49,29 @@ export function decodeWindGrid(buffer: ArrayBuffer, manifest: WindManifest): Win
   const u = block(0);
   const v = block(1);
   return blocks === 3
-    ? { nx: grid.nx, ny: grid.ny, u, v, scalar: block(2) }
-    : { nx: grid.nx, ny: grid.ny, u, v };
+    ? {
+        nx: grid.nx,
+        ny: grid.ny,
+        lo1: grid.lo1,
+        la1: grid.la1,
+        dx: grid.dx,
+        dy: grid.dy,
+        di: grid.dx,
+        dj: grid.dy,
+        u,
+        v,
+        scalar: block(2),
+      }
+    : {
+        nx: grid.nx,
+        ny: grid.ny,
+        lo1: grid.lo1,
+        la1: grid.la1,
+        dx: grid.dx,
+        dy: grid.dy,
+        di: grid.dx,
+        dj: grid.dy,
+        u,
+        v,
+      };
 }

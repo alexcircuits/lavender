@@ -28,6 +28,7 @@ import {
 } from './propagation';
 import { isStale, STALE_ALPHA } from './symbology';
 import type { FeedRenderer, Located, RenderContext } from './types';
+import { getActiveLavenderWasm, loadLavenderWasm } from './wasmPropagation';
 
 export const SATELLITE_PX = 6;
 export const PROPAGATION_INTERVAL_MS = 1000;
@@ -48,10 +49,13 @@ export interface SatelliteRendererOptions {
   readonly now?: () => Date;
   readonly intervalMs?: number;
   readonly chunkSize?: number;
+  /** Whether to use WebAssembly batch propagation when available (defaults to true unless chunkSize is overridden). */
+  readonly useWasm?: boolean;
 }
 
 const scratchEcf: EcfMetres = { x: 0, y: 0, z: 0 };
 const scratchPosition = new Cartesian3();
+const dummySatrec = { error: 1 } as unknown as SatRec;
 
 export class SatelliteRenderer implements FeedRenderer {
   readonly feed = 'satellites' as const;
@@ -64,6 +68,8 @@ export class SatelliteRenderer implements FeedRenderer {
   readonly #now: () => Date;
   readonly #intervalMs: number;
   readonly #chunkSize: number;
+  readonly #useWasm: boolean;
+  #batchBuffer: Float32Array = new Float32Array(0);
   #timer: ReturnType<typeof setInterval> | null = null;
   #slice: ReturnType<typeof setTimeout> | null = null;
   #pass: { cancelled: boolean } | null = null;
@@ -85,6 +91,10 @@ export class SatelliteRenderer implements FeedRenderer {
     this.#now = options.now ?? (() => new Date());
     this.#intervalMs = options.intervalMs ?? PROPAGATION_INTERVAL_MS;
     this.#chunkSize = Math.max(1, options.chunkSize ?? PROPAGATION_CHUNK);
+    this.#useWasm = options.useWasm ?? options.chunkSize === undefined;
+    if (this.#useWasm) {
+      void loadLavenderWasm().catch(() => {});
+    }
     this.#colour = ctx.colors.space;
     this.#outline = ctx.colors.outline;
     this.#entries = new KeyedEntries<SatelliteElements, SatelliteEntry>((s) => String(s.noradId), {
@@ -213,12 +223,43 @@ export class SatelliteRenderer implements FeedRenderer {
     this.#slice = null;
   }
 
-  /** One propagation of every satellite at a single instant, sliced into chunks. */
+  /** One propagation of every satellite at a single instant, sliced into chunks (or accelerated via WASM batch). */
   #runPass(): void {
     if (this.#pass) return; // the previous pass is still slicing; this tick is skipped
     const date = this.#now();
     const gmst = siderealTime(date);
     const queue = [...this.#entries.entries()].map(([, entry]) => entry);
+    if (queue.length === 0) return;
+
+    // High-performance batch path: WebAssembly SGP4 kernel
+    const wasm = this.#useWasm ? getActiveLavenderWasm() : null;
+    if (wasm) {
+      if (this.#batchBuffer.length < queue.length * 3) {
+        this.#batchBuffer = new Float32Array(queue.length * 3);
+      }
+      const satrecs = queue.map((e) => e.satrec ?? dummySatrec);
+      wasm.propagateBatchWasm(satrecs, date, gmst, this.#batchBuffer);
+      for (let i = 0; i < queue.length; i++) {
+        const entry = queue[i];
+        if (!entry || entry.removed) continue;
+        const x = this.#batchBuffer[i * 3 + 0] ?? 0;
+        const y = this.#batchBuffer[i * 3 + 1] ?? 0;
+        const z = this.#batchBuffer[i * 3 + 2] ?? 0;
+        if (x === 0 && y === 0 && z === 0) {
+          entry.point.show = false;
+        } else {
+          scratchPosition.x = x;
+          scratchPosition.y = y;
+          scratchPosition.z = z;
+          entry.point.position = scratchPosition;
+          entry.point.show = true;
+        }
+      }
+      this.#onMoved();
+      this.#ctx.requestRender();
+      return;
+    }
+
     const pass = { cancelled: false };
     this.#pass = pass;
     let index = 0;

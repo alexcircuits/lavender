@@ -1,3 +1,4 @@
+export { BoundariesRow, type BoundariesRowProps } from './BoundariesRow';
 export { FamilySwatch, type FamilySwatchProps } from './FamilySwatch';
 export {
   FAMILY_LABEL,
@@ -22,3 +23,4 @@ export {
   missingReason,
   SEVERITY,
 } from './status';
+export { useBoundariesLayer } from './useBoundariesLayer';

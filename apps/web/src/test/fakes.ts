@@ -5,7 +5,12 @@
 import { vi } from 'vitest';
 import type {
   AircraftTrack,
+  BBox,
+  BoundaryClass,
+  BoundaryResponse,
+  CameraSource,
   Catalog,
+  CctvDetectionsResponse,
   FeedId,
   FeedQuery,
   FeedSnapshot,
@@ -19,15 +24,19 @@ import type {
   SearchQuery,
   SearchResults,
   SystemStatus,
+  TransitTrail,
   VesselTrackResponse,
   WindManifest,
 } from '../contracts';
-import type { CameraPose, EntityRef, GlobeController, ViewState } from '../globe';
+import type { CameraPose, EntityRef, GlobeController, SubmarineCableItem, ViewState } from '../globe';
 import type {
   CallOptions,
   FeedEvent,
   LavenderPlatform,
   PreferenceStore,
+  RecentImageryResponse,
+  SecretStatusResponse,
+  ThumbnailProbeResponse,
   TransportState,
   WindGridRequest,
   WindRequest,
@@ -208,6 +217,113 @@ export class FakePlatform implements LavenderPlatform {
       new ArrayBuffer(0),
   );
 
+  recentImagery = vi.fn(
+    async (
+      _bbox: BBox,
+      _days?: number,
+      _options?: CallOptions,
+    ): Promise<RecentImageryResponse> => ({
+      candidates: [],
+      rankedLatest: { candidate: null, reason: null, certain: true },
+      tileTemplates: {},
+      attribution: { credit: '', licence: '', statement: '' },
+      truncated: false,
+      errors: [],
+    }),
+  );
+
+  imageryThumbnailProbe = vi.fn(
+    async (
+      product: string,
+      day: string,
+      _bbox: BBox,
+      _options?: CallOptions,
+    ): Promise<ThumbnailProbeResponse> => ({
+      product,
+      day,
+      dataPresent: true,
+    }),
+  );
+
+  mapillaryStatus = vi.fn(
+    async (_options?: CallOptions): Promise<{ configured: boolean }> => ({
+      configured: true,
+    }),
+  );
+
+  boundaries = vi.fn(
+    async (
+      _bbox: BBox,
+      _options?: {
+        readonly classes?: readonly BoundaryClass[];
+        readonly zoom?: number;
+        readonly limit?: number;
+        readonly signal?: AbortSignal;
+      },
+    ): Promise<BoundaryResponse> => ({
+      features: [],
+      total: 0,
+      attribution: 'Made with Natural Earth',
+    }),
+  );
+
+  cctvDetections = vi.fn(
+    async (_cameraId: string, _options?: CallOptions): Promise<CctvDetectionsResponse> => ({
+      cameraId: _cameraId,
+      timestampMs: BigInt(0),
+      frameSequence: BigInt(0),
+      engine: 'fake',
+      detections: [],
+    }),
+  );
+
+  cctvSources = vi.fn(
+    async (_bbox?: BBox, _limit?: number, _options?: CallOptions): Promise<CameraSource[]> => [],
+  );
+
+  transitTrail = vi.fn(
+    async (feedId: string, vehicleId: string, _options?: CallOptions): Promise<TransitTrail> => ({
+      version: 1,
+      feedId,
+      vehicleId,
+      fixes: [],
+      epochs: [],
+      truncated: false,
+    }),
+  );
+
+  submarineCables = vi.fn(
+    async (
+      _bbox?: BBox,
+      _zoom?: number,
+      _limit?: number,
+      _options?: CallOptions,
+    ): Promise<SubmarineCableItem[]> => [],
+  );
+
+  secretStatus = vi.fn(
+    async (_options?: CallOptions): Promise<SecretStatusResponse> => ({
+      managedBy: 'memory',
+      status: {
+        firms: false,
+        aisstream: false,
+        opensky_id: false,
+        opensky_secret: false,
+        ll2: false,
+        mapillary: false,
+        tomtom: false,
+      },
+    }),
+  );
+
+  setSecret = vi.fn(
+    async (_key: string, _value: string, _options?: CallOptions): Promise<void> => {},
+  );
+
+  clearSecret = vi.fn(
+    async (_key: string, _options?: CallOptions): Promise<void> => {},
+  );
+
   subscribe = vi.fn((query: FeedQuery, onEvent: (e: FeedEvent) => void) => {
     const sub: FakeSub = { query, onEvent, closed: false, updates: [] };
     this.subs.push(sub);
@@ -268,7 +384,28 @@ export function fakeGlobe(): FakeGlobe {
     clearFeed: vi.fn(),
     setSelection: vi.fn(),
     showTrack: vi.fn(),
+    showAircraftTrack: vi.fn(),
     showVesselTrack: vi.fn(),
+    showTransitTrail: vi.fn(),
+    setCables: vi.fn(),
+    setCctvCameras: vi.fn(),
+    setCctvDetections: vi.fn(),
+    getCctvDetections: vi.fn(() => null),
+    setBoundaries: vi.fn(),
+    setBoundaryClassVisibility: vi.fn(),
+    getBoundaryClassVisibility: vi.fn(() => ({
+      internationalLand: true,
+      disputedLine: true,
+      breakawayArea: true,
+      maritimeIndicative: true,
+    })),
+    locateBoundary: vi.fn(),
+    getBoundaryFeature: vi.fn(),
+    startFollowing: vi.fn(),
+    stopFollowing: vi.fn(),
+    isFollowing: vi.fn(() => false),
+    getFollowState: vi.fn(() => null),
+    onFollowChange: vi.fn((_l: unknown) => () => {}),
     setImagery: vi.fn(),
     setAnnotations: vi.fn(),
     setDrawing: vi.fn(),

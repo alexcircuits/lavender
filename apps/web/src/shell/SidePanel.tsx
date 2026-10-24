@@ -2,6 +2,7 @@ import { Button, ErrorState, Panel, Skeleton } from '../design';
 import { AnnotationsPanel } from '../features/annotations/AnnotationsPanel';
 import { LaunchesPanel } from '../features/launches';
 import { LayerExplorer } from '../features/layers';
+import { SettingsPanel } from '../features/settings';
 import { SourcesPanel } from '../features/sources';
 import { useRuntime, useSystem, useUi } from '../runtime';
 import styles from './shell.module.css';
@@ -38,6 +39,7 @@ export function SidePanel({ className }: SidePanelProps) {
   const runtime = useRuntime();
   if (!panel) return null;
   if (panel === 'annotations') return <AnnotationsPanel className={className} />;
+  if (panel === 'settings') return <SettingsPanel className={className} />;
   const title =
     panel === 'layers' ? 'Layers' : panel === 'launches' ? 'Rocket launches' : 'Sources';
 

@@ -4,6 +4,7 @@ export {
   useFeeds,
   useGlobe,
   usePlatform,
+  usePreferences,
   useRuntime,
   useSystem,
   useUi,

@@ -161,3 +161,25 @@ pub fn smoke_report(app: tauri::AppHandle, report: serde_json::Value) -> Result<
     }
     Ok(())
 }
+
+/// Returns the configuration status of known secrets, without returning values.
+#[tauri::command]
+pub fn secret_status(core: State<'_, LavenderCore>) -> std::collections::HashMap<String, bool> {
+    core.secret_status()
+}
+
+/// Sets a credential in the secret store (desktop mode).
+#[tauri::command]
+pub fn secret_set(
+    core: State<'_, LavenderCore>,
+    key: String,
+    value: String,
+) -> Result<(), ApiError> {
+    core.set_secret(&key, value).map_err(ApiError::from)
+}
+
+/// Clears a credential from the secret store (desktop mode).
+#[tauri::command]
+pub fn secret_clear(core: State<'_, LavenderCore>, key: String) -> Result<(), ApiError> {
+    core.clear_secret(&key).map_err(ApiError::from)
+}
