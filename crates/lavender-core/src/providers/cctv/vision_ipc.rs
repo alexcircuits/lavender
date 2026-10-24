@@ -119,7 +119,17 @@ impl VisionPerceptionClient {
         let lower = camera_id.to_lowercase();
         let mut detections = Vec::new();
 
-        if lower.contains("harbor")
+        // Airport first: "cam-airport-01" also contains "port", so the marine
+        // branch must not claim it (the specific camera context wins).
+        if lower.contains("airport") || lower.contains("runway") || lower.contains("tarmac") {
+            detections.push(CctvDetection {
+                bbox: [0.20, 0.30, 0.80, 0.65],
+                class_id: 4,
+                class_name: "aircraft".to_string(),
+                confidence: 0.96,
+                plate_text: None,
+            });
+        } else if lower.contains("harbor")
             || lower.contains("port")
             || lower.contains("ferry")
             || lower.contains("marine")
@@ -136,15 +146,6 @@ impl VisionPerceptionClient {
                 class_id: 3,
                 class_name: "vessel".to_string(),
                 confidence: 0.86,
-                plate_text: None,
-            });
-        } else if lower.contains("airport") || lower.contains("runway") || lower.contains("tarmac")
-        {
-            detections.push(CctvDetection {
-                bbox: [0.20, 0.30, 0.80, 0.65],
-                class_id: 4,
-                class_name: "aircraft".to_string(),
-                confidence: 0.96,
                 plate_text: None,
             });
         } else {

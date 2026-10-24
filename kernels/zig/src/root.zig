@@ -11,6 +11,7 @@ pub const wind = @import("wind.zig");
 pub const labels = @import("labels.zig");
 pub const geometry = @import("geometry.zig");
 pub const cctv = @import("cctv.zig");
+pub const heatmap = @import("heatmap.zig");
 
 // Re-export core types
 pub const GeoPoint = cpr.GeoPoint;
@@ -172,6 +173,84 @@ export fn lavender_point_in_polygon(
     return geometry.pointInPolygon(test_lon, test_lat, poly_coords, num_points);
 }
 
+/// Batch geofence geometry: tests `num_points` interleaved [lon, lat] points
+/// against one polygon ring. Writes 1/0 per point into `out_hits_ptr` and
+/// returns the number of points inside the ring. Antimeridian-safe.
+export fn lavender_point_in_polygon_batch(
+    points_ptr: [*]const f64,
+    num_points: usize,
+    poly_coords_ptr: [*]const f64,
+    num_vertices: usize,
+    out_hits_ptr: [*]u8,
+) usize {
+    if (num_points == 0 or num_vertices < 3) return 0;
+    return geometry.pointInPolygonBatch(
+        points_ptr[0 .. num_points * 2],
+        num_points,
+        poly_coords_ptr[0 .. num_vertices * 2],
+        num_vertices,
+        out_hits_ptr[0..num_points],
+    );
+}
+
+/// Geofence hit-testing: tests one point against `num_rings` packed polygon
+/// rings. `rings_ptr` holds every ring's interleaved [lon, lat] vertices
+/// back-to-back; `ring_lengths_ptr` holds each ring's vertex count. Writes 1/0
+/// per ring into `out_hits_ptr` and returns the number of rings hit. Antimeridian-safe.
+export fn lavender_point_in_polygons(
+    test_lon: f64,
+    test_lat: f64,
+    rings_ptr: [*]const f64,
+    ring_lengths_ptr: [*]const u32,
+    num_rings: usize,
+    out_hits_ptr: [*]u8,
+) usize {
+    if (num_rings == 0) return 0;
+    var total_vertices: usize = 0;
+    for (ring_lengths_ptr[0..num_rings]) |len| total_vertices += len;
+    return geometry.pointInPolygons(
+        test_lon,
+        test_lat,
+        rings_ptr[0 .. total_vertices * 2],
+        ring_lengths_ptr[0..num_rings],
+        num_rings,
+        out_hits_ptr[0..num_rings],
+    );
+}
+
+/// Heatmap binning: projects `num_points` interleaved [lon, lat, weight] points
+/// onto a `width` x `height` equirectangular grid over [lon_min, lon_max] x
+/// [lat_min, lat_max], accumulating weighted sums and counts into two f32
+/// planes (row 0 = lat_max, i.e. north at the top). Returns the number of
+/// points binned; out-of-bounds and non-finite points are skipped.
+export fn lavender_heatmap_bin(
+    points_ptr: [*]const f64,
+    num_points: usize,
+    width: usize,
+    height: usize,
+    lon_min: f64,
+    lon_max: f64,
+    lat_min: f64,
+    lat_max: f64,
+    out_weight_sum_ptr: [*]f32,
+    out_count_ptr: [*]f32,
+) usize {
+    if (num_points == 0 or width == 0 or height == 0) return 0;
+    const cells = width * height;
+    return heatmap.binEquirect(
+        points_ptr[0 .. num_points * 3],
+        num_points,
+        width,
+        height,
+        lon_min,
+        lon_max,
+        lat_min,
+        lat_max,
+        out_weight_sum_ptr[0..cells],
+        out_count_ptr[0..cells],
+    );
+}
+
 // Force analysis of exported functions in submodules
 comptime {
     _ = wind.lavender_wind_sample;
@@ -182,6 +261,9 @@ comptime {
     _ = lavender_delta_decode_coords;
     _ = lavender_simplify_rdp;
     _ = lavender_point_in_polygon;
+    _ = lavender_point_in_polygon_batch;
+    _ = lavender_point_in_polygons;
+    _ = lavender_heatmap_bin;
 }
 
 test {
@@ -191,4 +273,5 @@ test {
     _ = @import("labels_test.zig");
     _ = @import("geometry_test.zig");
     _ = @import("cctv_test.zig");
+    _ = @import("heatmap_test.zig");
 }

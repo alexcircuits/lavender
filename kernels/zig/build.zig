@@ -42,9 +42,9 @@ pub fn build(b: *std.Build) void {
     const wasm_step = b.step("wasm", "Build freestanding WebAssembly kernel");
     wasm_step.dependOn(&install_wasm.step);
 
-    // 4. Test step
+    // 4. Test step (src/root.zig pulls in every *_test.zig via its `test` block)
     const test_mod = b.createModule(.{
-        .root_source_file = b.path("tests/adsb_test.zig"),
+        .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });

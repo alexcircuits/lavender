@@ -73,3 +73,91 @@ test "pointInPolygon correctly identifies inside and outside points" {
     try std.testing.expect(!geometry.pointInPolygon(0.0, 2.0, &box, 4));
     try std.testing.expect(!geometry.pointInPolygon(-3.0, -3.0, &box, 4));
 }
+
+test "pointInPolygonWrapped matches plain ray-cast away from the antimeridian" {
+    const box = [_]f64{ -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0 };
+
+    try std.testing.expect(geometry.pointInPolygonWrapped(0.0, 0.0, &box, 4));
+    try std.testing.expect(geometry.pointInPolygonWrapped(0.99, 0.99, &box, 4));
+    try std.testing.expect(!geometry.pointInPolygonWrapped(1.5, 0.0, &box, 4));
+    try std.testing.expect(!geometry.pointInPolygonWrapped(0.0, -1.5, &box, 4));
+}
+
+test "pointInPolygonWrapped handles rings written across the antimeridian" {
+    // Ring spanning 170E -> -170W (a 20-degree-wide box straddling the antimeridian)
+    const ring = [_]f64{ 170.0, 10.0, -170.0, 10.0, -170.0, -10.0, 170.0, -10.0 };
+
+    // Points inside the wrapped box
+    try std.testing.expect(geometry.pointInPolygonWrapped(179.0, 0.0, &ring, 4));
+    try std.testing.expect(geometry.pointInPolygonWrapped(-179.0, 5.0, &ring, 4));
+
+    // Points outside: west of 170E and east of -170W respectively
+    try std.testing.expect(!geometry.pointInPolygonWrapped(160.0, 0.0, &ring, 4));
+    try std.testing.expect(!geometry.pointInPolygonWrapped(-160.0, 0.0, &ring, 4));
+    // Latitude band miss
+    try std.testing.expect(!geometry.pointInPolygonWrapped(179.0, 20.0, &ring, 4));
+}
+
+test "pointInPolygonBatch classifies many points against one ring" {
+    const box = [_]f64{ -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0 };
+    const points = [_]f64{
+        0.0,  0.0, // inside
+        0.5,  0.5, // inside
+        2.0,  0.0, // outside
+        0.0,  2.0, // outside
+        -0.5, -0.5, // inside
+    };
+    var hits: [5]u8 = undefined;
+
+    const hit_count = geometry.pointInPolygonBatch(&points, 5, &box, 4, &hits);
+    try std.testing.expectEqual(@as(usize, 3), hit_count);
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 1, 1, 0, 0, 1 }, &hits);
+}
+
+test "pointInPolygonBatch rejects degenerate inputs without writing" {
+    const box = [_]f64{ -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0 };
+    const points = [_]f64{ 0.0, 0.0 };
+    var hits: [1]u8 = undefined;
+
+    // Too few ring vertices
+    try std.testing.expectEqual(@as(usize, 0), geometry.pointInPolygonBatch(&points, 1, &box, 2, &hits));
+    // Too few points
+    try std.testing.expectEqual(@as(usize, 0), geometry.pointInPolygonBatch(&points, 0, &box, 4, &hits));
+}
+
+test "pointInPolygons hit-tests one point against many geofence rings" {
+    // Three disjoint 1-degree boxes around the globe
+    const ring_a = [_]f64{ -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0 }; // London-ish
+    const ring_b = [_]f64{ 100.0, 10.0, 102.0, 10.0, 102.0, 12.0, 100.0, 12.0 }; // SE Asia
+    const ring_c = [_]f64{ 170.0, 10.0, -170.0, 10.0, -170.0, -10.0, 170.0, -10.0 }; // antimeridian
+
+    var rings: [24]f64 = undefined;
+    @memcpy(rings[0..8], &ring_a);
+    @memcpy(rings[8..16], &ring_b);
+    @memcpy(rings[16..24], &ring_c);
+    const lengths = [_]u32{ 4, 4, 4 };
+
+    var hits: [3]u8 = undefined;
+    try std.testing.expectEqual(@as(usize, 1), geometry.pointInPolygons(0.5, 0.5, &rings, &lengths, 3, &hits));
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 1, 0, 0 }, &hits);
+
+    try std.testing.expectEqual(@as(usize, 1), geometry.pointInPolygons(101.0, 11.0, &rings, &lengths, 3, &hits));
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0, 1, 0 }, &hits);
+
+    // Point on the antimeridian falls inside ring_c only
+    try std.testing.expectEqual(@as(usize, 1), geometry.pointInPolygons(-179.0, 0.0, &rings, &lengths, 3, &hits));
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0, 0, 1 }, &hits);
+
+    // Point outside every ring
+    try std.testing.expectEqual(@as(usize, 0), geometry.pointInPolygons(60.0, 60.0, &rings, &lengths, 3, &hits));
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0, 0, 0 }, &hits);
+}
+
+test "pointInPolygons tolerates malformed ring lengths" {
+    const ring_a = [_]f64{ -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0 };
+    const lengths = [_]u32{ 4, 2 }; // second ring degenerate
+    var hits: [2]u8 = undefined;
+
+    try std.testing.expectEqual(@as(usize, 1), geometry.pointInPolygons(0.0, 0.0, &ring_a, &lengths, 2, &hits));
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 1, 0 }, &hits);
+}

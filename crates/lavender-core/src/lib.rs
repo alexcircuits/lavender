@@ -16,12 +16,14 @@ pub mod error;
 pub mod fetch;
 pub mod health;
 pub mod hub;
+pub mod motion;
 pub mod providers;
 pub mod registry;
 pub mod satellite_catalog;
 pub mod search;
 pub mod secrets;
 pub mod settings;
+pub mod simulation;
 pub mod sources;
 pub mod vessel_store;
 

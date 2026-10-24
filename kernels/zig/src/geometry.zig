@@ -1,9 +1,20 @@
 //! High-Performance Vector Geometry Micro-Kernel
 //!
 //! Provides WebAssembly SIMD-accelerated delta decoding for packed geographic vectors,
-//! Ramer-Douglas-Peucker (RDP) polyline simplification, and point-in-polygon ray-casting.
+//! Ramer-Douglas-Peucker (RDP) polyline simplification, and point-in-polygon ray-casting
+//! (single, batch, and geofence variants that are antimeridian-safe).
 
 const std = @import("std");
+
+/// Wraps a longitude delta into (-180, 180] so edges spanning the antimeridian
+/// (e.g. 170 -> -170) keep their short +20-degree interpretation. Rings are stored
+/// as written (west may exceed east), matching the repo-wide geo convention.
+fn wrapLonDelta(delta_lon: f64) f64 {
+    var d = @mod(delta_lon, 360.0);
+    if (d > 180.0) d -= 360.0;
+    if (d < -180.0) d += 360.0;
+    return d;
+}
 
 /// Decodes delta-encoded integer coordinate pairs into geographic longitude/latitude floats.
 /// Input format: [x0, y0, dx1, dy1, dx2, dy2, ...]
@@ -184,4 +195,145 @@ pub fn pointInPolygon(
     }
 
     return inside;
+}
+
+/// Antimeridian-safe ray-cast: the ring is unwrapped into its own frame (each
+/// edge takes the short way, so rings written across the antimeridian with
+/// west > east — e.g. 170 -> -170 — denote the narrow straddling box), and the
+/// test point is translated into the ring's centroid frame before a standard
+/// eastward ray-cast. Deterministic and independent of the test point's
+/// hemisphere. Requires a simple ring whose unwrapped span is under 360 degrees.
+pub fn pointInPolygonWrapped(
+    test_lon: f64,
+    test_lat: f64,
+    poly_coords: []const f64,
+    num_points: usize,
+) bool {
+    if (num_points < 3 or poly_coords.len < num_points * 2) return false;
+
+    // Pass 1: unwrap consecutive vertex longitudes (each edge <= 180 degrees)
+    // and accumulate the unwrapped centroid longitude as the ring frame anchor.
+    var prev_lon = poly_coords[0];
+    var centroid_lon = prev_lon;
+    var i: usize = 1;
+    while (i < num_points) : (i += 1) {
+        const lon = prev_lon + wrapLonDelta(poly_coords[i * 2] - prev_lon);
+        centroid_lon += lon;
+        prev_lon = lon;
+    }
+    centroid_lon /= @as(f64, @floatFromInt(num_points));
+
+    // Translate the test point into the ring frame (within +/-180 of the anchor).
+    const tx = centroid_lon + wrapLonDelta(test_lon - centroid_lon);
+
+    // Pass 2: eastward ray-cast through the unwrapped ring. The chain walk
+    // keeps every vertex in the same frame, so edge intersections and `tx`
+    // are directly comparable.
+    var inside = false;
+    var prev_raw = poly_coords[0];
+    var prev_unwrapped = prev_raw;
+    var prev_lat = poly_coords[1];
+
+    i = 1;
+    while (i < num_points) : (i += 1) {
+        const cur_raw = poly_coords[i * 2];
+        const cur_lat = poly_coords[i * 2 + 1];
+        const cur_unwrapped = prev_unwrapped + wrapLonDelta(cur_raw - prev_raw);
+
+        if ((prev_lat > test_lat) != (cur_lat > test_lat)) {
+            const t = (test_lat - prev_lat) / (cur_lat - prev_lat);
+            const x_intersect = prev_unwrapped + t * (cur_unwrapped - prev_unwrapped);
+            if (tx < x_intersect) {
+                inside = !inside;
+            }
+        }
+
+        prev_raw = cur_raw;
+        prev_unwrapped = cur_unwrapped;
+        prev_lat = cur_lat;
+    }
+
+    // Closing edge from the last vertex back to the first.
+    if ((prev_lat > test_lat) != (poly_coords[1] > test_lat)) {
+        const cur_unwrapped = prev_unwrapped + wrapLonDelta(poly_coords[0] - prev_raw);
+        const t = (test_lat - prev_lat) / (poly_coords[1] - prev_lat);
+        const x_intersect = prev_unwrapped + t * (cur_unwrapped - prev_unwrapped);
+        if (tx < x_intersect) {
+            inside = !inside;
+        }
+    }
+
+    return inside;
+}
+
+/// Batch point-in-polygon: many points against one polygon ring.
+///
+/// Points are interleaved [lon0, lat0, lon1, lat1, ...]; the ring likewise.
+/// Writes 1 per inside point, 0 per outside point, into `out_hits` (up to
+/// `num_points` entries) and returns the number of points classified.
+pub fn pointInPolygonBatch(
+    points: []const f64,
+    num_points: usize,
+    poly_coords: []const f64,
+    num_vertices: usize,
+    out_hits: []u8,
+) usize {
+    if (num_points == 0 or points.len < num_points * 2 or out_hits.len < num_points) return 0;
+    if (num_vertices < 3 or poly_coords.len < num_vertices * 2) return 0;
+
+    var hits: usize = 0;
+    for (0..num_points) |i| {
+        const inside = pointInPolygonWrapped(
+            points[i * 2],
+            points[i * 2 + 1],
+            poly_coords,
+            num_vertices,
+        );
+        out_hits[i] = if (inside) 1 else 0;
+        hits += @intFromBool(inside);
+    }
+
+    return hits;
+}
+
+/// Geofence hit-testing: one point against many polygon rings.
+///
+/// `rings` packs every ring's vertices back-to-back (interleaved lon/lat);
+/// `ring_lengths` holds the vertex count of each ring. Writes 1 per ring the
+/// point falls inside, 0 otherwise, into `out_hits` (up to `num_rings` entries)
+/// and returns the number of rings hit.
+pub fn pointInPolygons(
+    test_lon: f64,
+    test_lat: f64,
+    rings: []const f64,
+    ring_lengths: []const u32,
+    num_rings: usize,
+    out_hits: []u8,
+) usize {
+    if (num_rings == 0 or ring_lengths.len < num_rings or out_hits.len < num_rings) return 0;
+
+    var hits: usize = 0;
+    var offset: usize = 0;
+
+    for (0..num_rings) |r| {
+        const ring_len: usize = ring_lengths[r];
+        out_hits[r] = 0;
+
+        if (ring_len >= 3 and rings.len >= offset + ring_len * 2) {
+            const inside = pointInPolygonWrapped(
+                test_lon,
+                test_lat,
+                rings[offset .. offset + ring_len * 2],
+                ring_len,
+            );
+            if (inside) {
+                out_hits[r] = 1;
+                hits += 1;
+            }
+        }
+
+        offset += ring_len * 2;
+    }
+
+    return hits;
 }

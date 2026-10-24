@@ -29,6 +29,7 @@ pub use entities::{
     FireCluster, FireDetection, Launch, LaunchPad, SatelliteElements, Vessel, VesselDimensions,
     VesselEta, VesselTrackResponse, VesselTrackSample, VesselVoyage,
 };
+pub use entities::{AscentEvent, AscentEventKind, AscentSample, AscentTrajectory};
 pub use entities::{BikeshareStation, BikeshareSystem};
 pub use entities::{BoundaryClass, BoundaryFeature, BoundaryResponse};
 pub use entities::{FirePerimeter, PerimeterDetail};

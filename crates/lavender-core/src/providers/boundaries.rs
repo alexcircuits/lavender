@@ -17,8 +17,7 @@ use serde::Deserialize;
 
 use crate::error::CoreError;
 
-const DEFAULT_BOUNDARIES_JSON: &str =
-    include_str!("../../data/natural_earth/boundaries.json");
+const DEFAULT_BOUNDARIES_JSON: &str = include_str!("../../data/natural_earth/boundaries.json");
 
 /// Source attribution for Natural Earth boundaries.
 pub const BOUNDARIES_ATTRIBUTION: &str =

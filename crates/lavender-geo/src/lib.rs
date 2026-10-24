@@ -1,6 +1,7 @@
 //! Pure geospatial computation for Lavender. Nothing here performs I/O, so every function
 //! is deterministic and directly testable; providers, search and the feed hub build on it.
 
+pub mod ascent;
 pub mod coords;
 pub mod geodesy;
 pub mod index;

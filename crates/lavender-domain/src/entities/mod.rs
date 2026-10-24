@@ -2,6 +2,7 @@
 //! frontend renders only these.
 
 mod aircraft;
+mod ascent;
 mod bikeshare;
 mod boundary;
 mod cctv;
@@ -18,6 +19,7 @@ mod transit;
 mod vessel;
 
 pub use aircraft::{Aircraft, AircraftRouteEnrichment, AircraftTypeEnrichment, AirportInfo};
+pub use ascent::{AscentEvent, AscentEventKind, AscentSample, AscentTrajectory};
 pub use bikeshare::{BikeshareStation, BikeshareSystem};
 pub use boundary::{BoundaryClass, BoundaryFeature, BoundaryResponse};
 pub use cctv::{CameraHealth, CameraSource, CctvDetection, CctvDetectionsResponse, CctvStreamInfo};
