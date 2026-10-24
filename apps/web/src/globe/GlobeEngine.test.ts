@@ -457,7 +457,12 @@ describe('GlobeEngine settled view publication', () => {
     const mockCable = {
       id: 'cable-1',
       name: 'Transatlantic-1',
-      coordinates: [[[-70, 40], [-10, 50]]] as const,
+      coordinates: [
+        [
+          [-70, 40],
+          [-10, 50],
+        ],
+      ] as const,
     };
     engine.setCables([mockCable]);
     expect(fixtures.cableItems).toContainEqual([mockCable]);

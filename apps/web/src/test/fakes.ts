@@ -28,7 +28,13 @@ import type {
   VesselTrackResponse,
   WindManifest,
 } from '../contracts';
-import type { CameraPose, EntityRef, GlobeController, SubmarineCableItem, ViewState } from '../globe';
+import type {
+  CameraPose,
+  EntityRef,
+  GlobeController,
+  SubmarineCableItem,
+  ViewState,
+} from '../globe';
 import type {
   CallOptions,
   FeedEvent,
@@ -320,9 +326,7 @@ export class FakePlatform implements LavenderPlatform {
     async (_key: string, _value: string, _options?: CallOptions): Promise<void> => {},
   );
 
-  clearSecret = vi.fn(
-    async (_key: string, _options?: CallOptions): Promise<void> => {},
-  );
+  clearSecret = vi.fn(async (_key: string, _options?: CallOptions): Promise<void> => {});
 
   subscribe = vi.fn((query: FeedQuery, onEvent: (e: FeedEvent) => void) => {
     const sub: FakeSub = { query, onEvent, closed: false, updates: [] };

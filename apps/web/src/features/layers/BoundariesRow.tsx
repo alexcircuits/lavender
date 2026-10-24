@@ -2,6 +2,7 @@ import { memo, useId, useState } from 'react';
 import { IconButton, ListRow, MapTrifoldIcon, SlidersHorizontalIcon, Toggle } from '../../design';
 import type { BoundaryClassVisibility } from '../../globe';
 import { useGlobe, useWorkspace } from '../../runtime';
+import { BOUNDARY_LEVELS } from './boundaryHierarchy';
 import { FamilySwatch } from './FamilySwatch';
 import styles from './layers.module.css';
 
@@ -11,8 +12,9 @@ export interface BoundariesRowProps {
 
 /**
  * Boundaries layer row with Natural Earth per-class toggles (international land,
- * disputed lines, breakaway territories, and maritime indicative lines) and
- * transparent point-of-view disclaimer and attribution.
+ * disputed lines, breakaway territories, and maritime indicative lines), a
+ * division-level drill-down that says plainly which levels the source serves,
+ * zoom-aware class defaults, and the point-of-view disclaimer and attribution.
  */
 export const BoundariesRow = memo(function BoundariesRow({
   onOpenSources: _onOpenSources,
@@ -25,6 +27,8 @@ export const BoundariesRow = memo(function BoundariesRow({
   const setEnabled = useWorkspace((s) => s.setBoundariesEnabled);
   const classes = useWorkspace((s) => s.boundaryClasses);
   const setClasses = useWorkspace((s) => s.setBoundaryClasses);
+  const zoomAutomation = useWorkspace((s) => s.boundaryZoomAutomation);
+  const setZoomAutomation = useWorkspace((s) => s.setBoundaryZoomAutomation);
 
   const toggleClass = (key: keyof BoundaryClassVisibility) => {
     const updated = { ...classes, [key]: !classes[key] };
@@ -110,6 +114,22 @@ export const BoundariesRow = memo(function BoundariesRow({
                   onCheckedChange={() => toggleClass('maritimeIndicative')}
                 />
               </div>
+              <div className={styles.optionRow}>
+                <span>Zoom-aware class defaults</span>
+                <Toggle
+                  aria-label="Zoom-aware class defaults"
+                  checked={zoomAutomation}
+                  onCheckedChange={setZoomAutomation}
+                />
+              </div>
+              <p className={styles.boundaryAttribution}>
+                Division levels: {BOUNDARY_LEVELS.map((level) => level.shortLabel).join(' · ')}
+              </p>
+              {BOUNDARY_LEVELS.filter((level) => !level.served).map((level) => (
+                <p key={level.id} className={styles.boundaryNotice}>
+                  {level.label} — not served: {level.note}
+                </p>
+              ))}
               <div className={styles.boundaryNotice} role="note">
                 Natural Earth shows de facto boundaries; disputed-area classification represents one
                 point of view.

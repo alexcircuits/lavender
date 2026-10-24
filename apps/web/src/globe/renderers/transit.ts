@@ -5,10 +5,10 @@
  */
 import { Cartesian3, Color } from '@cesium/core';
 import {
-  PointPrimitiveCollection,
-  PolylineCollection,
   type PointPrimitive,
+  PointPrimitiveCollection,
   type Polyline,
+  PolylineCollection,
   type PrimitiveCollection,
 } from '@cesium/engine';
 import type { FeedSnapshot, TransitTrail, TransitVehicle } from '../../contracts';
@@ -44,38 +44,35 @@ export class TransitRenderer implements FeedRenderer {
     this.#points = points ?? primitives.add(new PointPrimitiveCollection());
     this.#trailPolylines = lines ?? primitives.add(new PolylineCollection());
 
-    this.#entries = new KeyedEntries<TransitVehicle, PointPrimitive>(
-      (v) => v.id,
-      {
-        create: (vehicle, id) => {
-          this.#items.set(id, vehicle);
-          const isSelected = id === this.#selectedId;
-          const color = isSelected ? this.#ctx.colors.selection : DEFAULT_TRANSIT_COLOR;
-          const size = isSelected ? 12 : 7;
-          const pos = Cartesian3.fromDegrees(vehicle.position.lon, vehicle.position.lat, 0);
+    this.#entries = new KeyedEntries<TransitVehicle, PointPrimitive>((v) => v.id, {
+      create: (vehicle, id) => {
+        this.#items.set(id, vehicle);
+        const isSelected = id === this.#selectedId;
+        const color = isSelected ? this.#ctx.colors.selection : DEFAULT_TRANSIT_COLOR;
+        const size = isSelected ? 12 : 7;
+        const pos = Cartesian3.fromDegrees(vehicle.position.lon, vehicle.position.lat, 0);
 
-          return this.#points.add({
-            position: pos,
-            color,
-            pixelSize: size,
-            id: { feed: this.feed, id } satisfies EntityRef,
-          });
-        },
-        update: (point, vehicle, id) => {
-          this.#items.set(id, vehicle);
-          const isSelected = id === this.#selectedId;
-          const color = isSelected ? this.#ctx.colors.selection : DEFAULT_TRANSIT_COLOR;
-
-          point.position = Cartesian3.fromDegrees(vehicle.position.lon, vehicle.position.lat, 0);
-          point.color = color;
-          point.pixelSize = isSelected ? 12 : 7;
-        },
-        remove: (point, id) => {
-          this.#items.delete(id);
-          this.#points.remove(point);
-        },
+        return this.#points.add({
+          position: pos,
+          color,
+          pixelSize: size,
+          id: { feed: this.feed, id } satisfies EntityRef,
+        });
       },
-    );
+      update: (point, vehicle, id) => {
+        this.#items.set(id, vehicle);
+        const isSelected = id === this.#selectedId;
+        const color = isSelected ? this.#ctx.colors.selection : DEFAULT_TRANSIT_COLOR;
+
+        point.position = Cartesian3.fromDegrees(vehicle.position.lon, vehicle.position.lat, 0);
+        point.color = color;
+        point.pixelSize = isSelected ? 12 : 7;
+      },
+      remove: (point, id) => {
+        this.#items.delete(id);
+        this.#points.remove(point);
+      },
+    });
   }
 
   apply(snapshot: FeedSnapshot): void {

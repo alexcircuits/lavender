@@ -37,12 +37,14 @@ export interface SubmarineCableApiItem {
   readonly name: string;
   readonly color?: string | undefined;
   readonly coordinates: readonly (readonly (readonly [number, number])[])[];
-  readonly bbox?: {
-    readonly west: number;
-    readonly south: number;
-    readonly east: number;
-    readonly north: number;
-  } | undefined;
+  readonly bbox?:
+    | {
+        readonly west: number;
+        readonly south: number;
+        readonly east: number;
+        readonly north: number;
+      }
+    | undefined;
 }
 
 /** What a live subscription delivers. */

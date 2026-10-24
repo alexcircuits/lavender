@@ -53,8 +53,17 @@ export interface WorkspaceState {
   setImagery(id: string): void;
   readonly boundariesEnabled: boolean;
   readonly boundaryClasses: BoundaryClassVisibility;
+  /** Whether zoom-appropriate class defaults apply until the analyst overrides a class. */
+  readonly boundaryZoomAutomation: boolean;
   setBoundariesEnabled(enabled: boolean): void;
   setBoundaryClasses(classes: Partial<BoundaryClassVisibility>): void;
+  setBoundaryZoomAutomation(automation: boolean): void;
+  /** Applies zoom-appropriate defaults without claiming the user-intent revision lane. */
+  applyBoundaryZoomDefaults(classes: BoundaryClassVisibility): void;
+  /** Session visibility of saved geofence regions (the polygons persist as annotations). */
+  readonly hiddenGeofences: ReadonlySet<string>;
+  toggleGeofenceVisibility(id: string): void;
+  setHiddenGeofences(ids: ReadonlySet<string>): void;
   /** Applies persisted or default layer choices without touching selection. */
   hydrate(layers: Partial<Record<FeedId, LayerState>>, imageryId: string | null): void;
   restore(
@@ -107,6 +116,7 @@ export const createWorkspaceStore = () =>
       set((s) => ({ imageryId, revisions: { ...s.revisions, imagery: s.revisions.imagery + 1 } })),
     boundariesEnabled: true,
     boundaryClasses: { ...DEFAULT_BOUNDARY_VISIBILITY },
+    boundaryZoomAutomation: true,
     setBoundariesEnabled: (boundariesEnabled) =>
       set((s) => ({
         boundariesEnabled,
@@ -122,8 +132,21 @@ export const createWorkspaceStore = () =>
     setBoundaryClasses: (visibility) =>
       set((s) => ({
         boundaryClasses: { ...s.boundaryClasses, ...visibility },
+        // A manual class choice is intent: zoom defaults stop overriding it.
+        boundaryZoomAutomation: false,
         revisions: { ...s.revisions, layers: s.revisions.layers + 1 },
       })),
+    setBoundaryZoomAutomation: (boundaryZoomAutomation) => set({ boundaryZoomAutomation }),
+    applyBoundaryZoomDefaults: (classes) => set({ boundaryClasses: classes }),
+    hiddenGeofences: new Set<string>(),
+    toggleGeofenceVisibility: (id) =>
+      set((s) => {
+        const hiddenGeofences = new Set(s.hiddenGeofences);
+        if (hiddenGeofences.has(id)) hiddenGeofences.delete(id);
+        else hiddenGeofences.add(id);
+        return { hiddenGeofences };
+      }),
+    setHiddenGeofences: (hiddenGeofences) => set({ hiddenGeofences: new Set(hiddenGeofences) }),
     hydrate: (layers, imageryId) => set({ layers, imageryId }),
     restore: (layers, imageryId, selection, annotations) =>
       set((s) => ({ layers, imageryId, selection, annotations: annotations ?? s.annotations })),
@@ -239,7 +262,13 @@ export type {
 };
 export { DEFAULT_USER_PREFERENCES };
 
-export type SidePanel = 'layers' | 'sources' | 'annotations' | 'launches' | 'settings';
+export type SidePanel =
+  | 'layers'
+  | 'sources'
+  | 'annotations'
+  | 'geofences'
+  | 'launches'
+  | 'settings';
 
 export interface UiState {
   /** The mounted globe's command interface, or null while it loads or after it failed. */

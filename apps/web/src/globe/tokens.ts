@@ -14,6 +14,13 @@ export interface MapPalette {
   /** Light neutral keyline just inside the outline of hazard symbols (§4). */
   readonly keyline: string;
   readonly ink: string;
+  /** Boundary classes (Natural Earth): distinct line style + colour per class. */
+  readonly boundaryIntl: string;
+  readonly boundaryDisputed: string;
+  readonly boundaryBreakaway: string;
+  readonly boundaryMaritime: string;
+  /** Named geofence regions: outlined polygons. */
+  readonly geofence: string;
   /** Hazard magnitude ramp, low → high (five ordinal steps). */
   readonly hazardRamp: readonly [string, string, string, string, string];
   /** CSS font shorthand for globe labels (Geist 500 12 px). */
@@ -30,6 +37,11 @@ export const DEFAULT_PALETTE: MapPalette = {
   outline: '#0a0a0b',
   keyline: '#bcbcc4',
   ink: '#fafafa',
+  boundaryIntl: '#e2e8f0',
+  boundaryDisputed: '#f59e0b',
+  boundaryBreakaway: '#ec4899',
+  boundaryMaritime: '#38bdf8',
+  geofence: '#fde047',
   hazardRamp: ['#8f3c19', '#b9471d', '#d95926', '#ef7a45', '#f8a57a'],
   labelFont: `500 12px ${DEFAULT_FONT_SANS}`,
 };
@@ -56,6 +68,11 @@ export function readPalette(read: TokenReader): MapPalette {
     outline: token(read, '--map-outline', DEFAULT_PALETTE.outline),
     keyline: token(read, '--map-keyline', DEFAULT_PALETTE.keyline),
     ink: token(read, '--ink', DEFAULT_PALETTE.ink),
+    boundaryIntl: token(read, '--map-boundary-intl', DEFAULT_PALETTE.boundaryIntl),
+    boundaryDisputed: token(read, '--map-boundary-disputed', DEFAULT_PALETTE.boundaryDisputed),
+    boundaryBreakaway: token(read, '--map-boundary-breakaway', DEFAULT_PALETTE.boundaryBreakaway),
+    boundaryMaritime: token(read, '--map-boundary-maritime', DEFAULT_PALETTE.boundaryMaritime),
+    geofence: token(read, '--map-geofence', DEFAULT_PALETTE.geofence),
     hazardRamp: [
       token(read, '--hazard-1', ramp[0]),
       token(read, '--hazard-2', ramp[1]),

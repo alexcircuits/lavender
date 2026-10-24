@@ -1,5 +1,4 @@
-import { Cartesian3, Color } from '@cesium/core';
-import { PointPrimitiveCollection } from '@cesium/engine';
+import { Cartesian3 } from '@cesium/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BikeshareStation } from '../../contracts';
 import { quakeSnapshot } from '../../test/fakes';
@@ -40,7 +39,10 @@ describe('BikeshareRenderer', () => {
       canvasSizePx: () => ({ width: 1000, height: 800 }),
     };
 
-    renderer = new BikeshareRenderer(primitives as unknown as import('@cesium/engine').PrimitiveCollection, ctx);
+    renderer = new BikeshareRenderer(
+      primitives as unknown as import('@cesium/engine').PrimitiveCollection,
+      ctx,
+    );
   });
 
   const stations: BikeshareStation[] = [

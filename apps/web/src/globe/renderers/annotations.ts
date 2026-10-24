@@ -57,8 +57,8 @@ export class AnnotationRenderer {
     this.#labelEntries.length = 0;
     for (const fill of this.#fills.splice(0)) this.#root.remove(fill);
     for (const annotation of annotations)
-      this.#drawSafely(annotation.kind, annotation.points, annotation.label, false);
-    if (draft) this.#drawSafely(draft.kind, draft.points, 'Draft', true);
+      this.#drawSafely(annotation.kind, annotation.points, annotation.label, false, undefined);
+    if (draft) this.#drawSafely(draft.kind, draft.points, 'Draft', true, draft.cursor ?? undefined);
     this.viewChanged();
     this.#ctx.requestRender();
   }
@@ -91,9 +91,10 @@ export class AnnotationRenderer {
     points: readonly GeoPoint[],
     label: string,
     draft: boolean,
+    cursor: GeoPoint | undefined,
   ): void {
     try {
-      this.#draw(kind, points, label, draft);
+      this.#draw(kind, points, label, draft, cursor);
     } catch (error) {
       console.error('Globe could not draw one annotation', error);
     }
@@ -103,9 +104,11 @@ export class AnnotationRenderer {
     points: readonly GeoPoint[],
     label: string,
     draft: boolean,
+    cursor: GeoPoint | undefined,
   ): void {
     if (!points.length) return;
-    const colour = this.#ctx.colors.selection;
+    const closed = kind === 'area' || kind === 'geofence';
+    const colour = kind === 'geofence' ? this.#ctx.colors.geofence : this.#ctx.colors.selection;
     const position = (p: GeoPoint) => Cartesian3.fromDegrees(p.lon, p.lat, 25);
     if (kind === 'pin' || draft) {
       for (const point of points)
@@ -118,8 +121,9 @@ export class AnnotationRenderer {
         });
     }
     if (kind !== 'pin' && points.length >= 2) {
-      const ring =
-        kind === 'area' && points.length >= 3 ? [...points, points[0] as GeoPoint] : points;
+      // A live draft extends towards the pointer so the next segment is visible before click.
+      const chain = draft && cursor ? [...points, cursor] : points;
+      const ring = closed && chain.length >= 3 ? [...chain, chain[0] as GeoPoint] : chain;
       const positions: Cartesian3[] = [];
       for (let i = 1; i < ring.length; i++) {
         const a = ring[i - 1] as GeoPoint;
@@ -142,20 +146,26 @@ export class AnnotationRenderer {
       if (positions.length >= 2)
         this.#lines.add({
           positions,
-          width: draft ? 1.5 : kind === 'line' ? 5 : 2,
-          material: Material.fromType(kind === 'line' && !draft ? 'PolylineArrow' : 'Color', {
-            color: colour,
-          }),
+          width: draft ? 1.5 : kind === 'line' ? 5 : kind === 'geofence' ? 3 : 2,
+          material: draft
+            ? Material.fromType('PolylineDash', { color: colour, dashLength: 12 })
+            : Material.fromType(kind === 'line' ? 'PolylineArrow' : 'Color', {
+                color: colour,
+              }),
         });
     }
-    if (kind === 'area' && points.length >= 3 && !draft) {
+    if (closed && points.length >= 3 && !draft) {
       const fill = new GroundPrimitive({
         geometryInstances: new GeometryInstance({
           geometry: new PolygonGeometry({
             polygonHierarchy: new PolygonHierarchy(points.map(position)),
             granularity: Math.PI / 180,
           }),
-          attributes: { color: ColorGeometryInstanceAttribute.fromColor(colour.withAlpha(0.16)) },
+          attributes: {
+            color: ColorGeometryInstanceAttribute.fromColor(
+              colour.withAlpha(kind === 'geofence' ? 0.12 : 0.16),
+            ),
+          },
         }),
         appearance: new PerInstanceColorAppearance({ translucent: true, closed: false }),
         asynchronous: true,

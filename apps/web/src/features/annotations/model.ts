@@ -8,7 +8,8 @@ export const MAX_NOTE_LENGTH = 500;
 export const MAX_ANNOTATION_BYTES = 65_536;
 export interface MapAnnotation {
   readonly id: string;
-  readonly kind: 'pin' | 'line' | 'area';
+  /** `geofence` marks a named monitored region drawn with the geofence tool. */
+  readonly kind: 'pin' | 'line' | 'area' | 'geofence';
   readonly points: readonly GeoPoint[];
   readonly label: string;
   readonly note: string;
@@ -18,6 +19,8 @@ export interface MapAnnotation {
 export interface AnnotationDraft {
   readonly kind: MapAnnotation['kind'];
   readonly points: readonly GeoPoint[];
+  /** Live pointer position while drawing, for the next-segment preview. */
+  readonly cursor?: GeoPoint | null;
 }
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -57,7 +60,7 @@ export function validateAnnotations(value: unknown): readonly MapAnnotation[] {
     if (typeof a.id !== 'string' || !/^[a-zA-Z0-9-]{1,64}$/.test(a.id) || ids.has(a.id))
       throw new Error('Invalid annotation identity.');
     ids.add(a.id);
-    if (a.kind !== 'pin' && a.kind !== 'line' && a.kind !== 'area')
+    if (a.kind !== 'pin' && a.kind !== 'line' && a.kind !== 'area' && a.kind !== 'geofence')
       throw new Error('Unknown annotation kind.');
     if (
       a.approximate !== true ||

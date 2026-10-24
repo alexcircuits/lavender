@@ -15,7 +15,7 @@ import type { CameraSource, CctvDetectionsResponse } from '../../contracts';
 import type { EntityRef } from '../index';
 import { KeyedEntries } from './keyed';
 import type { Located, RenderContext } from './types';
-import { batchCctvWireframeWasm, computeCctvFrustumWasm } from './wasmCctv';
+import { computeCctvFrustumWasm } from './wasmCctv';
 
 export const CCTV_CAMERA_COLOR =
   Color.fromCssColorString('#38bdf8') ?? new Color(0.22, 0.74, 0.97, 0.85);
@@ -48,35 +48,40 @@ export class CctvRenderer {
     this.#points = points ?? primitives.add(new PointPrimitiveCollection());
     this.#frustumLines = lines ?? primitives.add(new PolylineCollection());
 
-    this.#entries = new KeyedEntries<CameraSource, PointPrimitive>(
-      (c) => c.id,
-      {
-        create: (cam, id) => {
-          this.#cameras.set(id, cam);
-          const isSelected = id === this.#selectedId;
-          const color = isSelected ? this.#ctx.colors.selection : CCTV_CAMERA_COLOR;
-          const pos = Cartesian3.fromDegrees(cam.lon, cam.lat, (cam.groundElevationM ?? 0) + (cam.mountHeightM ?? 24));
+    this.#entries = new KeyedEntries<CameraSource, PointPrimitive>((c) => c.id, {
+      create: (cam, id) => {
+        this.#cameras.set(id, cam);
+        const isSelected = id === this.#selectedId;
+        const color = isSelected ? this.#ctx.colors.selection : CCTV_CAMERA_COLOR;
+        const pos = Cartesian3.fromDegrees(
+          cam.lon,
+          cam.lat,
+          (cam.groundElevationM ?? 0) + (cam.mountHeightM ?? 24),
+        );
 
-          return this.#points.add({
-            position: pos,
-            color,
-            pixelSize: isSelected ? 12 : 7,
-            id: { feed: 'cctv', id } satisfies EntityRef,
-          });
-        },
-        update: (point, cam, id) => {
-          this.#cameras.set(id, cam);
-          const isSelected = id === this.#selectedId;
-          point.position = Cartesian3.fromDegrees(cam.lon, cam.lat, (cam.groundElevationM ?? 0) + (cam.mountHeightM ?? 24));
-          point.color = isSelected ? this.#ctx.colors.selection : CCTV_CAMERA_COLOR;
-          point.pixelSize = isSelected ? 12 : 7;
-        },
-        remove: (point, id) => {
-          this.#cameras.delete(id);
-          this.#points.remove(point);
-        },
+        return this.#points.add({
+          position: pos,
+          color,
+          pixelSize: isSelected ? 12 : 7,
+          id: { feed: 'cctv', id } satisfies EntityRef,
+        });
       },
-    );
+      update: (point, cam, id) => {
+        this.#cameras.set(id, cam);
+        const isSelected = id === this.#selectedId;
+        point.position = Cartesian3.fromDegrees(
+          cam.lon,
+          cam.lat,
+          (cam.groundElevationM ?? 0) + (cam.mountHeightM ?? 24),
+        );
+        point.color = isSelected ? this.#ctx.colors.selection : CCTV_CAMERA_COLOR;
+        point.pixelSize = isSelected ? 12 : 7;
+      },
+      remove: (point, id) => {
+        this.#cameras.delete(id);
+        this.#points.remove(point);
+      },
+    });
   }
 
   setCameras(cameras: readonly CameraSource[]): void {
@@ -166,7 +171,11 @@ export class CctvRenderer {
     const cam = this.#cameras.get(id);
     if (!cam) return undefined;
     return {
-      position: Cartesian3.fromDegrees(cam.lon, cam.lat, (cam.groundElevationM ?? 0) + (cam.mountHeightM ?? 24)),
+      position: Cartesian3.fromDegrees(
+        cam.lon,
+        cam.lat,
+        (cam.groundElevationM ?? 0) + (cam.mountHeightM ?? 24),
+      ),
       symbolPx: 32,
     };
   }

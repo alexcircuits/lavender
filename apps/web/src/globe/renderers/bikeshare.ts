@@ -31,53 +31,50 @@ export class BikeshareRenderer implements FeedRenderer {
     this.#primitives = primitives;
     this.#points = primitives.add(new PointPrimitiveCollection());
 
-    this.#entries = new KeyedEntries<BikeshareStation, PointPrimitive>(
-      (s) => s.id,
-      {
-        create: (station, id) => {
-          this.#items.set(id, station);
-          const isSelected = id === this.#selectedId;
-          const bikes = station.bikesAvailable ?? 0;
-          const color = isSelected
-            ? this.#ctx.colors.selection
-            : bikes === 0
-              ? EMPTY_COLOR
-              : bikes < 3
-                ? LOW_COLOR
-                : NORMAL_COLOR;
+    this.#entries = new KeyedEntries<BikeshareStation, PointPrimitive>((s) => s.id, {
+      create: (station, id) => {
+        this.#items.set(id, station);
+        const isSelected = id === this.#selectedId;
+        const bikes = station.bikesAvailable ?? 0;
+        const color = isSelected
+          ? this.#ctx.colors.selection
+          : bikes === 0
+            ? EMPTY_COLOR
+            : bikes < 3
+              ? LOW_COLOR
+              : NORMAL_COLOR;
 
-          const size = isSelected ? 10 : 6;
-          const pos = Cartesian3.fromDegrees(station.position.lon, station.position.lat, 0);
+        const size = isSelected ? 10 : 6;
+        const pos = Cartesian3.fromDegrees(station.position.lon, station.position.lat, 0);
 
-          return this.#points.add({
-            position: pos,
-            color,
-            pixelSize: size,
-            id: { feed: this.feed, id } satisfies EntityRef,
-          });
-        },
-        update: (point, station, id) => {
-          this.#items.set(id, station);
-          const isSelected = id === this.#selectedId;
-          const bikes = station.bikesAvailable ?? 0;
-          const color = isSelected
-            ? this.#ctx.colors.selection
-            : bikes === 0
-              ? EMPTY_COLOR
-              : bikes < 3
-                ? LOW_COLOR
-                : NORMAL_COLOR;
-
-          point.position = Cartesian3.fromDegrees(station.position.lon, station.position.lat, 0);
-          point.color = color;
-          point.pixelSize = isSelected ? 10 : 6;
-        },
-        remove: (point, id) => {
-          this.#items.delete(id);
-          this.#points.remove(point);
-        },
+        return this.#points.add({
+          position: pos,
+          color,
+          pixelSize: size,
+          id: { feed: this.feed, id } satisfies EntityRef,
+        });
       },
-    );
+      update: (point, station, id) => {
+        this.#items.set(id, station);
+        const isSelected = id === this.#selectedId;
+        const bikes = station.bikesAvailable ?? 0;
+        const color = isSelected
+          ? this.#ctx.colors.selection
+          : bikes === 0
+            ? EMPTY_COLOR
+            : bikes < 3
+              ? LOW_COLOR
+              : NORMAL_COLOR;
+
+        point.position = Cartesian3.fromDegrees(station.position.lon, station.position.lat, 0);
+        point.color = color;
+        point.pixelSize = isSelected ? 10 : 6;
+      },
+      remove: (point, id) => {
+        this.#items.delete(id);
+        this.#points.remove(point);
+      },
+    });
   }
 
   apply(snapshot: FeedSnapshot): void {

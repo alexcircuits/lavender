@@ -384,24 +384,22 @@ describe('windStreamlines', () => {
   });
 
   describe('grid loading, batching and uniforms', () => {
-    it(
-      'builds regional native batches and ticks update uniforms without rebuilding geometry',
-      () => {
-        const h = createHarness();
-        expect(h.owner.setGrid(createUniformField())).toBe(true);
-        expect(h.members.size).toBe(72);
+    it('builds regional native batches and ticks update uniforms without rebuilding geometry', () => {
+      const h = createHarness();
+      expect(h.owner.setGrid(createUniformField())).toBe(true);
+      expect(h.members.size).toBe(72);
 
-        const batch = Array.from(h.members)[0];
-        expect(batch).toBeDefined();
-        if (!batch) return;
+      const batch = Array.from(h.members)[0];
+      expect(batch).toBeDefined();
+      if (!batch) return;
 
-        expect(batch.allowPicking).toBe(false);
-        expect(batch.asynchronous).toBe(true);
-        expect(batch.appearance.vertexShaderSource).toContain('v_windFacing = dot');
-        expect(batch.appearance.material.source).toContain('smoothstep(0.0, 0.065, v_windFacing)');
-        expect(batch.appearance.vertexShaderSource).toContain('czm_batchTable_windSeed(batchId)');
+      expect(batch.allowPicking).toBe(false);
+      expect(batch.asynchronous).toBe(true);
+      expect(batch.appearance.vertexShaderSource).toContain('v_windFacing = dot');
+      expect(batch.appearance.material.source).toContain('smoothstep(0.0, 0.065, v_windFacing)');
+      expect(batch.appearance.vertexShaderSource).toContain('czm_batchTable_windSeed(batchId)');
 
-        const builds = h.builds();
+      const builds = h.builds();
       expect(builds).toBe(0); // geometry expansion deferred to workers
 
       h.owner.tick(3);

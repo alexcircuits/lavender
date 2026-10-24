@@ -4,29 +4,59 @@
  * Renders international land borders, disputed lines of control, breakaway territories,
  * and maritime indicative lines with distinct styling, per-class toggles, and selection highlighting.
  */
-import { Cartesian3, Color } from '@cesium/core';
+import { Cartesian3, type Color } from '@cesium/core';
 import { Material, type Polyline, type PolylineCollection } from '@cesium/engine';
 import type { BoundaryClass, BoundaryFeature, GeoPoint } from '../../contracts';
 import type { EntityRef } from '../index';
-import type { Located, RenderContext } from './types';
+import type { Located, MapColors, RenderContext } from './types';
 import { pointInPolygonWasm } from './wasmGeometry';
 
 export const BOUNDARY_LOCATED_PX = 32;
-
-export const DEFAULT_INTERNATIONAL_COLOR =
-  Color.fromCssColorString('#e2e8f0') ?? new Color(0.886, 0.91, 0.941, 0.9);
-export const DEFAULT_DISPUTED_COLOR =
-  Color.fromCssColorString('#f59e0b') ?? new Color(0.961, 0.62, 0.043, 1.0);
-export const DEFAULT_BREAKAWAY_COLOR =
-  Color.fromCssColorString('#ec4899') ?? new Color(0.925, 0.282, 0.6, 0.95);
-export const DEFAULT_MARITIME_COLOR =
-  Color.fromCssColorString('#38bdf8') ?? new Color(0.22, 0.741, 0.973, 0.65);
 
 export const DEFAULT_INTERNATIONAL_WIDTH = 1.5;
 export const DEFAULT_DISPUTED_WIDTH = 2.0;
 export const DEFAULT_BREAKAWAY_WIDTH = 2.0;
 export const DEFAULT_MARITIME_WIDTH = 1.2;
 export const SELECTED_BOUNDARY_WIDTH = 3.5;
+
+/** Line style for one boundary class: what the globe draws and the legend swatch shows. */
+export interface BoundaryClassStyle {
+  readonly lineWidth: number;
+  readonly stroke: 'solid' | 'dash';
+  /** Cesium `PolylineDash` dash length; 0 for solid strokes. */
+  readonly dashLength: number;
+}
+
+/**
+ * Per-class line style (width + dash pattern). Disputed lines of control get a long dash,
+ * maritime indicative lines a short dash, land borders and breakaway rings stay solid.
+ */
+export function boundaryClassStyle(bClass: BoundaryClass): BoundaryClassStyle {
+  switch (bClass) {
+    case 'internationalLand':
+      return { lineWidth: DEFAULT_INTERNATIONAL_WIDTH, stroke: 'solid', dashLength: 0 };
+    case 'disputedLine':
+      return { lineWidth: DEFAULT_DISPUTED_WIDTH, stroke: 'dash', dashLength: 16 };
+    case 'breakawayArea':
+      return { lineWidth: DEFAULT_BREAKAWAY_WIDTH, stroke: 'solid', dashLength: 0 };
+    case 'maritimeIndicative':
+      return { lineWidth: DEFAULT_MARITIME_WIDTH, stroke: 'dash', dashLength: 10 };
+  }
+}
+
+/** Per-class colour, read from the resolved map palette (tokens.css `--map-boundary-*`). */
+export function boundaryClassColor(bClass: BoundaryClass, colors: MapColors): Color {
+  switch (bClass) {
+    case 'internationalLand':
+      return colors.boundaryIntl;
+    case 'disputedLine':
+      return colors.boundaryDisputed;
+    case 'breakawayArea':
+      return colors.boundaryBreakaway;
+    case 'maritimeIndicative':
+      return colors.boundaryMaritime;
+  }
+}
 
 export interface BoundaryClassVisibility {
   readonly internationalLand: boolean;
@@ -289,45 +319,18 @@ export class BoundaryRenderer {
   }
 
   private getDefaultColor(bClass: BoundaryClass): Color {
-    switch (bClass) {
-      case 'internationalLand':
-        return DEFAULT_INTERNATIONAL_COLOR;
-      case 'disputedLine':
-        return DEFAULT_DISPUTED_COLOR;
-      case 'breakawayArea':
-        return DEFAULT_BREAKAWAY_COLOR;
-      case 'maritimeIndicative':
-        return DEFAULT_MARITIME_COLOR;
-    }
+    return boundaryClassColor(bClass, this.ctx.colors);
   }
 
   private getDefaultWidth(bClass: BoundaryClass): number {
-    switch (bClass) {
-      case 'internationalLand':
-        return DEFAULT_INTERNATIONAL_WIDTH;
-      case 'disputedLine':
-        return DEFAULT_DISPUTED_WIDTH;
-      case 'breakawayArea':
-        return DEFAULT_BREAKAWAY_WIDTH;
-      case 'maritimeIndicative':
-        return DEFAULT_MARITIME_WIDTH;
-    }
+    return boundaryClassStyle(bClass).lineWidth;
   }
 
   private createMaterial(bClass: BoundaryClass, color: Color): Material {
-    switch (bClass) {
-      case 'disputedLine':
-        return Material.fromType('PolylineDash', {
-          color,
-          dashLength: 16.0,
-        });
-      case 'maritimeIndicative':
-        return Material.fromType('PolylineDash', {
-          color,
-          dashLength: 10.0,
-        });
-      default:
-        return Material.fromType('Color', { color });
+    const style = boundaryClassStyle(bClass);
+    if (style.stroke === 'dash') {
+      return Material.fromType('PolylineDash', { color, dashLength: style.dashLength });
     }
+    return Material.fromType('Color', { color });
   }
 }

@@ -1,4 +1,4 @@
-import { Cartesian3, Color } from '@cesium/core';
+import { Cartesian3, type Color } from '@cesium/core';
 import type { PointPrimitiveCollection, PolylineCollection } from '@cesium/engine';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CameraSource, CctvDetectionsResponse } from '../../contracts';
@@ -7,7 +7,8 @@ import { CctvRenderer } from './cctv';
 import { type RenderContext, toMapColors } from './types';
 
 class MockPointCollection {
-  readonly points: Array<{ position: Cartesian3; color: Color; pixelSize: number; id: unknown }> = [];
+  readonly points: Array<{ position: Cartesian3; color: Color; pixelSize: number; id: unknown }> =
+    [];
   add(options: { position: Cartesian3; color: Color; pixelSize: number; id: unknown }) {
     const point = { ...options };
     this.points.push(point);

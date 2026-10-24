@@ -68,14 +68,15 @@ const onArc = (p: Vector, a: Vector, b: Vector) =>
 
 /** Simple short-arc rings inside one hemisphere. Ambiguous or crossing rings are refused. */
 export function geometryError(
-  kind: 'pin' | 'line' | 'area',
+  kind: 'pin' | 'line' | 'area' | 'geofence',
   points: readonly GeoPoint[],
 ): string | null {
-  const minimum = { pin: 1, line: 2, area: 3 }[kind];
+  const closed = kind === 'area' || kind === 'geofence';
+  const minimum = { pin: 1, line: 2, area: 3, geofence: 3 }[kind];
   if (points.length < minimum) return `Add at least ${minimum} point${minimum === 1 ? '' : 's'}.`;
   if (kind === 'pin') return points.length === 1 ? null : 'A pin needs one point.';
   const vertices = points.map(vector);
-  const edges = kind === 'area' ? vertices.length : vertices.length - 1;
+  const edges = closed ? vertices.length : vertices.length - 1;
   for (let i = 0; i < edges; i++) {
     const distance =
       angle(vertices[i] as Vector, vertices[(i + 1) % vertices.length] as Vector) * EARTH_RADIUS_M;
@@ -85,6 +86,7 @@ export function geometryError(
   }
   if (kind === 'line')
     return pathLengthM(points) >= 1 ? null : 'The line needs at least 1 m of length.';
+  if (!closed) return null;
   const centre = centreVector(points);
   if (!centre.every(Number.isFinite) || vertices.some((v) => dot(v, centre) < 0.05))
     return 'Areas must fit within one hemisphere. Split this area into smaller marks.';
@@ -110,7 +112,10 @@ export function geometryError(
   return ringAreaM2(points) >= 1 ? null : 'The area needs at least 1 m² of surface.';
 }
 
-export function measurement(kind: 'pin' | 'line' | 'area', points: readonly GeoPoint[]): string {
+export function measurement(
+  kind: 'pin' | 'line' | 'area' | 'geofence',
+  points: readonly GeoPoint[],
+): string {
   if (kind === 'pin') return 'User pin';
   if (kind === 'line') {
     const length = pathLengthM(points);

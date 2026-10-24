@@ -13,6 +13,11 @@ export interface MapColors {
   readonly outline: Color;
   readonly keyline: Color;
   readonly ink: Color;
+  readonly boundaryIntl: Color;
+  readonly boundaryDisputed: Color;
+  readonly boundaryBreakaway: Color;
+  readonly boundaryMaritime: Color;
+  readonly geofence: Color;
   readonly hazardRamp: readonly [Color, Color, Color, Color, Color];
 }
 
@@ -47,6 +52,11 @@ export function toMapColors(palette: MapPalette): MapColors {
     outline: parse(palette.outline, d.outline),
     keyline: parse(palette.keyline, d.keyline),
     ink: parse(palette.ink, d.ink),
+    boundaryIntl: parse(palette.boundaryIntl, d.boundaryIntl),
+    boundaryDisputed: parse(palette.boundaryDisputed, d.boundaryDisputed),
+    boundaryBreakaway: parse(palette.boundaryBreakaway, d.boundaryBreakaway),
+    boundaryMaritime: parse(palette.boundaryMaritime, d.boundaryMaritime),
+    geofence: parse(palette.geofence, d.geofence),
     hazardRamp: [
       parse(ramp[0], d.hazardRamp[0]),
       parse(ramp[1], d.hazardRamp[1]),
