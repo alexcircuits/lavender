@@ -61,39 +61,39 @@ Sentence case everywhere. Line length in prose surfaces (help, notices) ≤ 72 c
 
 | Token | Value | Use | Source |
 |---|---|---|---|
-| `--ground` | `#0a0a0b` | Behind the globe; status bar | Flokzy `globals.css:161` |
-| `--well` | `#111114` | Sunken fields, trays, search input | Flokzy `:192` |
-| `--island` | `#161619` | Panels over the globe | Flokzy `:163` |
-| `--island-hover` | `#1c1c21` | Hovered row / interactive surface | Flokzy `:165` |
-| `--popover` | `#1c1c22` | Menus, popovers, palette | Flokzy `:166` |
-| `--control` | `#202026` | Tonal buttons, chips, segmented controls | Flokzy `:180-182` |
-| `--hairline` | `#2a2a31` | Table rules and focusable regions only | Flokzy `:187` |
-| `--hairline-strong` | `#3f3f46` | Field outlines on hover | Flokzy `:193` |
-| `--ink` | `#fafafa` | Primary text (17.3:1 on island) | Flokzy `:162` |
-| `--ink-2` | `#a1a1aa` | Secondary text (7.0:1) | Flokzy `:183` |
-| `--ink-3` | `#8d8d9c` | Tertiary text, disabled glyphs (5.5:1 on island, ≥ 4.9:1 on every surface) | Flokzy `:195` `#818191`, lightened so it passes AA on popover and control too |
+| `--ground` | `#0b0c10` | Behind the globe; status bar | noir-design dark ground |
+| `--well` | `#1e2027` | Sunken fields, trays, search input | noir-design dark inset |
+| `--island` | `#16171d` | Panels over the globe | noir-design dark surface |
+| `--island-hover` | `#23242c` | Hovered row / interactive surface | Derived between the family inset and deep-inset steps |
+| `--popover` | `#1f1e2a` | Menus, popovers, palette | noir-design deep-surface |
+| `--control` | `#262531` | Tonal buttons, chips, segmented controls | Dark of the family deep-inset step, so `--alert` text passes AA on it |
+| `--hairline` | `#2b2a39` | Table rules and focusable regions only | noir-design deep-inset |
+| `--hairline-strong` | `#3a3847` | Field outlines on hover | noir-design bezel |
+| `--ink` | `#f2f3f6` | Primary text (16.1:1 on island) | noir-design dark text |
+| `--ink-2` | `#a3a8b4` | Secondary text (7.5:1) | noir-design dark text-2 |
+| `--ink-3` | `#8f96a5` | Tertiary text, disabled glyphs (6.0:1 on island, ≥ 5.0:1 on every surface) | Family grey lifted so it passes AA on popover and control |
 
 A light theme is not part of v1. The tokens are role-named so it can be added
 as one block later (reference: Flokzy's light block).
 
-### 3.2 Lavender accent (new, measured)
+### 3.2 Chrome accent (NoirSystems cobalt, measured)
 
 | Token | Value | Contrast | Use |
 |---|---|---|---|
-| `--accent-ink` | `#b9a6ff` | 8.6:1 on island, 9.4:1 on ground | Accent text, focus ring, **selection halo on the globe** |
-| `--accent` | `#6d5ae6` | white text 4.9:1 | Primary action fill, active nav indicator |
-| `--accent-hover` | `#7461ea` | white text 4.5:1 | Primary hover |
-| `--accent-press` | `#5f4dd6` | white text 5.97:1 | Primary pressed |
-| `--accent-subtle` | `#1f1a33` | | Selected row background |
-| `--accent-muted` | `#2a2347` | | Selected chip, current nav item background |
+| `--accent-ink` | `#9db1ff` | 8.7:1 on island, 9.5:1 on ground | Accent text, focus ring, **selection halo on the globe** |
+| `--accent` | `#1e3fd8` | white text 7.6:1 | Primary action fill, active nav indicator (noir-design cobalt) |
+| `--accent-hover` | `#3553e3` | white text 6.0:1 | Primary hover |
+| `--accent-press` | `#1a36bd` | white text 9.1:1 | Primary pressed |
+| `--accent-subtle` | `#1b2852` | | Selected row background (noir-design dark mist) |
+| `--accent-muted` | `#223069` | | Selected chip, current nav item background |
 
 ### 3.3 Status (reserved, icon + word always)
 
 | Token | Value | Meaning in Lavender |
 |---|---|---|
-| `--good` | `#45b75f` | Live, healthy |
-| `--warning` | `#f39e1e` | Stale, degraded, polling fallback, recoverable error |
-| `--alert` | `#f25555` | Source unavailable, a failure that needs action; text and glyphs (≥ 4.8:1 on every surface). Red never decorates |
+| `--good` | `#4cc38a` | Live, healthy (noir-design dark success) |
+| `--warning` | `#f0a33a` | Stale, degraded, polling fallback, recoverable error (noir-design dark warning) |
+| `--alert` | `#f4636a` | Source unavailable, a failure that needs action; text and glyphs (≥ 4.9:1 on every surface). Red never decorates |
 | `--alert-fill` | `#c62f2f` | Filled destructive buttons in confirm dialogs (white text 5.46:1) |
 | `--neutral-state` | `--ink-3` | Unconfigured, disabled by licence policy, off |
 
@@ -109,8 +109,10 @@ on screen together.
 | Hazards | `#d95926` + ramp | Earthquakes, fires, cyclones, perimeters | Quake = ring sized by magnitude; fire = filled cell; cyclone = spiral + track |
 | Maritime | `#199e70` | Vessels | Hull chevron rotated to course; at rest = dot |
 | Space | `#d6d3e6` (neutral, 12.3:1) | Satellites, orbits | Small diamond; orbit = 1 px line at 40 % |
-| Context | `#9a98a8` (neutral) | Infrastructure, boundaries, cables | Square / line |
-| Selection | `--accent-ink` `#b9a6ff` | Any selected or tracked entity | 2 px halo + 1 px `--ground` separation ring |
+| Context | `#9a98a8` (neutral) | Infrastructure, cables | Square / line |
+| Boundaries | `#e2e8f0` international, `#f59e0b` disputed, `#ec4899` breakaway, `#38bdf8` maritime | Natural Earth admin-0 lines, by class | Line style carries class: solid / long dash / wide solid / short dash |
+| Geofences | `#fde047` | Named regions drawn by the analyst | Outlined polygon ring |
+| Selection | `--accent-ink` `#9db1ff` | Any selected or tracked entity | 2 px halo + 1 px `--ground` separation ring |
 
 Results: all three hues pass all-pairs (worst CVD ΔE 9.4, worst normal-vision ΔE
 20.9, all ≥ 3:1 contrast) on both surfaces. A fourth hue fails all-pairs, so new

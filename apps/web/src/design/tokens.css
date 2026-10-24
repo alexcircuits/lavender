@@ -67,32 +67,32 @@
   /* Prose surfaces (help, notices). */
   --measure-prose: 72ch;
 
-  /* ── Surfaces and ink (§3.1; Flokzy globals.css) ─────────────────────────────────────── */
-  --ground: #0a0a0b; /* behind the globe; status bar — Flokzy :161 */
-  --well: #111114; /* sunken fields, trays, search — :192 */
-  --island: #161619; /* panels over the globe — :163 */
-  --island-hover: #1c1c21; /* hovered row / interactive surface — :165 */
-  --popover: #1c1c22; /* menus, popovers, palette — :166 */
-  --control: #202026; /* tonal buttons, chips, segmented controls — :180-182 */
-  --hairline: #2a2a31; /* table rules and focusable regions only — :187 */
-  --hairline-strong: #3f3f46; /* field outlines on hover — :193 */
-  --ink: #fafafa; /* primary text, 17.3:1 on island — :162 */
-  --ink-2: #a1a1aa; /* secondary text, 7.0:1 — :183 */
-  --ink-3: #8d8d9c; /* tertiary text, disabled glyphs; ≥ 4.9:1 on every surface (Flokzy #818191, lightened) */
+  /* ── Surfaces and ink (§3.1; NoirSystems dark register, libs/noir-design tokens.css) ── */
+  --ground: #0b0c10; /* behind the globe; status bar — noir-design dark --ground */
+  --well: #1e2027; /* sunken fields, trays, search — noir-design dark --inset */
+  --island: #16171d; /* panels over the globe — noir-design dark --surface */
+  --island-hover: #23242c; /* hovered row / interactive surface — between --inset and --deep-inset */
+  --popover: #1f1e2a; /* menus, popovers, palette — noir-design --deep-surface */
+  --control: #262531; /* tonal buttons, chips, segmented controls — dark of --deep-inset so --alert passes AA on it */
+  --hairline: #2b2a39; /* table rules and focusable regions only — noir-design --deep-inset */
+  --hairline-strong: #3a3847; /* field outlines on hover — noir-design --bezel */
+  --ink: #f2f3f6; /* primary text, 16.1:1 on island — noir-design dark --text */
+  --ink-2: #a3a8b4; /* secondary text, 7.5:1 — noir-design dark --text-2 */
+  --ink-3: #8f96a5; /* tertiary text, disabled glyphs; ≥ 5.0:1 on every surface (family grey, lifted for AA on control) */
 
-  /* ── Lavender accent (§3.2; new, measured). Your attention, never data. ──────────────── */
-  --accent-ink: #b9a6ff; /* accent text, focus ring, selection halo — 8.6:1 on island */
-  --accent: #6d5ae6; /* primary fill, active nav indicator — white 4.9:1 */
-  --accent-hover: #7461ea; /* white 4.53:1 */
-  --accent-press: #5f4dd6; /* white 5.97:1 */
-  --accent-subtle: #1f1a33; /* selected row background */
-  --accent-muted: #2a2347; /* selected chip, current nav item background */
+  /* ── Chrome accent (§3.2; NoirSystems cobalt, measured). Your attention, never data. ─── */
+  --accent-ink: #9db1ff; /* accent text, focus ring, selection halo — 8.7:1 on island, 9.5:1 on ground */
+  --accent: #1e3fd8; /* primary fill, active nav indicator — white 7.6:1 (noir-design --cobalt) */
+  --accent-hover: #3553e3; /* white 6.0:1 */
+  --accent-press: #1a36bd; /* white 9.1:1 */
+  --accent-subtle: #1b2852; /* selected row background — noir-design dark --mist */
+  --accent-muted: #223069; /* selected chip, current nav item background */
   --on-accent: #ffffff; /* text on --accent / --accent-press fills */
 
   /* ── Status (§3.3; reserved, icon + word always) ─────────────────────────────────────── */
-  --good: #45b75f; /* live, healthy */
-  --warning: #f39e1e; /* stale, degraded, polling fallback, recoverable error */
-  --alert: #f25555; /* unavailable, failure that needs action; text/glyphs ≥ 4.8:1; red never decorates */
+  --good: #4cc38a; /* live, healthy — noir-design dark --success */
+  --warning: #f0a33a; /* stale, degraded, polling fallback, recoverable error — noir-design dark --warning */
+  --alert: #f4636a; /* unavailable, failure that needs action; text/glyphs ≥ 4.9:1 on every surface; red never decorates */
   --alert-fill: #c62f2f; /* filled destructive buttons (white 5.46:1) */
   --neutral-state: var(--ink-3); /* unconfigured, licence policy, off */
 
@@ -176,7 +176,7 @@
   /* ── Elevation (§5.4): tone carries elevation; no backdrop-filter over the canvas. ───── */
   --float-edge: 0 0 0 1px rgb(255 255 255 / 0.06);
   --float-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.5); /* menus, popovers, palette only */
-  --scrim: rgb(0 0 0 / 0.5); /* dialogs; no blur */
+  --scrim: rgb(6 0 16 / 0.6); /* dialogs; the family's violet-black hero field, dimmed; no blur */
 
   /* ── Z-index ladder (§5.5; Flokzy globals.css:145-153). Raw values are forbidden. ────── */
   --z-raised: 10;
@@ -251,8 +251,8 @@
  * with them so islands keep a visible edge over bright imagery. */
 @media (prefers-contrast: more) {
   :root {
-    --hairline: #3f3f46;
-    --ink-3: #a1a1aa;
+    --hairline: #3a3847;
+    --ink-3: #a3a8b4;
     --float-edge: 0 0 0 1px rgb(255 255 255 / 0.24);
   }
 }
