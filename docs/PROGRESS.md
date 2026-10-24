@@ -385,3 +385,19 @@ then run `check.sh` and e2e. The lanes' documentation notes are collected in
   simulation, LB-113 kanban mission boards, LB-133 NoirSystems token
   alignment. Flokzy MCP is not connected to this environment; the kanban file
   is the interim tracker.
+
+## 2026-10-24 (later) — wave 1 shipped: geofences, chrome tokens, simulations, mission boards
+
+- **LB-110** geofence drawing + boundary classes + division drill-down
+  (`12129766`); web 785/785.
+- **LB-133** NoirSystems dark-register chrome (`06c74058`); all enforced
+  contrast pairs re-measured.
+- **LB-111/112** Rust simulation stack (`f2c49257`): motion.rs (dead-reckoning
+  port), simulation.rs (seeded synthetic aircraft), geo/ascent.rs (2-DOF
+  spherical ascent with pitch program, staging and insertion physics);
+  Ascent* contracts exported; vision-IPC airport/port fixture bug fixed;
+  workspace fmt/clippy(-D warnings)/tests/check-contracts all green.
+- **LB-113** mission boards (`387f01f7`); web 789/789 (103 files).
+- Environment note: background agents only survive while the main session is
+  idle — the account's model concurrency rejects extra streams during active
+  orchestrator turns. Sequential main-session execution is the reliable mode.

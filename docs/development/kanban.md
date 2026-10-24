@@ -9,6 +9,18 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Done
 
+- **LB-110 Borders, divisions & region drawing** (commit 12129766):
+  geofence draw tool (polygon/box, naming, persistence, share links),
+  per-class boundary styling, honest division drill-down, zoom-aware
+  class defaults. Follow-up: admin-1/admin-2 need a richer source
+  (upstream `states_provinces.json`/`us_census_counties` are in legacy).
+- **LB-111/112 Simulation stack** (commit f2c49257): motion predictor,
+  deterministic synthetic aircraft (Aircraft contract), 2-DOF spherical
+  ascent integrator with insertion physics + Ascent* TS contract. Hub/UI
+  wiring behind a config flag is the next slice.
+- **LB-113 Mission boards** (commit 387f01f7): analyst kanban, entity
+  links, device persistence, validation.
+- **LB-133 NoirSystems token alignment** (commit 06c74058).
 - **LB-100 Upstream import.** 1095 commits merged under `legacy/` (`30047df2`);
   `HEAD..upstream/main` empty; legacy byte-identical to `9d3548c2`.
 - **LB-101 WIP checkpoint.** Second provider wave + polyglot kernels committed
@@ -20,20 +32,13 @@ for the ENG-\* tasks this board references. Update together with
 
 ## In Progress
 
-- **LB-110 Borders, divisions & region drawing** (owner top priority; feeds
-  ENG-966/958). Slice: division hierarchy (admin-0 → admin-1 → counties),
-  per-class boundary styling, geofence draw tool on the globe.
-- **LB-111 Flight motion model + aircraft simulation** (owner priority).
-  Port `legacy/src/layers/flights` + `cockpitMath.js` dead-reckoning into
-  lavender-core; synthetic aircraft mode.
-- **LB-112 Launch ascent simulation** (owner priority). Trajectory integration
-  + time-scrubbable arc from the launches provider.
-- **LB-113 In-app kanban mission boards** (owner priority; Gotham-inspired).
-- **LB-133 NoirSystems token alignment** in `apps/web/src/design/tokens.css`
-  against `libs/noir-design/src/styles/tokens.css` (dark register), keeping
-  `tokens.test.ts` contrast pairs green.
-- **Research: Palantir Gotham feature set** → feeds LB-113/LB-12x scope
-  (report pending; doc will land in `docs/research/`).
+- **LB-130 Zig kernels + WASM provenance** (agent in flight): point-in-
+  polygon and heatmap binning kernels, TS wrappers, rebuild script.
+- **LB-140 Gotham-inspired build list** (from `docs/research/gotham-feature-set.md`
+  top-10): geo-search (1), geofence alerting + inbox (2), timeline replay (3),
+  provenance view (4), saved searches (5), entity resolution (6), briefing
+  export (7), heatmaps (8 — pairs with LB-130), monitoring missions (9 —
+  extends LB-113), graph view (10). Pick one per review.
 
 ## Backlog (ranked)
 
