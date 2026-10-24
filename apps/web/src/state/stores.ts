@@ -267,6 +267,7 @@ export type SidePanel =
   | 'sources'
   | 'annotations'
   | 'geofences'
+  | 'missions'
   | 'launches'
   | 'settings';
 

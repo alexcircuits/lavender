@@ -7,6 +7,7 @@ import {
   IconButton,
   InfoIcon,
   PathIcon,
+  SquareIcon,
   StackIcon,
   Tooltip,
 } from '../design';
@@ -24,6 +25,7 @@ const ITEMS: ReadonlyArray<{
   { panel: 'sources', label: 'Sources', icon: InfoIcon },
   { panel: 'annotations', label: 'Annotations', icon: PencilSimpleIcon },
   { panel: 'geofences', label: 'Geofences', icon: PathIcon },
+  { panel: 'missions', label: 'Missions', icon: SquareIcon },
 ];
 
 export interface NavRailProps {
