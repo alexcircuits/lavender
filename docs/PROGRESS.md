@@ -364,3 +364,24 @@ then run `check.sh` and e2e. The lanes' documentation notes are collected in
 - GUI apps (Tauri) cannot open windows from the agent's sandboxed shell; run them unsandboxed.
 - A locked macOS screen stops WebView rendering (`visibility: hidden`); desktop frame checks need an unlocked session. Headless Chrome (Playwright) is unaffected.
 - Preview config `lavender-fixture` (in the workspace `.claude/launch.json`) serves `apps/web/dist` from `lavender-server` in fixture mode on :7413 (build the server and the web app first).
+
+## 2026-10-24 — Orchestrated continuation: upstream import + wave planning
+
+- Imported all 1095 upstream commits under `legacy/` (subtree merge `30047df2`);
+  `HEAD..upstream/main` is now empty and `legacy/` matches upstream/main byte
+  for byte. Derived `boundaries.json` moved to
+  `crates/lavender-core/data/natural_earth/` first so the mirror stays pristine.
+- Checkpointed the in-flight second provider wave (`0eaebbb3`) after repairs:
+  web typecheck + 772/772 vitest green, `cargo check --workspace` green.
+  Fixes: renderer `locate()` aligned to `Located | undefined` with `symbolPx`;
+  test fixtures updated to regenerated contracts (Freshness state union, bigint
+  CCTV timestamps, TransitTrail/CameraSource/SubmarineCableItem shapes);
+  FeedController guard for pseudo-feeds; missing `SubmarineCableApiItem`
+  import; transit `PolylineCollection` value import.
+- New docs: [upstream delta + port backlog](development/upstream-delta-2026-10.md),
+  [language fit review](development/language-fit.md), [kanban](development/kanban.md).
+- Waves in flight: LB-110 borders/divisions/region drawing (owner top
+  priority), LB-111 flight motion + simulation, LB-112 launch ascent
+  simulation, LB-113 kanban mission boards, LB-133 NoirSystems token
+  alignment. Flokzy MCP is not connected to this environment; the kanban file
+  is the interim tracker.
