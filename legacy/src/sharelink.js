@@ -175,7 +175,9 @@ export class ShareLinkManager {
       parseOr(params.get('dd'), 50),
       50,
     );
-    const style = URL_TO_STYLE[params.get('style')] || 'normal';
+    const style = Object.hasOwn(URL_TO_STYLE, params.get('style'))
+      ? URL_TO_STYLE[params.get('style')]
+      : 'normal';
     const decodedLayerState = decodeLayerStateParams(params);
     const state = {
       lat,
@@ -511,6 +513,8 @@ export class ShareLinkManager {
     if (!params) return false;
     params.set(SHARE_CREATED_AT_PARAM, String(Math.floor(nowMs / 1000)));
     const copiedUrl = new URL(window.location.href);
+    // ?lang is the sender's language override; the recipient keeps their own.
+    copiedUrl.searchParams.delete('lang');
     copiedUrl.hash = params.toString();
     try {
       await navigator.clipboard.writeText(copiedUrl.href);

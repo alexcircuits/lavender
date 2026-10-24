@@ -1,5 +1,4 @@
 import {
-  epoch,
   finite,
   httpError,
   LiveSourceError,
@@ -66,6 +65,7 @@ export function createFlightSource({
   now = () => Date.now(),
 } = {}) {
   return {
+    // i18n-ignore: feed source name, replaced by the provider from each snapshot and reported to AI tools
     label: 'Flights',
     async getSnapshot(query = {}, { signal } = {}) {
       const params = new URLSearchParams();
@@ -127,6 +127,7 @@ export function createMilitarySource({
   now = () => Date.now(),
 } = {}) {
   return {
+    // i18n-ignore: feed source name, replaced by the provider from each snapshot and reported to AI tools
     label: 'Military aircraft',
     async getIdentities(_query = {}, { signal } = {}) {
       const { response, payload } = await readResponse(
@@ -157,26 +158,8 @@ export function createMilitarySource({
         status: response.status,
       };
     },
-    async getTrack(reference, { signal } = {}) {
-      const { response, payload } = await readResponse(
-        fetchImpl,
-        '/api/military/track?hex=' + encodeURIComponent(reference),
-        { signal },
-        'Military aircraft',
-      );
-      if (!response.ok) throw httpError(response, 'Military aircraft');
-      const baseTimeMs = epoch(payload?.timestamp, 1000);
-      return {
-        records:
-          baseTimeMs == null
-            ? []
-            : normalizeAircraftTrack(payload?.trace, {
-                baseTimeMs,
-                readsb: true,
-              }),
-        complete: false,
-      };
-    },
+    // ADSB.lol does not expose a supported live-history endpoint. Omitting
+    // optional getTrack keeps the tracking layer on its accumulated trail.
   };
 }
 
@@ -186,6 +169,7 @@ export function createVesselSource({
   origin = () => globalThis.location?.origin || 'http://localhost',
 } = {}) {
   return {
+    // i18n-ignore: feed source name, replaced by the provider from each snapshot and reported to AI tools
     label: 'Vessels',
     async getSnapshot({ maxRows = 12000, area } = {}, { signal } = {}) {
       const url = new URL(apiUrl, origin());

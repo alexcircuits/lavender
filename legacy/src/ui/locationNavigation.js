@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium';
+import { t } from '../i18n/index.js';
 import { createStateChannel } from '../app/stateChannel.js';
 import { LocationControls } from './location.js';
 
@@ -87,8 +88,9 @@ export class LocationNavigation {
       this._currentPoi = null;
       this._collapsePOIRow();
       this._updateLocationMiniStatus();
-    } else if (change.type === 'missing') this._showToast('Location not found');
-    else if (change.type === 'failed') this._showToast('Search failed');
+    } else if (change.type === 'missing')
+      this._showToast(t('Location not found'));
+    else if (change.type === 'failed') this._showToast(t('Search failed'));
     else if (change.type === 'settled')
       this._settleLocationSearchUi(change.generation);
     else if (
@@ -117,7 +119,7 @@ export class LocationNavigation {
         }),
       onResult: (destination) => {
         if (destination.outlineUnavailable)
-          this._showToast('Detailed outline unavailable');
+          this._showToast(t('Detailed outline unavailable'));
       },
       onError: (error) => console.error('[Search] Geocoding failed:', error),
     });
@@ -277,10 +279,11 @@ export class LocationNavigation {
 
   _toggleOrbit() {
     if (!this._currentTarget) {
-      this._showToast('Fly to a POI first');
+      this._showToast(t('Fly to a POI first'));
       return;
     }
 
+    this.services.interruptGlobeRotation?.('orbit-intent');
     const isActive = this.orbitController.toggle(this._currentTarget, {
       radius: this._currentPoi?.alt || 500,
       pitch: this._currentPoi?.pitch || -30,
@@ -379,11 +382,11 @@ export class LocationNavigation {
       };
       this._resetGlobeBtn?.setAttribute(
         'aria-label',
-        'Reset to full globe view',
+        t('Reset to full globe view'),
       );
       this._cockpitResetGlobeBtn?.setAttribute(
         'aria-label',
-        'Reset cockpit to full globe view',
+        t('Reset cockpit to full globe view'),
       );
       this._globeResetPromise = null;
       this._cancelGlobeReset = null;
@@ -399,11 +402,11 @@ export class LocationNavigation {
     }, 4200);
     this._resetGlobeBtn?.setAttribute(
       'aria-label',
-      'Resetting to full globe view',
+      t('Resetting to full globe view'),
     );
     this._cockpitResetGlobeBtn?.setAttribute(
       'aria-label',
-      'Resetting cockpit to full globe view',
+      t('Resetting cockpit to full globe view'),
     );
     const target = flyToGlobeView(this.viewer, {
       onComplete: () => finish(false),
