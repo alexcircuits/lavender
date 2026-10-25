@@ -67,6 +67,7 @@ function CursorReadout() {
   if (!position) return <span className={styles.cursor} />;
 
   let formatted = '';
+  let mgrsSuffix = '';
   if (format === 'dms') {
     formatted = formatDms(position);
   } else if (format === 'mgrs') {
@@ -74,10 +75,11 @@ function CursorReadout() {
     formatted = mgrs ? spaceMgrs(mgrs) : formatDecimal(position);
   } else {
     formatted = formatDecimal(position);
+    const mgrs = toMgrs(position.lat, position.lon, 5);
+    if (mgrs) {
+      mgrsSuffix = ` · ${spaceMgrs(mgrs)}`;
+    }
   }
-
-  const mgrs = toMgrs(position.lat, position.lon, 5);
-  const mgrsSuffix = format === 'dd' && mgrs ? ` · ${spaceMgrs(mgrs)}` : '';
 
   return (
     <span className={cx(styles.cursor, 'mono')} data-testid="cursor-position">

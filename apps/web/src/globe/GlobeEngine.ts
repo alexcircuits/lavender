@@ -160,8 +160,14 @@ export class GlobeEngine implements GlobeController {
       requestRenderMode: true,
       maximumRenderTimeChange: Number.POSITIVE_INFINITY,
       showRenderLoopErrors: false,
-      useBrowserRecommendedResolution: true,
+      useBrowserRecommendedResolution: false,
     });
+    // On high-DPI (Retina) screens, full native resolution (DPR 2x/3x) causes severe 4x-9x fill-rate bottleneck
+    // in WebGL fragment shaders. Clamping resolution ensures crisp lines without frame drops.
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    if (dpr > 1) {
+      widget.resolutionScale = Math.min(1.25, dpr);
+    }
     try {
       this.#mounted = this.#build(widget);
     } catch (error) {
@@ -176,8 +182,37 @@ export class GlobeEngine implements GlobeController {
   #build(widget: CesiumWidget): Mounted {
     const scene = widget.scene;
     scene.backgroundColor = groundColor();
-    scene.screenSpaceCameraController.minimumZoomDistance = MIN_ZOOM_DISTANCE_M;
-    scene.screenSpaceCameraController.maximumZoomDistance = MAX_HEIGHT_M;
+
+    const globe = scene.globe;
+    if (globe) {
+      // Tile cache: default 100 thrashes constantly during orbit and pan.
+      globe.tileCacheSize = 400;
+      globe.loadingDescendantLimit = 20;
+      globe.maximumScreenSpaceError = 2.5;
+      globe.depthTestAgainstTerrain = false;
+      globe.enableLighting = false;
+      globe.showGroundAtmosphere = false;
+    }
+    if (scene.skyAtmosphere) {
+      scene.skyAtmosphere.show = false;
+    }
+    if (scene.fog) {
+      scene.fog.enabled = true;
+      scene.fog.density = 0.0002;
+    }
+    if (scene.postProcessStages?.fxaa) {
+      scene.postProcessStages.fxaa.enabled = false;
+    }
+
+    const controller = scene.screenSpaceCameraController;
+    if (controller) {
+      controller.minimumZoomDistance = MIN_ZOOM_DISTANCE_M;
+      controller.maximumZoomDistance = MAX_HEIGHT_M;
+      controller.enableCollisionDetection = false;
+      controller.inertiaSpin = 0.85;
+      controller.inertiaTranslate = 0.85;
+      controller.inertiaZoom = 0.8;
+    }
     // Start at home without a flight (Cesium's default view is over North America).
     scene.camera.setView({
       destination: Cartesian3.fromDegrees(HOME_VIEW.lon, HOME_VIEW.lat, HOME_VIEW.heightM),
