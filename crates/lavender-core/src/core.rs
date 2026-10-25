@@ -8,8 +8,9 @@ use jiff::{SignedDuration, Timestamp};
 use lavender_domain::{
     AircraftTrack, Availability, BBox, BoundaryClass, BoundaryFeature, Catalog, FeedId, FeedItems,
     FeedQuery, FeedSnapshot, FeedStatus, Route, SatellitePassRequest, SatellitePasses,
-    SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults, SystemStatus,
-    VesselTrackResponse, WeatherOverlay, WindManifest, WindModel, WindStatus,
+    SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults, SpatialFilter,
+    SpatialSearchRequest, SpatialSearchResponse, SystemStatus, VesselTrackResponse, WeatherOverlay,
+    WindManifest, WindModel, WindStatus,
 };
 use lavender_geo::{OrbitError, Propagator};
 use tokio::sync::Semaphore;
@@ -674,6 +675,28 @@ impl LavenderCore {
             self.inner.cancel.child_token(),
         )
         .await
+    }
+
+    /// Executes a spatial query against currently held live feed items.
+    ///
+    /// # Errors
+    /// Returns an error for invalid query parameters or when shut down.
+    pub fn spatial_search(
+        &self,
+        request: &SpatialSearchRequest,
+    ) -> Result<SpatialSearchResponse, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        self.inner.audit.record(AuditEvent::Searched {
+            chars: match &request.filter {
+                SpatialFilter::BBox { .. } => 4,
+                SpatialFilter::Circle { .. } => 6,
+                SpatialFilter::Polygon { points } => points.len(),
+                SpatialFilter::Corridor { waypoints, .. } => waypoints.len(),
+            },
+        });
+        search::spatial_search(request, &self.inner.hub)
     }
 
     /// Recent positions observed by the shared feed hub. Reading history causes no network call.

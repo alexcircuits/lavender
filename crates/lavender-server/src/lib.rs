@@ -147,6 +147,7 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/catalog", get(routes::catalog))
         .route("/feeds/{feed}", get(routes::feed))
         .route("/search", get(routes::search))
+        .route("/search/spatial", post(routes::spatial_search))
         .route("/aircraft/{hex}/track", get(routes::aircraft_track))
         .route("/aircraft/{hex}/type", get(routes::aircraft_type))
         .route("/aircraft/route/{callsign}", get(routes::aircraft_route))
@@ -259,6 +260,7 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
             delete(routes::delete_alert_rule).get(routes::get_alert_rule),
         )
         .route("/api/alerts/inbox", get(routes::alerts_inbox))
+        .route("/api/search/spatial", post(routes::spatial_search))
         .nest(
             "/api/tomtom",
             Router::new()

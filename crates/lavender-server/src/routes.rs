@@ -19,8 +19,8 @@ use lavender_domain::{
     BoundaryClass, BoundaryFeature, BoundaryResponse, CameraHealth, CameraSource, Catalog,
     CctvStreamInfo, ErrorCode, FeedFilters, FeedId, FeedItems, FeedQuery, GeoPoint, Geofence,
     GeofenceRule, SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest,
-    SearchQuery, SearchResults, SystemStatus, Timestamp, VesselTrackResponse, WeatherOverlay,
-    WindModel,
+    SearchQuery, SearchResults, SpatialSearchRequest, SpatialSearchResponse, SystemStatus,
+    Timestamp, VesselTrackResponse, WeatherOverlay, WindModel,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -214,6 +214,18 @@ pub async fn search(
         places: params.places,
     };
     Ok(Json(state.core.search(&query).await?))
+}
+
+/// `POST /api/v1/search/spatial` — query live entities within a bounding box, radius circle, polygon or corridor.
+///
+/// # Errors
+/// Returns an error if spatial search parameters are invalid or execution fails.
+pub async fn spatial_search(
+    State(state): State<AppState>,
+    Json(payload): Json<SpatialSearchRequest>,
+) -> Result<Json<SpatialSearchResponse>, HttpError> {
+    let results = state.core.spatial_search(&payload)?;
+    Ok(Json(results))
 }
 
 /// History already observed by this core; this endpoint never initiates a provider fetch.

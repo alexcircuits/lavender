@@ -27,7 +27,8 @@ pub use entities::{
     CameraHealth, CameraSource, CctvStreamInfo, Cyclone, CycloneConeGeometry, CycloneForecastPoint,
     CycloneGeometryStatus, CycloneMovement, CycloneTrackGeometry, Earthquake, FireCell,
     FireCluster, FireDetection, Geofence, GeofenceRule, Launch, LaunchPad, SatelliteElements,
-    Vessel, VesselDimensions, VesselEta, VesselTrackResponse, VesselTrackSample, VesselVoyage,
+    SpatialFilter, SpatialHit, SpatialSearchRequest, SpatialSearchResponse, Vessel,
+    VesselDimensions, VesselEta, VesselTrackResponse, VesselTrackSample, VesselVoyage,
 };
 pub use entities::{AscentEvent, AscentEventKind, AscentSample, AscentTrajectory};
 pub use entities::{BikeshareStation, BikeshareSystem};
