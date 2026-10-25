@@ -100,3 +100,4 @@ for the ENG-\* tasks this board references. Update together with
 ## Fleet watchdog log
 - 2026-10-25 17:40 run 1: 2 unpushed commits (97aac60b, 93174c75), dirty set alerts/briefing/audit + 11 modified; baseline fingerprint b7db47cd85b7c334 — no prior run, baseline recorded only.
 - 2026-10-25 19:0x run 2: fleet FINISHED (last write 17:33). Full verification: Rust chain green (fmt, clippy -D warnings, tests, contracts); web green with load-flaky timeouts only (AnnotationsPanel Escape, launchesIsland — pass in isolation; 877/877 seen in a clean run). Fixed: startup budget 262→239.3 KiB by code-splitting alerts/directions/replay/briefing panels. Committed fleet work + fixes (95229e41), PUSHED through 95229e41, demo server restarted on the new build (divisions API live).
+- 2026-10-25 run 3: no change since run 2 (clean tree, 0 unpushed, HEAD 3737afe7 already verified+pushed, demo 200) — no-op, full re-verification skipped as redundant.
