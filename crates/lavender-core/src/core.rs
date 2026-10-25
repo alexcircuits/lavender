@@ -8,8 +8,9 @@ use jiff::{SignedDuration, Timestamp};
 use lavender_domain::{
     AircraftTrack, Availability, BBox, BoundaryClass, BoundaryFeature, Catalog, FeedId, FeedItems,
     FeedQuery, FeedSnapshot, FeedStatus, Route, SatellitePassRequest, SatellitePasses,
-    SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults, SystemStatus,
-    VesselTrackResponse, WeatherOverlay, WindManifest, WindModel, WindStatus,
+    SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults, SpatialFilter,
+    SpatialSearchRequest, SpatialSearchResponse, SystemStatus, VesselTrackResponse, WeatherOverlay,
+    WindManifest, WindModel, WindStatus,
 };
 use lavender_geo::{OrbitError, Propagator};
 use tokio::sync::Semaphore;
@@ -67,6 +68,7 @@ struct CoreInner {
     wind: WindProvider,
     track_sink: Option<Arc<crate::analytics::TrackBatchBuffer>>,
     rule_engine: Option<Arc<crate::analytics::NimRuleEngine>>,
+    alert_engine: Option<Arc<crate::alerting::GeofenceAlertEngine>>,
     infrastructure: Arc<InfrastructureIndex>,
     regions: Arc<RegionIndex>,
     divisions: Arc<DivisionIndex>,
@@ -119,6 +121,7 @@ pub struct LavenderCoreBuilder {
     audit: Arc<dyn AuditSink>,
     track_sink: Option<Arc<crate::analytics::TrackBatchBuffer>>,
     rule_engine: Option<Arc<crate::analytics::NimRuleEngine>>,
+    alert_engine: Option<Arc<crate::alerting::GeofenceAlertEngine>>,
     infrastructure: Option<Arc<InfrastructureIndex>>,
     regions: Option<Arc<RegionIndex>>,
     divisions: Option<Arc<DivisionIndex>>,
@@ -177,6 +180,13 @@ impl LavenderCoreBuilder {
     #[must_use]
     pub fn rule_engine(mut self, engine: Arc<crate::analytics::NimRuleEngine>) -> Self {
         self.rule_engine = Some(engine);
+        self
+    }
+
+    /// Configures a geofence alerting rule engine.
+    #[must_use]
+    pub fn alert_engine(mut self, engine: Arc<crate::alerting::GeofenceAlertEngine>) -> Self {
+        self.alert_engine = Some(engine);
         self
     }
 
@@ -276,6 +286,17 @@ impl LavenderCoreBuilder {
             .clone()
             .unwrap_or_else(|| PathBuf::from(".gev-cache"))
             .join("mapillary/tiles");
+        let alert_engine = if self.config.alerting.enabled || self.alert_engine.is_some() {
+            Some(self.alert_engine.unwrap_or_else(|| {
+                Arc::new(crate::alerting::GeofenceAlertEngine::new(
+                    self.config.alerting.max_rules,
+                    self.config.alerting.inbox_capacity,
+                    self.config.alerting.state_capacity,
+                ))
+            }))
+        } else {
+            None
+        };
         let deps = HubDeps {
             fetcher: fetcher.clone(),
             secrets: self.secrets.clone(),
@@ -284,6 +305,7 @@ impl LavenderCoreBuilder {
             satellite_catalog: satellite_catalog.clone(),
             track_sink: self.track_sink.clone(),
             rule_engine: self.rule_engine.clone(),
+            alert_engine: alert_engine.clone(),
         };
         let hub = FeedHub::new(providers, deps, self.config.hub.clone());
         let registry = Registry::new(self.config.licence_mode, &self.config.licence_acknowledged);
@@ -377,6 +399,7 @@ impl LavenderCoreBuilder {
                 wind,
                 track_sink: self.track_sink,
                 rule_engine: self.rule_engine,
+                alert_engine,
                 infrastructure,
                 regions,
                 divisions,
@@ -418,6 +441,7 @@ impl LavenderCore {
             audit: Arc::new(NoAudit),
             track_sink: None,
             rule_engine: None,
+            alert_engine: None,
             infrastructure: None,
             regions: None,
             divisions: None,
@@ -651,6 +675,28 @@ impl LavenderCore {
             self.inner.cancel.child_token(),
         )
         .await
+    }
+
+    /// Executes a spatial query against currently held live feed items.
+    ///
+    /// # Errors
+    /// Returns an error for invalid query parameters or when shut down.
+    pub fn spatial_search(
+        &self,
+        request: &SpatialSearchRequest,
+    ) -> Result<SpatialSearchResponse, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        self.inner.audit.record(AuditEvent::Searched {
+            chars: match &request.filter {
+                SpatialFilter::BBox { .. } => 4,
+                SpatialFilter::Circle { .. } => 6,
+                SpatialFilter::Polygon { points } => points.len(),
+                SpatialFilter::Corridor { waypoints, .. } => waypoints.len(),
+            },
+        });
+        search::spatial_search(request, &self.inner.hub)
     }
 
     /// Recent positions observed by the shared feed hub. Reading history causes no network call.
@@ -950,6 +996,115 @@ impl LavenderCore {
     #[must_use]
     pub fn rule_engine(&self) -> Option<&Arc<crate::analytics::NimRuleEngine>> {
         self.inner.rule_engine.as_ref()
+    }
+
+    /// Returns the geofence alerting engine if configured.
+    #[must_use]
+    pub fn alert_engine(&self) -> Option<&Arc<crate::alerting::GeofenceAlertEngine>> {
+        self.inner.alert_engine.as_ref()
+    }
+
+    /// Creates or replaces a geofence alerting rule.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::Api`] with [`ErrorCode::Unconfigured`](lavender_domain::ErrorCode::Unconfigured)
+    /// if geofence alerting is not enabled, or [`CoreError::BadRequest`]/[`CoreError::Limit`] on invalid rules.
+    pub fn create_alert_rule(
+        &self,
+        rule: lavender_domain::GeofenceRule,
+    ) -> Result<lavender_domain::GeofenceRule, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        let Some(engine) = &self.inner.alert_engine else {
+            return Err(CoreError::Api(lavender_domain::ApiError::new(
+                lavender_domain::ErrorCode::Unconfigured,
+                "geofence alerting is not enabled in [core.alerting] configuration",
+            )));
+        };
+        engine.set_rule(rule.clone())?;
+        Ok(rule)
+    }
+
+    /// Deletes an alerting rule by its identifier.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::Api`] with [`ErrorCode::Unconfigured`](lavender_domain::ErrorCode::Unconfigured)
+    /// if alerting is disabled, or [`CoreError::NotFound`] if the rule does not exist.
+    pub fn delete_alert_rule(&self, id: &str) -> Result<(), CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        let Some(engine) = &self.inner.alert_engine else {
+            return Err(CoreError::Api(lavender_domain::ApiError::new(
+                lavender_domain::ErrorCode::Unconfigured,
+                "geofence alerting is not enabled in [core.alerting] configuration",
+            )));
+        };
+        if engine.delete_rule(id) {
+            Ok(())
+        } else {
+            Err(CoreError::NotFound(format!("Alert rule '{id}' does not exist.")))
+        }
+    }
+
+    /// Fetches an alerting rule by identifier.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::Api`] with [`ErrorCode::Unconfigured`](lavender_domain::ErrorCode::Unconfigured)
+    /// if alerting is disabled, or [`CoreError::NotFound`] if the rule does not exist.
+    pub fn get_alert_rule(&self, id: &str) -> Result<lavender_domain::GeofenceRule, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        let Some(engine) = &self.inner.alert_engine else {
+            return Err(CoreError::Api(lavender_domain::ApiError::new(
+                lavender_domain::ErrorCode::Unconfigured,
+                "geofence alerting is not enabled in [core.alerting] configuration",
+            )));
+        };
+        engine
+            .get_rule(id)
+            .ok_or_else(|| CoreError::NotFound(format!("Alert rule '{id}' does not exist.")))
+    }
+
+    /// Lists all registered alerting rules.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::Api`] with [`ErrorCode::Unconfigured`](lavender_domain::ErrorCode::Unconfigured)
+    /// if alerting is disabled.
+    pub fn list_alert_rules(&self) -> Result<Vec<lavender_domain::GeofenceRule>, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        let Some(engine) = &self.inner.alert_engine else {
+            return Err(CoreError::Api(lavender_domain::ApiError::new(
+                lavender_domain::ErrorCode::Unconfigured,
+                "geofence alerting is not enabled in [core.alerting] configuration",
+            )));
+        };
+        Ok(engine.list_rules())
+    }
+
+    /// Retrieves recent alerts from the bounded ring buffer up to `limit`.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::Api`] with [`ErrorCode::Unconfigured`](lavender_domain::ErrorCode::Unconfigured)
+    /// if alerting is disabled.
+    pub fn alert_inbox(
+        &self,
+        limit: Option<usize>,
+    ) -> Result<Vec<lavender_domain::AlertEvent>, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        let Some(engine) = &self.inner.alert_engine else {
+            return Err(CoreError::Api(lavender_domain::ApiError::new(
+                lavender_domain::ErrorCode::Unconfigured,
+                "geofence alerting is not enabled in [core.alerting] configuration",
+            )));
+        };
+        Ok(engine.inbox(limit))
     }
 
     /// Flushes buffered telemetry track observations to partitioned Parquet files under `base_dir`.

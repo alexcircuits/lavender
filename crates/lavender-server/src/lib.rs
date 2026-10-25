@@ -18,7 +18,7 @@ use axum::extract::{Request, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::Response;
-use axum::routing::{any, get, post};
+use axum::routing::{any, delete, get, post};
 use lavender_core::LavenderCore;
 use lavender_domain::ErrorCode;
 use tower_http::catch_panic::CatchPanicLayer;
@@ -147,6 +147,7 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/catalog", get(routes::catalog))
         .route("/feeds/{feed}", get(routes::feed))
         .route("/search", get(routes::search))
+        .route("/search/spatial", post(routes::spatial_search))
         .route("/aircraft/{hex}/track", get(routes::aircraft_track))
         .route("/aircraft/{hex}/type", get(routes::aircraft_type))
         .route("/aircraft/route/{callsign}", get(routes::aircraft_route))
@@ -197,6 +198,9 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/traffic/flow/{z}/{x}/{y}", get(routes::traffic_flow_pbf))
         .route("/secrets/status", get(routes::secret_status))
         .route("/secrets", post(routes::secrets_reject))
+        .route("/alerts/rules", post(routes::create_alert_rule).get(routes::list_alert_rules))
+        .route("/alerts/rules/{id}", delete(routes::delete_alert_rule).get(routes::get_alert_rule))
+        .route("/alerts/inbox", get(routes::alerts_inbox))
         .route("/stream", get(ws::stream))
         .fallback(routes::api_not_found)
         .layer(middleware::from_fn(security::require_same_origin))
@@ -250,6 +254,13 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
             post(routes::terrain_heights).get(routes::terrain_heights_get),
         )
         .route("/api/traffic/status", get(routes::traffic_status))
+        .route("/api/alerts/rules", post(routes::create_alert_rule).get(routes::list_alert_rules))
+        .route(
+            "/api/alerts/rules/{id}",
+            delete(routes::delete_alert_rule).get(routes::get_alert_rule),
+        )
+        .route("/api/alerts/inbox", get(routes::alerts_inbox))
+        .route("/api/search/spatial", post(routes::spatial_search))
         .nest(
             "/api/tomtom",
             Router::new()

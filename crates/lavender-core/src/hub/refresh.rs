@@ -103,6 +103,11 @@ async fn refresh_region(
                 {
                     deps.satellite_catalog.update(sats);
                 }
+                if let Some(alert_engine) = &deps.alert_engine
+                    && let (Some(items), Some(as_of)) = (&state.items, observation_base)
+                {
+                    alert_engine.evaluate_feed_items(provider.feed(), as_of, items.as_ref());
+                }
                 if let Some(reason) = &state.last_error {
                     failures = failures.saturating_add(1);
                     tracing::warn!(source, ?region, error = %reason, "provider answered only partly");
@@ -356,6 +361,7 @@ mod tests {
             satellite_catalog: Arc::new(crate::satellite_catalog::SatelliteCatalog::default()),
             track_sink: Some(sink.clone()),
             rule_engine: None,
+            alert_engine: None,
         };
         let history = AircraftHistory::default();
         let as_of = Timestamp::from_second(1_700_000_000).unwrap();
@@ -411,6 +417,7 @@ mod tests {
             satellite_catalog: Arc::new(crate::satellite_catalog::SatelliteCatalog::default()),
             track_sink: Some(sink.clone()),
             rule_engine: None,
+            alert_engine: None,
         };
         let as_of = Timestamp::from_second(1_700_000_100).unwrap();
         let vessels = vec![Vessel {
@@ -458,6 +465,7 @@ mod tests {
             satellite_catalog: Arc::new(crate::satellite_catalog::SatelliteCatalog::default()),
             track_sink: None,
             rule_engine: Some(engine),
+            alert_engine: None,
         };
         let history = AircraftHistory::default();
         let as_of = Timestamp::from_second(1_700_000_000).unwrap();
