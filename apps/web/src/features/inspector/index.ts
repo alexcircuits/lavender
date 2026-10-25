@@ -1,3 +1,4 @@
+export { AirQualityCard, type AirQualityCardProps, airQualityFacts } from './AirQualityCard';
 export { BikeshareCard, type BikeshareCardProps, bikeshareFacts } from './BikeshareCard';
 export { CableCard, type CableCardProps, cableFacts } from './CableCard';
 export { CctvCard, type CctvCardProps, cctvFacts } from './CctvCard';

@@ -7,6 +7,7 @@
  */
 import type {
   AircraftTrack,
+  AirQualitySnapshot,
   ApiError,
   BBox,
   BoundaryClass,
@@ -206,6 +207,8 @@ export interface LavenderPlatform {
     limit?: number,
     options?: CallOptions,
   ): Promise<{ readonly elements: readonly MilitaryInstallationItem[] }>;
+  /** Real-time air quality observation station readings. */
+  airQuality?(options?: CallOptions): Promise<AirQualitySnapshot>;
   /** Returns whether upstream credentials are configured without exposing values. */
   secretStatus?(options?: CallOptions): Promise<SecretStatusResponse>;
   /** Desktop only: stores an upstream provider credential into the secure credential store. */

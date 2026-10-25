@@ -386,6 +386,14 @@ export class FakePlatform implements LavenderPlatform {
     }),
   );
 
+  airQuality = vi.fn(
+    async (_options?: CallOptions): Promise<import('../contracts').AirQualitySnapshot> => ({
+      readings: [],
+      freshness: { state: 'live' },
+      updatedAt: '2026-10-25T12:00:00Z',
+    }),
+  );
+
   secretStatus = vi.fn(
     async (_options?: CallOptions): Promise<SecretStatusResponse> => ({
       managedBy: 'memory',
@@ -541,6 +549,9 @@ export function fakeGlobe(): FakeGlobe {
     setHeatmapVisible: vi.fn(),
     setHeatmapOpacity: vi.fn(),
     clearHeatmap: vi.fn(),
+    setAirQualityReadings: vi.fn(),
+    getAirQualityReading: vi.fn(() => undefined),
+    clearAirQuality: vi.fn(),
     destroy: vi.fn(),
   } satisfies GlobeController;
   return {

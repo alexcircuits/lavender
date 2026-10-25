@@ -32,6 +32,7 @@ pub struct CoreConfig {
     pub terrain: TerrainConfig,
     pub traffic: TrafficConfig,
     pub alerting: AlertingConfig,
+    pub resolution: ResolutionConfig,
 }
 
 impl Default for CoreConfig {
@@ -49,6 +50,7 @@ impl Default for CoreConfig {
             terrain: TerrainConfig::default(),
             traffic: TrafficConfig::default(),
             alerting: AlertingConfig::default(),
+            resolution: ResolutionConfig::default(),
         }
     }
 }
@@ -450,6 +452,22 @@ pub struct AlertingConfig {
 impl Default for AlertingConfig {
     fn default() -> Self {
         Self { enabled: false, max_rules: 100, inbox_capacity: 500, state_capacity: 10_000 }
+    }
+}
+
+/// Configuration for the cross-feed entity resolution engine.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct ResolutionConfig {
+    /// Maximum number of canonical entities retained in memory before LRU eviction.
+    pub max_entities: usize,
+    /// Maximum number of relation links retained in memory.
+    pub max_links: usize,
+}
+
+impl Default for ResolutionConfig {
+    fn default() -> Self {
+        Self { max_entities: 50_000, max_links: 100_000 }
     }
 }
 
@@ -1145,6 +1163,9 @@ impl CoreConfig {
                 "alerting: max_rules, inbox_capacity and state_capacity must be positive"
                     .to_owned(),
             );
+        }
+        if self.resolution.max_entities == 0 || self.resolution.max_links == 0 {
+            errors.push("resolution: max_entities and max_links must be positive".to_owned());
         }
         if errors.is_empty() { Ok(()) } else { Err(errors) }
     }

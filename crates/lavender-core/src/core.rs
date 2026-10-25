@@ -6,11 +6,12 @@ use std::time::Duration;
 
 use jiff::{SignedDuration, Timestamp};
 use lavender_domain::{
-    AirQualitySnapshot, AircraftTrack, Availability, BBox, BoundaryClass, BoundaryFeature, Catalog,
-    FeedId, FeedItems, FeedQuery, FeedSnapshot, FeedStatus, GnssProvenance, GnssSnapshot, Route,
-    SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery,
-    SearchResults, SpatialFilter, SpatialSearchRequest, SpatialSearchResponse, SystemStatus,
-    VesselTrackResponse, WeatherOverlay, WindManifest, WindModel, WindStatus,
+    AirQualitySnapshot, AircraftTrack, Availability, BBox, BoundaryClass, BoundaryFeature,
+    CanonicalEntity, Catalog, EntityIdentifier, EntityLink, FeedId, FeedItems, FeedQuery,
+    FeedSnapshot, FeedStatus, GnssProvenance, GnssSnapshot, Route, SatellitePassRequest,
+    SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults,
+    SpatialFilter, SpatialSearchRequest, SpatialSearchResponse, SystemStatus, VesselTrackResponse,
+    WeatherOverlay, WindManifest, WindModel, WindStatus,
 };
 use lavender_geo::{OrbitError, Propagator};
 use tokio::sync::Semaphore;
@@ -89,6 +90,7 @@ struct CoreInner {
     opensky: Option<Arc<crate::providers::opensky::OpenSkyProvider>>,
     gnss: Arc<crate::gnss::GnssEngine>,
     air_quality: Arc<crate::providers::air_quality::EcccAirQualityProvider>,
+    resolution: Arc<crate::resolution::ResolutionEngine>,
 }
 
 /// Cheap to clone; all clones share one core.
@@ -396,6 +398,8 @@ impl LavenderCoreBuilder {
         let air_quality = self.air_quality.unwrap_or_else(|| {
             Arc::new(crate::providers::air_quality::EcccAirQualityProvider::new(fetcher.clone()))
         });
+        let resolution =
+            Arc::new(crate::resolution::ResolutionEngine::new(self.config.resolution.clone()));
         Ok(LavenderCore {
             inner: Arc::new(CoreInner {
                 config: self.config,
@@ -435,6 +439,7 @@ impl LavenderCoreBuilder {
                 opensky: opensky_provider,
                 gnss: Arc::new(crate::gnss::GnssEngine::new()),
                 air_quality,
+                resolution,
             }),
         })
     }
@@ -659,7 +664,10 @@ impl LavenderCore {
             }
         }
         match event {
-            Some(SubscriptionEvent::Snapshot(s)) => Ok(Arc::unwrap_or_clone(s)),
+            Some(SubscriptionEvent::Snapshot(s)) => {
+                let _ = self.inner.resolution.ingest_feed_snapshot(&s);
+                Ok(Arc::unwrap_or_clone(s))
+            }
             // Keep the category: a capacity limit is a 429, not an upstream failure.
             Some(SubscriptionEvent::Error(e)) => Err(CoreError::Api(e)),
             None => Err(CoreError::ShuttingDown),
@@ -1725,6 +1733,82 @@ impl LavenderCore {
         crate::providers::traffic::TrafficError,
     > {
         self.inner.traffic.get_flow_tile(z, x, y).await
+    }
+
+    /// Returns a reference to the shared entity resolution engine.
+    #[must_use]
+    pub fn resolution(&self) -> &Arc<crate::resolution::ResolutionEngine> {
+        &self.inner.resolution
+    }
+
+    /// Resolves a canonical entity by any known identifier scheme and value.
+    #[must_use]
+    pub fn resolve_entity(&self, scheme: &str, value: &str) -> Option<CanonicalEntity> {
+        self.inner.resolution.resolve(scheme, value)
+    }
+
+    /// Retrieves a canonical entity by its unique canonical ID.
+    #[must_use]
+    pub fn get_canonical_entity(&self, id: &str) -> Option<CanonicalEntity> {
+        self.inner.resolution.get_entity(id)
+    }
+
+    /// Retrieves all known alias identifiers for a canonical entity.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::NotFound`] if the entity does not exist.
+    pub fn get_entity_aliases(&self, id: &str) -> Result<Vec<EntityIdentifier>, CoreError> {
+        self.inner.resolution.get_entity_aliases(id)
+    }
+
+    /// Retrieves relation links for an entity.
+    #[must_use]
+    pub fn get_entity_links(&self, id: &str) -> Vec<EntityLink> {
+        self.inner.resolution.get_entity_links(id)
+    }
+
+    /// Links an alias identifier to a canonical entity.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::NotFound`] if the entity does not exist,
+    /// or [`CoreError::BadRequest`] if the identifier is invalid.
+    pub fn link_alias(
+        &self,
+        canonical_id: &str,
+        identifier: &EntityIdentifier,
+    ) -> Result<CanonicalEntity, CoreError> {
+        self.inner.resolution.link_alias(canonical_id, identifier)
+    }
+
+    /// Splits an alias identifier off a canonical entity into a new entity.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::NotFound`] if the entity or identifier is missing,
+    /// or [`CoreError::BadRequest`] if attempting to split the sole identifier.
+    pub fn split_alias(
+        &self,
+        canonical_id: &str,
+        identifier: &EntityIdentifier,
+    ) -> Result<CanonicalEntity, CoreError> {
+        self.inner.resolution.split_alias(canonical_id, identifier)
+    }
+
+    /// Merges a source canonical entity into a target canonical entity.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::NotFound`] if either entity is missing.
+    pub fn merge_entities(
+        &self,
+        target_id: &str,
+        source_id: &str,
+    ) -> Result<CanonicalEntity, CoreError> {
+        self.inner.resolution.merge_entities(target_id, source_id)
+    }
+
+    /// Ingests a feed snapshot into the resolution engine to auto-link and update entities.
+    #[must_use]
+    pub fn ingest_feed_snapshot(&self, snapshot: &FeedSnapshot) -> usize {
+        self.inner.resolution.ingest_feed_snapshot(snapshot)
     }
 
     pub fn shutdown(&self) {

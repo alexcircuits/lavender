@@ -21,6 +21,7 @@ pub mod hub;
 pub mod motion;
 pub mod providers;
 pub mod registry;
+pub mod resolution;
 pub mod satellite_catalog;
 pub mod search;
 pub mod secrets;
@@ -35,7 +36,7 @@ pub mod regions {
 
 pub use crate::core::{LavenderCore, LavenderCoreBuilder};
 pub use alerting::{GeofenceAlertEngine, antimeridian_point_in_polygon, polygon_centroid};
-pub use config::{AlertingConfig, CoreConfig};
+pub use config::{AlertingConfig, CoreConfig, ResolutionConfig};
 pub use error::CoreError;
 pub use hub::{FeedSubscription, RegionBudget, SubscriptionEvent};
 pub use providers::boundaries::{BOUNDARIES_ATTRIBUTION, BoundaryStore};
@@ -60,6 +61,7 @@ pub use providers::regions::{RegionIndex, RegionRecord};
 pub use providers::weather::{
     WeatherBounds, WeatherError, WeatherManifest, WeatherMetadata, WeatherProvider,
 };
+pub use resolution::{ResolutionEngine, normalize_identifier};
 #[cfg(feature = "keyring")]
 pub use secrets::KeyringSecretStore;
 pub use secrets::{EnvSecretStore, FixtureSecretStore, MemorySecretStore, SecretKey, SecretStore};

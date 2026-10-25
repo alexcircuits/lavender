@@ -9,6 +9,7 @@
  */
 import type {
   AircraftTrack,
+  AirQualityReading,
   BBox,
   BoundaryFeature,
   CameraSource,
@@ -47,7 +48,8 @@ export type EntitySource =
   | 'cctv'
   | 'installations'
   | 'directions-step'
-  | 'directions-waypoint';
+  | 'directions-waypoint'
+  | 'air-quality';
 
 /** A selectable thing on the globe. */
 export interface EntityRef {
@@ -150,6 +152,12 @@ export interface GlobeController {
   setHeatmapOpacity(opacity: number): void;
   /** Clears dense contact heatmap points. */
   clearHeatmap(): void;
+  /** Sets real-time air quality readings on the globe. */
+  setAirQualityReadings(readings: readonly AirQualityReading[]): void;
+  /** Retrieves an air quality station reading by id. */
+  getAirQualityReading(id: string): AirQualityReading | undefined;
+  /** Clears air quality readings from the globe. */
+  clearAirQuality(): void;
   /** Centroid location and symbol size for framing a selected boundary. */
   locateBoundary(id: string): Located | undefined;
   /** Retrieves a boundary feature by id, if currently loaded. */

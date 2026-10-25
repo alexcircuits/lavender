@@ -205,6 +205,9 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/gnss/provenance", get(routes::gnss_provenance))
         .route("/gnss/ingest", post(routes::gnss_ingest))
         .route("/air-quality", get(routes::air_quality))
+        .route("/entities/resolve", get(routes::resolve_entity))
+        .route("/entities/{id}", get(routes::get_canonical_entity))
+        .route("/entities/{id}/aliases", get(routes::get_entity_aliases))
         .route("/stream", get(ws::stream))
         .fallback(routes::api_not_found)
         .layer(middleware::from_fn(security::require_same_origin))
@@ -269,6 +272,9 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/api/gnss/cells", get(routes::gnss_cells))
         .route("/api/gnss/provenance", get(routes::gnss_provenance))
         .route("/api/air-quality", get(routes::air_quality))
+        .route("/api/entities/resolve", get(routes::resolve_entity))
+        .route("/api/entities/{id}", get(routes::get_canonical_entity))
+        .route("/api/entities/{id}/aliases", get(routes::get_entity_aliases))
         .nest(
             "/api/tomtom",
             Router::new()

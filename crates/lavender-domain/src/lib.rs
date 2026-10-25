@@ -34,6 +34,7 @@ pub use entities::{
 pub use entities::{AscentEvent, AscentEventKind, AscentSample, AscentTrajectory};
 pub use entities::{BikeshareStation, BikeshareSystem};
 pub use entities::{BoundaryClass, BoundaryFeature, BoundaryResponse};
+pub use entities::{CanonicalEntity, EntityIdentifier, EntityKind, EntityLink};
 pub use entities::{FirePerimeter, PerimeterDetail};
 pub use entities::{Route, RouteStep};
 pub use entities::{TerrainHeightsRequest, TerrainHeightsResponse, TerrainPointResult};

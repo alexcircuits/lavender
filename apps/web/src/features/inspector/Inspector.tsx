@@ -34,6 +34,7 @@ import type { FeedSummary } from '../../state/stores';
 import { GLOBE_REGION_ID } from '../commands';
 import { FamilySwatch, feedGlyph } from '../layers';
 import { AircraftHistory } from './AircraftHistory';
+import { AirQualityCard } from './AirQualityCard';
 import { bikeshareFacts } from './BikeshareCard';
 import { BoundaryCard } from './BoundaryCard';
 import { CableCard } from './CableCard';
@@ -377,6 +378,19 @@ function CctvInspector({ selection, className }: InspectorBodyProps) {
   );
 }
 
+function AirQualityInspector({ selection, className }: InspectorBodyProps) {
+  const globe = useGlobe();
+  const reading = globe?.getAirQualityReading(selection.id);
+  if (reading) {
+    return <AirQualityCard reading={reading} className={className} />;
+  }
+  return (
+    <InspectorFrame title={selection.id} layer={undefined} className={className}>
+      <EmptyState icon={InfoIcon}>Air quality observation {selection.id} is not loaded.</EmptyState>
+    </InspectorFrame>
+  );
+}
+
 function InspectorBody({ selection, className }: InspectorBodyProps) {
   const globe = useGlobe();
   const feed = selection.feed as FeedId;
@@ -574,6 +588,15 @@ export function Inspector({ className }: InspectorProps) {
   if (selection.feed === 'cctv') {
     return (
       <CctvInspector
+        key={`${selection.feed}:${selection.id}`}
+        selection={selection}
+        className={className}
+      />
+    );
+  }
+  if (selection.feed === 'air-quality') {
+    return (
+      <AirQualityInspector
         key={`${selection.feed}:${selection.id}`}
         selection={selection}
         className={className}

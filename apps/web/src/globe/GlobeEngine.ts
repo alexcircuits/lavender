@@ -25,6 +25,7 @@ import {
 } from '@cesium/engine';
 import type {
   AircraftTrack,
+  AirQualityReading,
   BBox,
   BoundaryFeature,
   CameraSource,
@@ -56,6 +57,7 @@ import type {
 import { geoPointAt, Interaction } from './interaction';
 import { Listeners } from './listeners';
 import { AircraftRenderer } from './renderers/aircraft';
+import { AirQualityRenderer } from './renderers/airQuality';
 import { AnnotationRenderer } from './renderers/annotations';
 import { BikeshareRenderer } from './renderers/bikeshare';
 import {
@@ -109,6 +111,7 @@ interface Mounted {
   readonly boundaries: BoundaryRenderer;
   readonly cables: CableRenderer;
   readonly cctv: CctvRenderer;
+  readonly airQuality: AirQualityRenderer;
   readonly directions: DirectionsRenderer;
   readonly recentImagery: RecentImageryRenderer;
   readonly heatmap: HeatmapRenderer;
@@ -194,9 +197,19 @@ export class GlobeEngine implements GlobeController {
       globe.depthTestAgainstTerrain = false;
       globe.enableLighting = false;
       globe.showGroundAtmosphere = false;
+      globe.showWaterEffect = false;
+      globe.preloadAncestors = true;
+      globe.preloadSiblings = false;
+      globe.baseColor = Color.BLACK;
     }
     if (scene.skyAtmosphere) {
       scene.skyAtmosphere.show = false;
+    }
+    if (scene.sun) {
+      scene.sun.show = false;
+    }
+    if (scene.moon) {
+      scene.moon.show = false;
     }
     if (scene.fog) {
       scene.fog.enabled = true;
@@ -214,6 +227,7 @@ export class GlobeEngine implements GlobeController {
       controller.inertiaSpin = 0.85;
       controller.inertiaTranslate = 0.85;
       controller.inertiaZoom = 0.8;
+      controller.bounceAnimationTime = 0.1;
     }
     // Start at home without a flight (Cesium's default view is over North America).
     scene.camera.setView({
@@ -251,6 +265,7 @@ export class GlobeEngine implements GlobeController {
     const cablePoints = primitives.add(new PointPrimitiveCollection());
     const cables = new CableRenderer(cablePolylines, cablePoints, ctx);
     const cctv = new CctvRenderer(primitives, ctx);
+    const airQuality = new AirQualityRenderer(primitives, ctx);
     const directions = new DirectionsRenderer(primitives, ctx);
     const recentImagery = new RecentImageryRenderer(scene.imageryLayers, primitives, scene, ctx);
     const heatmap = new HeatmapRenderer(scene.imageryLayers, ctx);
@@ -282,6 +297,7 @@ export class GlobeEngine implements GlobeController {
     cleanup.push(() => boundaries.destroy());
     cleanup.push(() => cables.destroy());
     cleanup.push(() => cctv.destroy());
+    cleanup.push(() => airQuality.destroy());
     cleanup.push(() => directions.destroy());
     cleanup.push(() => recentImagery.destroy());
     cleanup.push(() => heatmap.destroy());
@@ -348,6 +364,7 @@ export class GlobeEngine implements GlobeController {
       boundaries,
       cables,
       cctv,
+      airQuality,
       directions,
       recentImagery,
       heatmap,
@@ -404,6 +421,7 @@ export class GlobeEngine implements GlobeController {
     m.boundaries.setSelected(selection?.feed === 'boundaries' ? selection.id : null);
     m.cables.setSelected(selection?.feed === 'cables' ? selection.id : null);
     m.cctv.setSelected(selection?.feed === 'cctv' ? selection.id : null);
+    m.airQuality.setSelected(selection?.feed === 'air-quality' ? selection.id : null);
     m.halo.set(this.#selection);
     this.#refreshHalo();
   }
@@ -563,6 +581,22 @@ export class GlobeEngine implements GlobeController {
     this.#mounted?.heatmap.clear();
   }
 
+  setAirQualityReadings(readings: readonly AirQualityReading[]): void {
+    const m = this.#mounted;
+    if (!m) return;
+    m.airQuality.setReadings(readings);
+    if (this.#selection?.feed === 'air-quality') this.#refreshHalo();
+    m.widget.scene.requestRender();
+  }
+
+  getAirQualityReading(id: string): AirQualityReading | undefined {
+    return this.#mounted?.airQuality.getReading(id);
+  }
+
+  clearAirQuality(): void {
+    this.#mounted?.airQuality.clear();
+  }
+
   startFollowing(target: EntityRef): void {
     const m = this.#mounted;
     if (!m) return;
@@ -581,6 +615,8 @@ export class GlobeEngine implements GlobeController {
       located = m.cables.locate(target.id);
     } else if (target.feed === 'cctv') {
       located = m.cctv.locate(target.id);
+    } else if (target.feed === 'air-quality') {
+      located = m.airQuality.locate(target.id);
     } else {
       const renderer = m.renderers.get(target.feed);
       located = renderer?.locate?.(target.id);
@@ -811,6 +847,8 @@ export class GlobeEngine implements GlobeController {
       m.halo.follow(m.cables.locate(selection.id));
     } else if (selection?.feed === 'cctv') {
       m.halo.follow(m.cctv.locate(selection.id));
+    } else if (selection?.feed === 'air-quality') {
+      m.halo.follow(m.airQuality.locate(selection.id));
     } else if (selection?.feed === 'directions-step') {
       m.halo.follow(m.directions.locateStep(Number(selection.id)) ?? undefined);
     } else if (selection?.feed === 'directions-waypoint') {

@@ -9,6 +9,27 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Done
 
+- **LB-140 Item 6 Entity Resolution Across Feeds**:
+  - Deterministic Rust resolver in `crates/lavender-core/src/resolution/`: dual-index generational LRU
+    canonical entity store (`max_entities = 50,000`) and alias index with automatic eviction,
+    cross-feed ingest auto-linking (aircraft hex/callsign/registration, vessel MMSI/IMO/name,
+    satellite catalog ID/designator/name), and manual alias linking/splitting and entity merging with
+    provenance link tracking.
+  - Domain contracts in `crates/lavender-domain/src/entities/resolution.rs`: `CanonicalEntity`,
+    `EntityIdentifier`, `EntityKind`, `EntityLink` with `ts-rs` TypeScript bindings.
+  - REST endpoints in `crates/lavender-server/src/routes.rs`:
+    `GET /api/v1/entities/resolve?scheme=...&value=...`, `GET /api/v1/entities/{id}`,
+    `GET /api/v1/entities/{id}/aliases` with full OpenAPI error envelopes and integration tests.
+- **Globe Performance & LB-114 Air Quality UI**:
+  - Eliminated Cesium globe stutter and render lag in `apps/web/src/globe/GlobeEngine.ts` by bypassing ocean
+    specular reflection shaders (`showWaterEffect = false`), preloading ancestor parent tiles for instant zoom/pan
+    display without blank patches (`preloadAncestors = true`), halting offscreen sibling speculative downloads
+    (`preloadSiblings = false`), disabling celestial sun/moon ephemeris calculation passes (`scene.sun.show = false`,
+    `scene.moon.show = false`), and optimizing camera bounce animation (`bounceAnimationTime = 0.1`).
+  - Implemented `AirQualityRenderer` (`apps/web/src/globe/renderers/airQuality.ts`) using primitive collections,
+    band-tinted badges, distance culling, halo tracking, and click selection.
+  - Added `AirQualityCard` inspector sheet (`apps/web/src/features/inspector/AirQualityCard.tsx`) displaying AQHI
+    health risk assessment, advice note, monitoring zone, station facts, and fly-to navigation.
 - **LB-109 Provider verification audit**:
   - Full static and dynamic verification audit across all 28 Rust data providers under
     `crates/lavender-core/src/providers/` (`docs/audit/provider-verification.md`).

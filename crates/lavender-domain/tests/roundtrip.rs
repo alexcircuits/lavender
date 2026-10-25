@@ -800,3 +800,60 @@ fn air_quality_contracts_round_trip() {
     assert_eq!(snap_json["readings"].as_array().unwrap().len(), 2);
     assert_eq!(snap_json["freshness"]["state"], "live");
 }
+
+#[test]
+fn entity_resolution_contracts_round_trip() {
+    use std::collections::HashMap;
+
+    let id1 = EntityIdentifier::new("icao24", "4ca1b2");
+    let id2 = EntityIdentifier::new("callsign", "RYR12AB");
+    let id_json = roundtrip(&id1);
+    assert_eq!(id_json["scheme"], "icao24");
+    assert_eq!(id_json["value"], "4ca1b2");
+
+    let mut attrs = HashMap::new();
+    attrs.insert("typeCode".to_string(), "B738".to_string());
+    attrs.insert("isMilitary".to_string(), "false".to_string());
+
+    let canonical = CanonicalEntity {
+        id: "canonical:aircraft:4ca1b2".to_string(),
+        kind: EntityKind::Aircraft,
+        primary_label: "RYR12AB".to_string(),
+        identifiers: vec![id1, id2],
+        attributes: attrs,
+        first_seen: 1_729_000_000,
+        last_seen: 1_729_000_120,
+        confidence: 0.98,
+    };
+    let c_json = roundtrip(&canonical);
+    assert_eq!(c_json["id"], "canonical:aircraft:4ca1b2");
+    assert_eq!(c_json["kind"], "aircraft");
+    assert_eq!(c_json["primaryLabel"], "RYR12AB");
+    assert_eq!(c_json["identifiers"].as_array().unwrap().len(), 2);
+    assert_eq!(c_json["identifiers"][0]["scheme"], "icao24");
+    assert_eq!(c_json["identifiers"][0]["value"], "4ca1b2");
+    assert_eq!(c_json["attributes"]["typeCode"], "B738");
+    assert_eq!(c_json["firstSeen"], 1_729_000_000);
+    assert_eq!(c_json["lastSeen"], 1_729_000_120);
+    assert!((c_json["confidence"].as_f64().unwrap() - 0.98).abs() < 1e-4);
+
+    let link = EntityLink {
+        source_id: "canonical:aircraft:4ca1b2".to_string(),
+        target_id: "callsign:RYR12AB".to_string(),
+        relation: "alias_of".to_string(),
+        confidence: 0.99,
+        created_at: 1_729_000_000,
+    };
+    let link_json = roundtrip(&link);
+    assert_eq!(link_json["sourceId"], "canonical:aircraft:4ca1b2");
+    assert_eq!(link_json["targetId"], "callsign:RYR12AB");
+    assert_eq!(link_json["relation"], "alias_of");
+    assert_eq!(link_json["createdAt"], 1_729_000_000);
+    assert!((link_json["confidence"].as_f64().unwrap() - 0.99).abs() < 1e-4);
+
+    // Test other EntityKind variants
+    assert_eq!(serde_json::to_value(EntityKind::Vessel).unwrap(), "vessel");
+    assert_eq!(serde_json::to_value(EntityKind::Satellite).unwrap(), "satellite");
+    assert_eq!(serde_json::to_value(EntityKind::Facility).unwrap(), "facility");
+    assert_eq!(serde_json::to_value(EntityKind::Event).unwrap(), "event");
+}

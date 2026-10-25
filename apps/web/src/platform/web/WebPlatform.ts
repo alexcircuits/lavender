@@ -5,6 +5,7 @@
  */
 import type {
   AircraftTrack,
+  AirQualitySnapshot,
   BBox,
   BoundaryClass,
   BoundaryResponse,
@@ -375,6 +376,10 @@ export class WebPlatform implements LavenderPlatform {
     });
     if (limit !== undefined) qs.set('limit', String(limit));
     return this.#get(`/military-installations?${qs.toString()}`, options);
+  }
+
+  airQuality(options?: CallOptions): Promise<AirQualitySnapshot> {
+    return this.#get('/air-quality', options);
   }
 
   secretStatus(options?: CallOptions): Promise<SecretStatusResponse> {

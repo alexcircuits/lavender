@@ -18,10 +18,11 @@ use lavender_domain::text::clean;
 use lavender_domain::{
     AirQualitySnapshot, AircraftRouteEnrichment, AircraftTrack, AircraftTypeEnrichment, AlertEvent,
     ApiError, BBox, BoundaryClass, BoundaryFeature, BoundaryResponse, CameraHealth, CameraSource,
-    Catalog, CctvStreamInfo, ErrorCode, FeedFilters, FeedId, FeedItems, FeedQuery, GeoPoint,
-    Geofence, GeofenceRule, GnssProvenance, GnssSnapshot, SatellitePassRequest, SatellitePasses,
-    SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults, SpatialSearchRequest,
-    SpatialSearchResponse, SystemStatus, Timestamp, VesselTrackResponse, WeatherOverlay, WindModel,
+    CanonicalEntity, Catalog, CctvStreamInfo, EntityIdentifier, ErrorCode, FeedFilters, FeedId,
+    FeedItems, FeedQuery, GeoPoint, Geofence, GeofenceRule, GnssProvenance, GnssSnapshot,
+    SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery,
+    SearchResults, SpatialSearchRequest, SpatialSearchResponse, SystemStatus, Timestamp,
+    VesselTrackResponse, WeatherOverlay, WindModel,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -2021,6 +2022,69 @@ pub async fn alerts_inbox(
 ) -> Result<Json<Vec<AlertEvent>>, HttpError> {
     let events = state.core.alert_inbox(params.limit)?;
     Ok(Json(events))
+}
+
+/// Query parameters for resolving a canonical entity by identifier scheme and value.
+#[derive(Debug, Deserialize)]
+pub struct ResolveParams {
+    pub scheme: String,
+    pub value: String,
+}
+
+/// `GET /api/v1/entities/resolve?scheme=...&value=...` — resolve a canonical entity by scheme and identifier.
+///
+/// # Errors
+/// Returns 400 for empty scheme or value, or 404 if no matching canonical entity is found.
+pub async fn resolve_entity(
+    State(state): State<AppState>,
+    ApiQuery(params): ApiQuery<ResolveParams>,
+) -> Result<Json<CanonicalEntity>, HttpError> {
+    if params.scheme.trim().is_empty() {
+        return Err(bad("scheme query parameter must not be empty"));
+    }
+    if params.value.trim().is_empty() {
+        return Err(bad("value query parameter must not be empty"));
+    }
+    state.core.resolve_entity(&params.scheme, &params.value).map(Json).ok_or_else(|| {
+        HttpError::new(
+            ErrorCode::NotFound,
+            format!(
+                "No canonical entity found for scheme '{}' and value '{}'.",
+                params.scheme, params.value
+            ),
+        )
+    })
+}
+
+/// `GET /api/v1/entities/{id}` — fetch a canonical entity by its canonical ID.
+///
+/// # Errors
+/// Returns 400 for empty id, or 404 if the canonical entity does not exist.
+pub async fn get_canonical_entity(
+    State(state): State<AppState>,
+    ApiPath(id): ApiPath<String>,
+) -> Result<Json<CanonicalEntity>, HttpError> {
+    if id.trim().is_empty() {
+        return Err(bad("entity id must not be empty"));
+    }
+    state.core.get_canonical_entity(&id).map(Json).ok_or_else(|| {
+        HttpError::new(ErrorCode::NotFound, format!("Canonical entity '{id}' not found."))
+    })
+}
+
+/// `GET /api/v1/entities/{id}/aliases` — fetch all alias identifiers for a canonical entity.
+///
+/// # Errors
+/// Returns 400 for empty id, or 404 if the canonical entity does not exist.
+pub async fn get_entity_aliases(
+    State(state): State<AppState>,
+    ApiPath(id): ApiPath<String>,
+) -> Result<Json<Vec<EntityIdentifier>>, HttpError> {
+    if id.trim().is_empty() {
+        return Err(bad("entity id must not be empty"));
+    }
+    let aliases = state.core.get_entity_aliases(&id)?;
+    Ok(Json(aliases))
 }
 
 #[cfg(test)]
