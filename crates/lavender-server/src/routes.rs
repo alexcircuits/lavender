@@ -16,10 +16,10 @@ use lavender_core::{
 };
 use lavender_domain::text::clean;
 use lavender_domain::{
-    AircraftRouteEnrichment, AircraftTrack, AircraftTypeEnrichment, AlertEvent, ApiError, BBox,
-    BoundaryClass, BoundaryFeature, BoundaryResponse, CameraHealth, CameraSource, Catalog,
-    CctvStreamInfo, ErrorCode, FeedFilters, FeedId, FeedItems, FeedQuery, GeoPoint, Geofence,
-    GeofenceRule, GnssProvenance, GnssSnapshot, SatellitePassRequest, SatellitePasses,
+    AirQualitySnapshot, AircraftRouteEnrichment, AircraftTrack, AircraftTypeEnrichment, AlertEvent,
+    ApiError, BBox, BoundaryClass, BoundaryFeature, BoundaryResponse, CameraHealth, CameraSource,
+    Catalog, CctvStreamInfo, ErrorCode, FeedFilters, FeedId, FeedItems, FeedQuery, GeoPoint,
+    Geofence, GeofenceRule, GnssProvenance, GnssSnapshot, SatellitePassRequest, SatellitePasses,
     SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults, SpatialSearchRequest,
     SpatialSearchResponse, SystemStatus, Timestamp, VesselTrackResponse, WeatherOverlay, WindModel,
 };
@@ -234,6 +234,17 @@ pub struct GnssCellsParams {
     pub bbox: Option<String>,
     pub lat: Option<f64>,
     pub lon: Option<f64>,
+}
+
+/// `GET /api/v1/air-quality` — realtime Canadian AQHI station observations.
+///
+/// # Errors
+/// Returns 502/503 when the upstream is unavailable or returns an error.
+pub async fn air_quality(
+    State(state): State<AppState>,
+) -> Result<Json<AirQualitySnapshot>, HttpError> {
+    let snapshot = state.core.air_quality_snapshot().await.map_err(HttpError::from)?;
+    Ok(Json(snapshot))
 }
 
 /// `GET /api/v1/gnss/cells` — evaluates aircraft navigation accuracy anomaly cells.

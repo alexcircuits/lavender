@@ -60,6 +60,11 @@ pub const OSM_MILITARY: &str = "osm-military";
 pub const NASA_CMR: &str = "nasa-cmr";
 pub const NATURAL_EARTH_DIVISIONS: &str = "natural-earth-divisions";
 pub const GNSS_INTEGRITY: &str = "gnss-integrity";
+pub const ECCC_AQHI: &str = "eccc-aqhi";
+pub const AIR_QUALITY: &str = "air-quality";
+
+/// Attribution for Environment and Climate Change Canada AQHI observations.
+pub const ECCC_AQHI_ATTRIBUTION: &str = "Contains information licensed under the Environment and Climate Change Canada Data Servers End-use Licence";
 
 /// Attribution for GNSS navigation integrity analysis.
 pub const GNSS_INTEGRITY_ATTRIBUTION: &str = "GNSS integrity analysis: derived from aircraft ADS-B navigation accuracy indicators (ODbL 1.0); anomaly classification based on 14 CFR 91.227 and gpsjam.org methodology.";
@@ -614,6 +619,30 @@ pub fn all() -> Vec<SourceDef> {
             Some(
                 "Anomaly classification derived from ADS-B aircraft reported NIC and NACp values binned into 0.5-degree cells.",
             ),
+        ),
+        source(
+            ECCC_AQHI,
+            "Environment and Climate Change Canada (AQHI)",
+            "https://eccc-msc.github.io/open-data/",
+            ECCC_AQHI_ATTRIBUTION,
+            (
+                "Environment and Climate Change Canada Data Servers End-use Licence",
+                "https://eccc-msc.github.io/open-data/licence/readme_en/",
+            ),
+            CommercialUse::Allowed,
+            Some("Canadian Air Quality Health Index (AQHI) realtime station observations."),
+        ),
+        source(
+            AIR_QUALITY,
+            "Environment and Climate Change Canada (AQHI)",
+            "https://eccc-msc.github.io/open-data/",
+            ECCC_AQHI_ATTRIBUTION,
+            (
+                "Environment and Climate Change Canada Data Servers End-use Licence",
+                "https://eccc-msc.github.io/open-data/licence/readme_en/",
+            ),
+            CommercialUse::Allowed,
+            Some("Canadian Air Quality Health Index (AQHI) realtime station observations."),
         ),
     ]
 }

@@ -6,11 +6,11 @@ use std::time::Duration;
 
 use jiff::{SignedDuration, Timestamp};
 use lavender_domain::{
-    AircraftTrack, Availability, BBox, BoundaryClass, BoundaryFeature, Catalog, FeedId, FeedItems,
-    FeedQuery, FeedSnapshot, FeedStatus, GnssProvenance, GnssSnapshot, Route, SatellitePassRequest,
-    SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults,
-    SpatialFilter, SpatialSearchRequest, SpatialSearchResponse, SystemStatus, VesselTrackResponse,
-    WeatherOverlay, WindManifest, WindModel, WindStatus,
+    AirQualitySnapshot, AircraftTrack, Availability, BBox, BoundaryClass, BoundaryFeature, Catalog,
+    FeedId, FeedItems, FeedQuery, FeedSnapshot, FeedStatus, GnssProvenance, GnssSnapshot, Route,
+    SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery,
+    SearchResults, SpatialFilter, SpatialSearchRequest, SpatialSearchResponse, SystemStatus,
+    VesselTrackResponse, WeatherOverlay, WindManifest, WindModel, WindStatus,
 };
 use lavender_geo::{OrbitError, Propagator};
 use tokio::sync::Semaphore;
@@ -88,6 +88,7 @@ struct CoreInner {
     aircraft_enrichment: Arc<crate::providers::aircraft_enrichment::AircraftEnrichmentService>,
     opensky: Option<Arc<crate::providers::opensky::OpenSkyProvider>>,
     gnss: Arc<crate::gnss::GnssEngine>,
+    air_quality: Arc<crate::providers::air_quality::EcccAirQualityProvider>,
 }
 
 /// Cheap to clone; all clones share one core.
@@ -134,6 +135,7 @@ pub struct LavenderCoreBuilder {
     imagery_search: Option<Arc<crate::providers::imagery_search::ImagerySearchProvider>>,
     mapillary: Option<Arc<crate::providers::mapillary::MapillaryProvider>>,
     cctv: Option<Arc<crate::providers::cctv::CctvCatalog>>,
+    air_quality: Option<Arc<crate::providers::air_quality::EcccAirQualityProvider>>,
 }
 
 impl LavenderCoreBuilder {
@@ -227,6 +229,15 @@ impl LavenderCoreBuilder {
     #[must_use]
     pub fn cctv(mut self, cctv: Arc<crate::providers::cctv::CctvCatalog>) -> Self {
         self.cctv = Some(cctv);
+        self
+    }
+
+    #[must_use]
+    pub fn air_quality(
+        mut self,
+        air_quality: Arc<crate::providers::air_quality::EcccAirQualityProvider>,
+    ) -> Self {
+        self.air_quality = Some(air_quality);
         self
     }
 
@@ -382,6 +393,9 @@ impl LavenderCoreBuilder {
                 self.config.licence_mode,
                 self.config.licence_acknowledged.clone(),
             ));
+        let air_quality = self.air_quality.unwrap_or_else(|| {
+            Arc::new(crate::providers::air_quality::EcccAirQualityProvider::new(fetcher.clone()))
+        });
         Ok(LavenderCore {
             inner: Arc::new(CoreInner {
                 config: self.config,
@@ -420,6 +434,7 @@ impl LavenderCoreBuilder {
                 aircraft_enrichment,
                 opensky: opensky_provider,
                 gnss: Arc::new(crate::gnss::GnssEngine::new()),
+                air_quality,
             }),
         })
     }
@@ -454,6 +469,7 @@ impl LavenderCore {
             imagery_search: None,
             mapillary: None,
             cctv: None,
+            air_quality: None,
         }
     }
 
@@ -733,6 +749,23 @@ impl LavenderCore {
     #[must_use]
     pub fn gnss(&self) -> &crate::gnss::GnssEngine {
         &self.inner.gnss
+    }
+
+    /// Obtains the latest air quality reading snapshot across Canadian AQHI stations.
+    ///
+    /// # Errors
+    /// Returns [`CoreError`] on network failure, parse error, or when no stations are available.
+    pub async fn air_quality_snapshot(&self) -> Result<AirQualitySnapshot, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        self.inner.air_quality.get_snapshot().await.map_err(CoreError::from)
+    }
+
+    /// Access to the underlying air quality provider.
+    #[must_use]
+    pub fn air_quality(&self) -> &Arc<crate::providers::air_quality::EcccAirQualityProvider> {
+        &self.inner.air_quality
     }
 
     /// Recent positions observed by the shared feed hub. Reading history causes no network call.

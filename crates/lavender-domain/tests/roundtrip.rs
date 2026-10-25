@@ -733,3 +733,70 @@ fn aircraft_enrichment_contracts_round_trip() {
     assert_eq!(resp_json["total"], 1);
     assert_eq!(resp_json["attribution"], "Made with Natural Earth");
 }
+
+#[test]
+fn air_quality_contracts_round_trip() {
+    let reading = AirQualityReading {
+        id: "eccc:60104".into(),
+        provider: "eccc".into(),
+        scale: "AQHI".into(),
+        value: 4,
+        band: AirQualityBand::Moderate,
+        station_id: "60104".into(),
+        name: "Toronto Downtown".into(),
+        zone: Some("ont".into()),
+        latitude: 43.65,
+        longitude: -79.38,
+        observed_at: ts(),
+        color: "#ffd43b".into(),
+        label: "4".into(),
+        risk: "Moderate health risk".into(),
+        note: None,
+    };
+    let r_json = roundtrip(&reading);
+    assert_eq!(r_json["id"], "eccc:60104");
+    assert_eq!(r_json["provider"], "eccc");
+    assert_eq!(r_json["scale"], "AQHI");
+    assert_eq!(r_json["value"], 4);
+    assert_eq!(r_json["band"], "moderate");
+    assert_eq!(r_json["stationId"], "60104");
+    assert_eq!(r_json["name"], "Toronto Downtown");
+    assert_eq!(r_json["zone"], "ont");
+    assert_eq!(r_json["latitude"], 43.65);
+    assert_eq!(r_json["longitude"], -79.38);
+    assert_eq!(r_json["color"], "#ffd43b");
+    assert_eq!(r_json["label"], "4");
+    assert_eq!(r_json["risk"], "Moderate health risk");
+    assert!(r_json.get("note").is_none());
+
+    let high_reading = AirQualityReading {
+        id: "eccc:99999".into(),
+        provider: "eccc".into(),
+        scale: "AQHI".into(),
+        value: 11,
+        band: AirQualityBand::VeryHigh,
+        station_id: "99999".into(),
+        name: "Wildfire Station".into(),
+        zone: Some("pyr".into()),
+        latitude: 50.0,
+        longitude: -120.0,
+        observed_at: ts(),
+        color: "#c1121f".into(),
+        label: "10+".into(),
+        risk: "Very High health risk".into(),
+        note: Some("Smoke advisory in effect".into()),
+    };
+    let high_json = roundtrip(&high_reading);
+    assert_eq!(high_json["band"], "very-high");
+    assert_eq!(high_json["label"], "10+");
+    assert_eq!(high_json["note"], "Smoke advisory in effect");
+
+    let snapshot = AirQualitySnapshot {
+        readings: vec![reading, high_reading],
+        freshness: Freshness::Live,
+        updated_at: ts(),
+    };
+    let snap_json = roundtrip(&snapshot);
+    assert_eq!(snap_json["readings"].as_array().unwrap().len(), 2);
+    assert_eq!(snap_json["freshness"]["state"], "live");
+}

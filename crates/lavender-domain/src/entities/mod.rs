@@ -1,6 +1,7 @@
 //! Normalised entities. Providers convert upstream payloads into these types; the
 //! frontend renders only these.
 
+mod air_quality;
 mod aircraft;
 mod alert;
 mod ascent;
@@ -21,6 +22,7 @@ mod traffic;
 mod transit;
 mod vessel;
 
+pub use air_quality::{AirQualityBand, AirQualityReading, AirQualitySnapshot};
 pub use aircraft::{Aircraft, AircraftRouteEnrichment, AircraftTypeEnrichment, AirportInfo};
 pub use alert::{AlertEvent, AlertKind, Geofence, GeofenceRule};
 pub use ascent::{AscentEvent, AscentEventKind, AscentSample, AscentTrajectory};

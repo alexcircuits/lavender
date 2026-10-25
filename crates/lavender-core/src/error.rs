@@ -37,6 +37,20 @@ impl From<FetchError> for CoreError {
     }
 }
 
+impl From<crate::providers::ProviderError> for CoreError {
+    fn from(err: crate::providers::ProviderError) -> Self {
+        match err {
+            crate::providers::ProviderError::Fetch(f) => Self::from(f),
+            crate::providers::ProviderError::Unconfigured(msg)
+            | crate::providers::ProviderError::Unsupported(msg) => Self::BadRequest(msg),
+            crate::providers::ProviderError::Parse { .. }
+            | crate::providers::ProviderError::Unavailable(_) => {
+                Self::Upstream(err.public_message())
+            }
+        }
+    }
+}
+
 impl From<crate::providers::overpass::OverpassError> for CoreError {
     fn from(err: crate::providers::overpass::OverpassError) -> Self {
         Self::BadRequest(err.to_string())

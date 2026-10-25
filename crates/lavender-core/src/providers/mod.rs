@@ -6,6 +6,7 @@
 //! cleaned and length-capped, because parser errors can quote upstream content.
 
 pub mod adsb_lol;
+pub mod air_quality;
 pub mod aircraft_enrichment;
 pub mod aisstream;
 pub mod bikeshare;

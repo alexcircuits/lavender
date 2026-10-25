@@ -204,6 +204,7 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/gnss/cells", get(routes::gnss_cells))
         .route("/gnss/provenance", get(routes::gnss_provenance))
         .route("/gnss/ingest", post(routes::gnss_ingest))
+        .route("/air-quality", get(routes::air_quality))
         .route("/stream", get(ws::stream))
         .fallback(routes::api_not_found)
         .layer(middleware::from_fn(security::require_same_origin))
@@ -267,6 +268,7 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/api/gnss-integrity", get(routes::legacy_gnss_integrity))
         .route("/api/gnss/cells", get(routes::gnss_cells))
         .route("/api/gnss/provenance", get(routes::gnss_provenance))
+        .route("/api/air-quality", get(routes::air_quality))
         .nest(
             "/api/tomtom",
             Router::new()
