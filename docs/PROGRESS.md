@@ -461,3 +461,20 @@ then run `check.sh` and e2e. The lanes' documentation notes are collected in
   - Comprehensive unit and integration test coverage (`interpolate.test.ts`, `ReplayPanel.test.tsx`),
     strict design system token compliance (`architecture.test.ts` 11/11 passing).
 
+
+## 2026-10-25 (evening) — fleet wave verified and pushed
+
+- Zombie-agent fleet (from the earlier 'failed' launches that survived
+  server-side) delivered: Wave B inspector cards + directions + admin-1
+  division serving (97aac60b), timeline replay + Wave B completion
+  (93174c75), alerts inbox, briefing export, licence registry entries and
+  the LB-109 provider-verification audit (95229e41, committed by the
+  watchdog after verification).
+- Watchdog fixes during verification: startup budget restored
+  (code-split the four Wave B panels, 262→239.3 KiB); Zig 0.16.0 stable
+  unblocked the kernel rebuild (d6401663) — heatmap + point-in-polygon
+  kernels live in the browser (13/13 wrapper tests).
+- Known load-flaky tests (pass in isolation): AnnotationsPanel Escape,
+  launchesIsland focus — pre-existing 5 s timeouts on a busy machine.
+- Demo server restarted on the new build: http://127.0.0.1:7410 with
+  simulation + fixtures; /api/v1/divisions/{at,search} live.
