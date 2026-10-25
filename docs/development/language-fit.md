@@ -52,11 +52,11 @@ from `kernels/zig` with a pinned toolchain (`0.16.0-dev.2296+fd3657bf8` via zigu
 runs the Zig test suite and prints the artifact's sha256. Run it after any kernel
 change and commit the refreshed artifact with the source.
 
-Known blocker on this machine: that 0.16-dev build-runner fails to link on macOS
-(`undefined symbol: _sigemptyset/_sysctlbyname` in the build runner itself, cache
-cleared and retried), so the artifact could not be rebuilt today. The heatmap
-wrapper therefore dispatches through `heatmapBin`, which uses the Zig kernel when
-the loaded artifact exports `lavender_heatmap_bin` and an identical pure-TS
-fallback (`heatmapBinTs`) otherwise. Action: bump the pinned toolchain to a fixed
-0.16-dev or stable, rerun the script, and drop the fallback path once the kernel
-is proven live.
+RESOLVED 2026-10-25: the 0.16-dev build-runner could not link on macOS
+(`undefined symbol: _sigemptyset/_sysctlbyname`), but Zig 0.16.0 stable can —
+the pin is now `0.16.0` (installed via `zigup 0.16.0`; one `var`→`const` lint
+fix in labels.zig was the only source change). All 46 kernel tests pass and the
+committed artifact was rebuilt through the script (sha256
+d9de1487…54ffbe), so the heatmap and point-in-polygon kernels are live in the
+browser path; the pure-TS fallback in `heatmapBin` remains as the graceful
+degradation for older artifacts.

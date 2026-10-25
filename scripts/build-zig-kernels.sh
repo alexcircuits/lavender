@@ -13,7 +13,7 @@ artifact="$root/apps/web/public/wasm/lavender_kernels.wasm"
 
 # The Zig version the committed artifact is built with. 0.16-dev moves fast;
 # a mismatch fails loudly instead of producing a subtly different binary.
-pinned_zig="0.16.0-dev.2296+fd3657bf8"
+pinned_zig="0.16.0"
 version="$(zig version 2>/dev/null || true)"
 if [ "$version" != "$pinned_zig" ]; then
   echo "error: zig ${pinned_zig} is required (found: ${version:-none on PATH})." >&2

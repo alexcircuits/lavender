@@ -129,7 +129,7 @@ pub fn arbitrateLabels(
     }
 
     // Set up arena allocator backed by a 32KB stack buffer with page allocator fallback
-    var stack_buf: [32768]u8 = undefined;
+    const stack_buf: [32768]u8 = undefined;
     var fallback = std.heap.stackFallback(stack_buf.len, std.heap.page_allocator);
     var arena = std.heap.ArenaAllocator.init(fallback.get());
     defer arena.deinit();
