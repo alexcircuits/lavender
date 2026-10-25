@@ -7,10 +7,10 @@ use std::time::Duration;
 use jiff::{SignedDuration, Timestamp};
 use lavender_domain::{
     AircraftTrack, Availability, BBox, BoundaryClass, BoundaryFeature, Catalog, FeedId, FeedItems,
-    FeedQuery, FeedSnapshot, FeedStatus, Route, SatellitePassRequest, SatellitePasses,
-    SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults, SpatialFilter,
-    SpatialSearchRequest, SpatialSearchResponse, SystemStatus, VesselTrackResponse, WeatherOverlay,
-    WindManifest, WindModel, WindStatus,
+    FeedQuery, FeedSnapshot, FeedStatus, GnssProvenance, GnssSnapshot, Route, SatellitePassRequest,
+    SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults,
+    SpatialFilter, SpatialSearchRequest, SpatialSearchResponse, SystemStatus, VesselTrackResponse,
+    WeatherOverlay, WindManifest, WindModel, WindStatus,
 };
 use lavender_geo::{OrbitError, Propagator};
 use tokio::sync::Semaphore;
@@ -87,6 +87,7 @@ struct CoreInner {
     traffic: Arc<crate::providers::traffic::TrafficEngine>,
     aircraft_enrichment: Arc<crate::providers::aircraft_enrichment::AircraftEnrichmentService>,
     opensky: Option<Arc<crate::providers::opensky::OpenSkyProvider>>,
+    gnss: Arc<crate::gnss::GnssEngine>,
 }
 
 /// Cheap to clone; all clones share one core.
@@ -418,6 +419,7 @@ impl LavenderCoreBuilder {
                 traffic,
                 aircraft_enrichment,
                 opensky: opensky_provider,
+                gnss: Arc::new(crate::gnss::GnssEngine::new()),
             }),
         })
     }
@@ -697,6 +699,40 @@ impl LavenderCore {
             },
         });
         search::spatial_search(request, &self.inner.hub)
+    }
+
+    /// Evaluates current GNSS navigation integrity cells, optionally filtered by a bounding box.
+    ///
+    /// # Errors
+    /// Returns an error when shut down.
+    pub fn gnss_snapshot(&self, bbox: Option<&BBox>) -> Result<GnssSnapshot, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        Ok(self.inner.gnss.snapshot(bbox))
+    }
+
+    /// Returns machine-readable provenance metadata for the GNSS navigation integrity classifier.
+    #[must_use]
+    pub fn gnss_provenance(&self) -> GnssProvenance {
+        self.inner.gnss.provenance()
+    }
+
+    /// Ingests a raw readsb/adsb.lol JSON payload into the GNSS engine.
+    ///
+    /// # Errors
+    /// Returns an error if the payload is malformed or when shut down.
+    pub fn ingest_gnss_readsb(&self, bytes: &[u8]) -> Result<usize, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        self.inner.gnss.ingest_readsb_payload(bytes, Timestamp::now())
+    }
+
+    /// Access to the underlying GNSS integrity engine.
+    #[must_use]
+    pub fn gnss(&self) -> &crate::gnss::GnssEngine {
+        &self.inner.gnss
     }
 
     /// Recent positions observed by the shared feed hub. Reading history causes no network call.

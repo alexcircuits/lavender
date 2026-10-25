@@ -15,6 +15,7 @@ pub mod core;
 pub mod diagnostics;
 pub mod error;
 pub mod fetch;
+pub mod gnss;
 pub mod health;
 pub mod hub;
 pub mod motion;

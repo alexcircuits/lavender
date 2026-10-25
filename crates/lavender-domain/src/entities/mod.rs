@@ -10,6 +10,7 @@ mod cctv;
 mod cyclone;
 mod earthquake;
 mod fire;
+mod gnss;
 mod launch;
 mod perimeter;
 mod route;
@@ -32,6 +33,7 @@ pub use cyclone::{
 };
 pub use earthquake::Earthquake;
 pub use fire::{FireCell, FireCluster, FireDetection};
+pub use gnss::{GnssCell, GnssLevel, GnssProvenance, GnssSnapshot};
 pub use launch::{Launch, LaunchPad};
 pub use perimeter::{FirePerimeter, PerimeterDetail};
 pub use route::{Route, RouteStep};

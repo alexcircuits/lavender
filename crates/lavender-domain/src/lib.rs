@@ -26,9 +26,10 @@ pub use entities::{
     Aircraft, AircraftRouteEnrichment, AircraftTypeEnrichment, AirportInfo, AlertEvent, AlertKind,
     CameraHealth, CameraSource, CctvStreamInfo, Cyclone, CycloneConeGeometry, CycloneForecastPoint,
     CycloneGeometryStatus, CycloneMovement, CycloneTrackGeometry, Earthquake, FireCell,
-    FireCluster, FireDetection, Geofence, GeofenceRule, Launch, LaunchPad, SatelliteElements,
-    SpatialFilter, SpatialHit, SpatialSearchRequest, SpatialSearchResponse, Vessel,
-    VesselDimensions, VesselEta, VesselTrackResponse, VesselTrackSample, VesselVoyage,
+    FireCluster, FireDetection, Geofence, GeofenceRule, GnssCell, GnssLevel, GnssProvenance,
+    GnssSnapshot, Launch, LaunchPad, SatelliteElements, SpatialFilter, SpatialHit,
+    SpatialSearchRequest, SpatialSearchResponse, Vessel, VesselDimensions, VesselEta,
+    VesselTrackResponse, VesselTrackSample, VesselVoyage,
 };
 pub use entities::{AscentEvent, AscentEventKind, AscentSample, AscentTrajectory};
 pub use entities::{BikeshareStation, BikeshareSystem};

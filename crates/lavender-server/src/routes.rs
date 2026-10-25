@@ -5,6 +5,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use axum::Json;
+use axum::body::Bytes;
 use axum::extract::{FromRequestParts, Path, Query, State};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
@@ -18,9 +19,9 @@ use lavender_domain::{
     AircraftRouteEnrichment, AircraftTrack, AircraftTypeEnrichment, AlertEvent, ApiError, BBox,
     BoundaryClass, BoundaryFeature, BoundaryResponse, CameraHealth, CameraSource, Catalog,
     CctvStreamInfo, ErrorCode, FeedFilters, FeedId, FeedItems, FeedQuery, GeoPoint, Geofence,
-    GeofenceRule, SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest,
-    SearchQuery, SearchResults, SpatialSearchRequest, SpatialSearchResponse, SystemStatus,
-    Timestamp, VesselTrackResponse, WeatherOverlay, WindModel,
+    GeofenceRule, GnssProvenance, GnssSnapshot, SatellitePassRequest, SatellitePasses,
+    SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults, SpatialSearchRequest,
+    SpatialSearchResponse, SystemStatus, Timestamp, VesselTrackResponse, WeatherOverlay, WindModel,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -226,6 +227,64 @@ pub async fn spatial_search(
 ) -> Result<Json<SpatialSearchResponse>, HttpError> {
     let results = state.core.spatial_search(&payload)?;
     Ok(Json(results))
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct GnssCellsParams {
+    pub bbox: Option<String>,
+    pub lat: Option<f64>,
+    pub lon: Option<f64>,
+}
+
+/// `GET /api/v1/gnss/cells` — evaluates aircraft navigation accuracy anomaly cells.
+///
+/// # Errors
+/// Returns 400 for invalid query coordinates or bounding box.
+pub async fn gnss_cells(
+    State(state): State<AppState>,
+    ApiQuery(params): ApiQuery<GnssCellsParams>,
+) -> Result<Json<GnssSnapshot>, HttpError> {
+    let bbox = if let Some(ref raw_bbox) = params.bbox {
+        Some(BBox::parse(raw_bbox).map_err(|e| bad(e.to_string()))?)
+    } else if let (Some(lat), Some(lon)) = (params.lat, params.lon) {
+        Some(
+            BBox::new(lon - 2.0, lat - 2.0, lon + 2.0, lat + 2.0)
+                .map_err(|e| bad(e.to_string()))?,
+        )
+    } else {
+        None
+    };
+
+    let snapshot = state.core.gnss_snapshot(bbox.as_ref())?;
+    Ok(Json(snapshot))
+}
+
+/// `GET /api/v1/gnss/provenance` — returns machine-readable classifier specifications.
+pub async fn gnss_provenance(State(state): State<AppState>) -> Json<GnssProvenance> {
+    Json(state.core.gnss_provenance())
+}
+
+/// `POST /api/v1/gnss/ingest` — ingests raw readsb/adsb.lol JSON payload.
+///
+/// # Errors
+/// Returns 400 for malformed payload.
+pub async fn gnss_ingest(
+    State(state): State<AppState>,
+    body: Bytes,
+) -> Result<Json<serde_json::Value>, HttpError> {
+    let count = state.core.ingest_gnss_readsb(&body).map_err(|e| bad(e.to_string()))?;
+    Ok(Json(serde_json::json!({ "ingested": count })))
+}
+
+/// `GET /api/gnss-integrity` — legacy parity endpoint for GNSS integrity queries.
+///
+/// # Errors
+/// Returns 400 for invalid query parameters.
+pub async fn legacy_gnss_integrity(
+    state: State<AppState>,
+    query: ApiQuery<GnssCellsParams>,
+) -> Result<Json<GnssSnapshot>, HttpError> {
+    gnss_cells(state, query).await
 }
 
 /// History already observed by this core; this endpoint never initiates a provider fetch.
