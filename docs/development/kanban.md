@@ -32,6 +32,25 @@ for the ENG-\* tasks this board references. Update together with
 
 ## In Progress
 
+- **LB-150 Timeline replay (web)** — READY-TO-RUN brief: new
+  features/replay panel ('replay' SidePanel + nav item), loads the
+  selected entity's track via the existing platform aircraft/vessel
+  track APIs, scrubber (play/pause, 1×/2×/4×, time readout), camera
+  follow via globe.flyTo at modest step frequency; render the track by
+  mirroring how VesselTrack draws today (do NOT edit GlobeEngine.ts);
+  harness tests per features/missions idioms; typecheck+test+lint green.
+  Two agent attempts culled by the provider concurrency cap before
+  writing code.
+- **LB-151 Simulation hub wiring + admin divisions (Rust)** —
+  READY-TO-RUN brief: register AircraftSimulator (core/src/simulation.rs)
+  as an aircraft-feed source behind config `simulation.enabled` (default
+  OFF, seed+count, 1-4 s tick, source 'simulation', offline);
+  flag-gated ascent enrichment via geo::simulate_ascent at the launches
+  seam; copy natural_earth states_provinces + us_census_counties into
+  crates/lavender-core/data/ and serve admin-1/-2 from regions with
+  Natural Earth/US Census attribution; regenerate contracts; fmt +
+  clippy -D warnings + workspace tests + check-contracts green. Same
+  cull.
 - **LB-130 Zig kernels + WASM provenance** (wrappers + script done): the Zig
   kernels already exported point-in-polygon (batch/multi-polygon/wrapped) and
   heatmap binning; `wasmHeatmap.ts` adds the TS wrapper with a pure-TS

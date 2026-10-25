@@ -401,3 +401,16 @@ then run `check.sh` and e2e. The lanes' documentation notes are collected in
 - Environment note: background agents only survive while the main session is
   idle — the account's model concurrency rejects extra streams during active
   orchestrator turns. Sequential main-session execution is the reliable mode.
+
+## 2026-10-24 (close) — LB-130 wrapper shipped; agent fleet blocked by provider cap
+
+- Heatmap WASM wrapper + TS fallback and the pinned-toolchain rebuild
+  script committed and pushed (`5607bb52`); web suite 795/795 (104 files).
+- Repeated agent launches (5 across the afternoon, correct briefs,
+  non-overlapping scopes) were all culled by the account's model
+  concurrency cap / "Start Plan is busy" throttle — including while the
+  main session was fully idle. Two ready-to-run briefs (LB-150 timeline
+  replay, LB-151 sim hub wiring + divisions) are recorded in kanban.md.
+- Everything of value is committed and pushed to
+  github.com/alexcircuits/lavender (branch improvement/human-first-
+  engineering, through 5607bb52).
