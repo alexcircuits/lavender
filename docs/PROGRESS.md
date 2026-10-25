@@ -478,3 +478,12 @@ then run `check.sh` and e2e. The lanes' documentation notes are collected in
   launchesIsland focus — pre-existing 5 s timeouts on a busy machine.
 - Demo server restarted on the new build: http://127.0.0.1:7410 with
   simulation + fixtures; /api/v1/divisions/{at,search} live.
+
+## 2026-10-25 (night) — geofence alerting engine merged
+
+- Reviewed and merged gemini/geofence-alerts (299c6155): core/src/alerting
+  {engine,geometry,state}, default-off AlertingConfig with rule/inbox caps,
+  hub snapshot hook, /api/v1/alerts/{rules,inbox} routes, sources entry;
+  571 lines of core + route tests. This completes the full loop with the
+  web Alerts panel shipped in 95229e41: drawn geofences -> monitored rules
+  -> alert inbox. Demo server restarted on the merged build.
