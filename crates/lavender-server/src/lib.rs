@@ -201,6 +201,9 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/alerts/rules", post(routes::create_alert_rule).get(routes::list_alert_rules))
         .route("/alerts/rules/{id}", delete(routes::delete_alert_rule).get(routes::get_alert_rule))
         .route("/alerts/inbox", get(routes::alerts_inbox))
+        .route("/gnss/cells", get(routes::gnss_cells))
+        .route("/gnss/provenance", get(routes::gnss_provenance))
+        .route("/gnss/ingest", post(routes::gnss_ingest))
         .route("/stream", get(ws::stream))
         .fallback(routes::api_not_found)
         .layer(middleware::from_fn(security::require_same_origin))
@@ -261,6 +264,9 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         )
         .route("/api/alerts/inbox", get(routes::alerts_inbox))
         .route("/api/search/spatial", post(routes::spatial_search))
+        .route("/api/gnss-integrity", get(routes::legacy_gnss_integrity))
+        .route("/api/gnss/cells", get(routes::gnss_cells))
+        .route("/api/gnss/provenance", get(routes::gnss_provenance))
         .nest(
             "/api/tomtom",
             Router::new()

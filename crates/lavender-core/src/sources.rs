@@ -59,6 +59,10 @@ pub const OSM_INFRASTRUCTURE: &str = "osm-infrastructure";
 pub const OSM_MILITARY: &str = "osm-military";
 pub const NASA_CMR: &str = "nasa-cmr";
 pub const NATURAL_EARTH_DIVISIONS: &str = "natural-earth-divisions";
+pub const GNSS_INTEGRITY: &str = "gnss-integrity";
+
+/// Attribution for GNSS navigation integrity analysis.
+pub const GNSS_INTEGRITY_ATTRIBUTION: &str = "GNSS integrity analysis: derived from aircraft ADS-B navigation accuracy indicators (ODbL 1.0); anomaly classification based on 14 CFR 91.227 and gpsjam.org methodology.";
 
 /// A source plus what it needs to run.
 #[derive(Debug, Clone)]
@@ -598,6 +602,17 @@ pub fn all() -> Vec<SourceDef> {
             CommercialUse::Allowed,
             Some(
                 "Admin-1 divisions and polygons bundled offline for drill-down and territorial analysis.",
+            ),
+        ),
+        source(
+            GNSS_INTEGRITY,
+            "GNSS Navigation Integrity & Interference Detection",
+            "https://gpsjam.org/",
+            GNSS_INTEGRITY_ATTRIBUTION,
+            ("Open Database License 1.0", "https://opendatacommons.org/licenses/odbl/1-0/"),
+            CommercialUse::Allowed,
+            Some(
+                "Anomaly classification derived from ADS-B aircraft reported NIC and NACp values binned into 0.5-degree cells.",
             ),
         ),
     ]
