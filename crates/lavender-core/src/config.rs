@@ -31,6 +31,7 @@ pub struct CoreConfig {
     pub transit: TransitConfig,
     pub terrain: TerrainConfig,
     pub traffic: TrafficConfig,
+    pub alerting: AlertingConfig,
 }
 
 impl Default for CoreConfig {
@@ -47,6 +48,7 @@ impl Default for CoreConfig {
             transit: TransitConfig::default(),
             terrain: TerrainConfig::default(),
             traffic: TrafficConfig::default(),
+            alerting: AlertingConfig::default(),
         }
     }
 }
@@ -428,6 +430,26 @@ impl TrafficConfig {
             errors.push("traffic.max_disk_bytes must be greater than 0".to_string());
         }
         errors
+    }
+}
+
+/// Configuration for the geofence alerting rule engine.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct AlertingConfig {
+    /// Whether geofence alerting is active (default false).
+    pub enabled: bool,
+    /// Maximum number of active rules.
+    pub max_rules: usize,
+    /// Maximum number of alert events retained in the inbox buffer.
+    pub inbox_capacity: usize,
+    /// Maximum number of entity containment states tracked in memory.
+    pub state_capacity: usize,
+}
+
+impl Default for AlertingConfig {
+    fn default() -> Self {
+        Self { enabled: false, max_rules: 100, inbox_capacity: 500, state_capacity: 10_000 }
     }
 }
 
@@ -1114,6 +1136,15 @@ impl CoreConfig {
         }
         if self.hub.max_slots == 0 || self.hub.max_items == 0 {
             errors.push("hub: max_slots and max_items must be positive".to_owned());
+        }
+        if self.alerting.max_rules == 0
+            || self.alerting.inbox_capacity == 0
+            || self.alerting.state_capacity == 0
+        {
+            errors.push(
+                "alerting: max_rules, inbox_capacity and state_capacity must be positive"
+                    .to_owned(),
+            );
         }
         if errors.is_empty() { Ok(()) } else { Err(errors) }
     }

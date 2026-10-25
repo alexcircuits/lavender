@@ -551,10 +551,7 @@ pub fn all() -> Vec<SourceDef> {
             "NOAA nowCOAST (Weather Radar & Hazards)",
             "https://nowcoast.noaa.gov/",
             "Weather radar & imagery: NOAA/NWS nowCOAST (public domain)",
-            (
-                "Public domain (U.S. Government work)",
-                "https://www.weather.gov/disclaimer",
-            ),
+            ("Public domain (U.S. Government work)", "https://www.weather.gov/disclaimer"),
             CommercialUse::Allowed,
             Some("NOAA nowCOAST WMS weather radar tiles. Public domain; no endorsement implied."),
         ),
@@ -563,24 +560,22 @@ pub fn all() -> Vec<SourceDef> {
             "OpenStreetMap Infrastructure",
             "https://www.openstreetmap.org/",
             "Infrastructure data © OpenStreetMap contributors (ODbL 1.0)",
-            (
-                "Open Database License (ODbL) 1.0",
-                "https://opendatacommons.org/licenses/odbl/1-0/",
-            ),
+            ("Open Database License (ODbL) 1.0", "https://opendatacommons.org/licenses/odbl/1-0/"),
             CommercialUse::Allowed,
-            Some("Global infrastructure facilities including dams and datacenters from OpenStreetMap / Overture Maps."),
+            Some(
+                "Global infrastructure facilities including dams and datacenters from OpenStreetMap / Overture Maps.",
+            ),
         ),
         source(
             OSM_MILITARY,
             "OpenStreetMap Military & Defense Installations",
             "https://www.openstreetmap.org/",
             "Military installation data © OpenStreetMap contributors (ODbL 1.0)",
-            (
-                "Open Database License (ODbL) 1.0",
-                "https://opendatacommons.org/licenses/odbl/1-0/",
-            ),
+            ("Open Database License (ODbL) 1.0", "https://opendatacommons.org/licenses/odbl/1-0/"),
             CommercialUse::Allowed,
-            Some("Curated defensive, airbase, naval base and military facility polygons via Overpass API."),
+            Some(
+                "Curated defensive, airbase, naval base and military facility polygons via Overpass API.",
+            ),
         ),
         source(
             NASA_CMR,
@@ -599,12 +594,11 @@ pub fn all() -> Vec<SourceDef> {
             "Natural Earth Admin-1 States and Provinces",
             "https://www.naturalearthdata.com/",
             crate::providers::divisions::DIVISIONS_ATTRIBUTION,
-            (
-                "Public domain",
-                "https://www.naturalearthdata.com/about/terms-of-use/",
-            ),
+            ("Public domain", "https://www.naturalearthdata.com/about/terms-of-use/"),
             CommercialUse::Allowed,
-            Some("Admin-1 divisions and polygons bundled offline for drill-down and territorial analysis."),
+            Some(
+                "Admin-1 divisions and polygons bundled offline for drill-down and territorial analysis.",
+            ),
         ),
     ]
 }

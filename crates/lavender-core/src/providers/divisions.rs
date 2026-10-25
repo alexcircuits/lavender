@@ -13,8 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::CoreError;
 use crate::providers::regions::point_in_polygon;
 
-const DEFAULT_DIVISIONS_JSON: &str =
-    include_str!("../../data/natural_earth/states_provinces.json");
+const DEFAULT_DIVISIONS_JSON: &str = include_str!("../../data/natural_earth/states_provinces.json");
 
 /// Delta rings store three-decimal degrees as integers.
 const COORD_SCALE: f64 = 1000.0;
@@ -111,18 +110,18 @@ impl DivisionIndex {
             let mut bbox =
                 BBox { west: f64::MAX, south: f64::MAX, east: f64::MIN, north: f64::MIN };
             for part in &feature.polygons {
-              for ring in part {
-                let Some(points) = decode_ring(ring) else {
-                    continue;
-                };
-                for p in &points {
-                    bbox.west = bbox.west.min(p.lon);
-                    bbox.east = bbox.east.max(p.lon);
-                    bbox.south = bbox.south.min(p.lat);
-                    bbox.north = bbox.north.max(p.lat);
+                for ring in part {
+                    let Some(points) = decode_ring(ring) else {
+                        continue;
+                    };
+                    for p in &points {
+                        bbox.west = bbox.west.min(p.lon);
+                        bbox.east = bbox.east.max(p.lon);
+                        bbox.south = bbox.south.min(p.lat);
+                        bbox.north = bbox.north.max(p.lat);
+                    }
+                    polygons.push(points);
                 }
-                polygons.push(points);
-              }
             }
             if polygons.is_empty() {
                 continue;
@@ -179,10 +178,7 @@ impl DivisionIndex {
             .iter()
             .filter(|e| {
                 e.record.name.to_lowercase().contains(&q)
-                    || e.record
-                        .name_en
-                        .as_deref()
-                        .is_some_and(|ne| ne.to_lowercase().contains(&q))
+                    || e.record.name_en.as_deref().is_some_and(|ne| ne.to_lowercase().contains(&q))
                     || e.record.country.to_lowercase().contains(&q)
                     || e.record.iso.as_deref().is_some_and(|iso| iso.to_lowercase().contains(&q))
             })

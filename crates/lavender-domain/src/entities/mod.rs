@@ -2,6 +2,7 @@
 //! frontend renders only these.
 
 mod aircraft;
+mod alert;
 mod ascent;
 mod bikeshare;
 mod boundary;
@@ -19,6 +20,7 @@ mod transit;
 mod vessel;
 
 pub use aircraft::{Aircraft, AircraftRouteEnrichment, AircraftTypeEnrichment, AirportInfo};
+pub use alert::{AlertEvent, AlertKind, Geofence, GeofenceRule};
 pub use ascent::{AscentEvent, AscentEventKind, AscentSample, AscentTrajectory};
 pub use bikeshare::{BikeshareStation, BikeshareSystem};
 pub use boundary::{BoundaryClass, BoundaryFeature, BoundaryResponse};
