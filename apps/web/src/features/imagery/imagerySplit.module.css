@@ -1,0 +1,83 @@
+.dividerContainer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  z-index: var(--z-raised);
+  pointer-events: none;
+  user-select: none;
+}
+
+.dividerLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 2px;
+  background-color: var(--accent);
+  box-shadow: var(--float-shadow);
+}
+
+.handleContainer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.handle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--island);
+  border: 2px solid var(--accent);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: ew-resize;
+  box-shadow: var(--float-shadow-deep);
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease;
+  outline: none;
+}
+
+.handle:hover,
+.handle:focus-visible {
+  transform: scale(1.1);
+  background-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.badgeLeft,
+.badgeRight {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  background-color: var(--island);
+  border: 1px solid var(--hairline);
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+.badgeLeft {
+  right: 28px;
+}
+
+.badgeRight {
+  left: 28px;
+}

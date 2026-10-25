@@ -260,6 +260,16 @@ export class FakePlatform implements LavenderPlatform {
     }),
   );
 
+  mapillarySearch = vi.fn(
+    async (
+      _bbox: BBox,
+      _limit?: number,
+      _options?: CallOptions,
+    ): Promise<import('../platform/types').MapillarySearchResponse> => ({
+      data: [],
+    }),
+  );
+
   boundaries = vi.fn(
     async (
       _bbox: BBox,
@@ -519,6 +529,14 @@ export function fakeGlobe(): FakeGlobe {
       return () => void cursors.delete(l);
     },
     captureFrame: vi.fn(async () => null),
+    setRecentImageryBox: vi.fn(),
+    setRecentImagerySlot: vi.fn(),
+    setRecentImageryMode: vi.fn(),
+    setRecentImageryOpacity: vi.fn(),
+    setRecentImagerySplitPosition: vi.fn(),
+    startImageryBoxDrawing: vi.fn(),
+    cancelImageryBoxDrawing: vi.fn(),
+    isImageryBoxDrawing: vi.fn(() => false),
     destroy: vi.fn(),
   } satisfies GlobeController;
   return {

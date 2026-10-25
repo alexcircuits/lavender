@@ -156,6 +156,12 @@ export interface LavenderPlatform {
   ): Promise<ThumbnailProbeResponse>;
   /** Whether Mapillary credentials are configured on the backend. */
   mapillaryStatus(options?: CallOptions): Promise<{ configured: boolean }>;
+  /** Searches Mapillary street-level photos within a bounding box. */
+  mapillarySearch?(
+    bbox: BBox,
+    limit?: number,
+    options?: CallOptions,
+  ): Promise<MapillarySearchResponse>;
   /** Queries administrative and territorial boundary features. */
   boundaries(
     bbox: BBox,
@@ -248,6 +254,20 @@ export function toApiError(error: unknown): ApiError {
     message: 'Lavender could not reach its backend. Check the connection and try again.',
     retryable: true,
   };
+}
+
+export interface MapillaryPhotoItem {
+  readonly id: string;
+  readonly captured_at?: number;
+  readonly thumb_256_url?: string;
+  readonly thumb_1024_url?: string;
+  readonly thumb_2048_url?: string;
+  readonly compass_angle?: number;
+  readonly sequence?: string;
+}
+
+export interface MapillarySearchResponse {
+  readonly data: readonly MapillaryPhotoItem[];
 }
 
 export function isApiError(value: unknown): value is ApiError {

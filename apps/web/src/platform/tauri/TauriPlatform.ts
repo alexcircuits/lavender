@@ -156,6 +156,14 @@ export class TauriPlatform implements LavenderPlatform {
     return this.#call('mapillary_status', {}, options);
   }
 
+  mapillarySearch(
+    bbox: BBox,
+    limit = 20,
+    options?: CallOptions,
+  ): Promise<import('../types').MapillarySearchResponse> {
+    return this.#call('mapillary_search', { bbox, limit }, options);
+  }
+
   boundaries(
     bbox: BBox,
     options?: {

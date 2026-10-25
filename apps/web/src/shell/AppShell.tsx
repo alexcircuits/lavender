@@ -6,6 +6,7 @@ import {
   useCommandContext,
   useGlobalShortcuts,
 } from '../features/commands';
+import { ImagerySplitDivider } from '../features/imagery';
 import { Inspector } from '../features/inspector';
 import { LayerAnnouncer, useBoundariesLayer } from '../features/layers';
 import { CommandPalette, SearchBar } from '../features/search';
@@ -65,6 +66,7 @@ export function AppShell({ mountGlobe }: AppShellProps) {
             </p>
           ) : null}
         </main>
+        <ImagerySplitDivider />
         <div className={styles.overlay}>
           <div ref={leftRef} className={styles.left} hidden={collapsed === 'side'}>
             <IslandBoundary

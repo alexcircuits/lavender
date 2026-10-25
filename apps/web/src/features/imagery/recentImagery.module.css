@@ -1,0 +1,289 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.boxControls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.boxInfo {
+  background-color: var(--well);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.boxCoords {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--accent-ink);
+  margin: 0;
+}
+
+.daysSelector {
+  display: flex;
+  gap: 4px;
+}
+
+.dayPill {
+  flex: 1;
+  padding: 4px 8px;
+  background-color: var(--well);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.dayPill:hover {
+  background-color: var(--island-hover);
+  color: var(--ink);
+}
+
+.dayPillActive {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.modeSelector {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  background-color: var(--well);
+  padding: 2px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--hairline);
+}
+
+.modeButton {
+  padding: 6px 4px;
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.modeButton:hover {
+  color: var(--ink);
+}
+
+.modeButtonActive {
+  background-color: var(--island-hover);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: var(--float-shadow);
+}
+
+.sliderRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sliderHeader {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.startHereBanner {
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-ink);
+  border-radius: var(--r-sm);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.startHereHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+
+.candidatesList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.candidateCard {
+  background-color: var(--island);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s ease;
+}
+
+.candidateCardSelectedA {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.candidateCardSelectedB {
+  border-color: var(--accent-ink);
+  box-shadow: 0 0 0 1px var(--accent-ink);
+}
+
+.candidateRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.candidateInfo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.productTag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: var(--r-sm);
+  letter-spacing: 0.05em;
+}
+
+.productS30 {
+  background-color: var(--accent-subtle);
+  color: var(--accent-ink);
+  border: 1px solid var(--accent);
+}
+
+.productL30 {
+  background-color: var(--well);
+  color: var(--good);
+  border: 1px solid var(--good);
+}
+
+.productVIIRS {
+  background-color: var(--well);
+  color: var(--warning);
+  border: 1px solid var(--warning);
+}
+
+.candidateDay {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.candidateCloud {
+  font-size: 11px;
+}
+
+.cloudLow {
+  color: var(--good);
+}
+
+.cloudMid {
+  color: var(--warning);
+}
+
+.cloudHigh {
+  color: var(--ink-3);
+}
+
+.slotButtons {
+  display: flex;
+  gap: 4px;
+}
+
+.slotButton {
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--hairline);
+  background-color: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.slotButton:hover {
+  background-color: var(--island-hover);
+  color: var(--ink);
+}
+
+.slotButtonActiveA {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.slotButtonActiveB {
+  background-color: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--on-accent);
+}
+
+.attributionCard {
+  background-color: var(--well);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding: 8px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--ink-3);
+}

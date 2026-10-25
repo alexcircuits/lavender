@@ -34,6 +34,31 @@ See [the migration status](../development/rust-rewrite.md) and
 [verification records](../PROGRESS.md) for scope and tests; this does not sign off
 all upstream parity or commercial source terms.
 
+### Implemented slices checked 2026-10-25 (Wave B & Admin-1 Divisions)
+
+Wave B layer integration and Admin-1 territorial divisions (LB-152, ENG-991) are
+fully implemented and verified across backend routes, web components, and polyglot WASM micro-kernels:
+- **Submarine cables (`F-048`)**: TeleGeography license gating (`commercial = NonCommercialOnly`),
+  route waypoints, basin bounding box, `CableCard.tsx`, and `tests/cable_routes.rs`.
+- **Military installations (`F-049`)**: Overpass upstream + OpenFreeMap MVT decoders, `MilitaryInstallationCard.tsx`,
+  defense survey notice, and `tests/overpass_routes.rs`.
+- **Public CCTV cameras (`F-056`)**: Sensitive layer off by default, privacy banner notice,
+  `CctvCard.tsx` with Mojo MLIR vision perception streaming (`services/lavender-vision/perception.mojo`),
+  frame fallback, and `tests/cctv_routes.rs`.
+- **Street-level photos (`F-062`)**: Mapillary tile & Graph proxy, `StreetLevelViewerHost.tsx` with telemetry
+  compass/heading and CC BY-SA 4.0 attribution, and `StreetLevelViewerHost.test.tsx`.
+- **Recent satellite imagery (`F-063`)**: CMR HLS search with day grouping and rankLatest banner, NASA GIBS
+  EPSG:3857 tile layers (`S30`, `L30`, `VIIRS`), `RecentImageryPanel.tsx`, and `recentImagery.ts` renderer.
+- **Imagery A/B comparison (`F-064`)**: Cesium `splitPosition` and `SplitDirection` integration with
+  `ImagerySplitDivider.tsx` accessible draggable slider handle and keyboard navigation (`ArrowLeft`, `ArrowRight`, `Home`, `End`).
+- **Road traffic flow (`F-068`)**: Compact MVT decoding, TomTom flow tiles, persisted daily budget, and `tests/traffic_routes.rs`.
+- **Transit live vehicles (`F-069`) & trails (`F-070`)**: GTFS-RT feed polling, `TransitCard.tsx` with historical
+  trail rendering decimated via freestanding Zig WASM RDP micro-kernel (`simplifyRdpWasm`), and `tests/transit_routes.rs`.
+- **Bikeshare docks (`F-071`)**: GBFS station discovery with TTL, live docks/bikes inspection, and `BikeshareCard.tsx`.
+- **Directions routing (`F-072`)**: OSRM profile routing, `DirectionsPanel.tsx` with Origin/Destination pickers,
+  turn-by-turn maneuvers, `DirectionsRenderer` with Zig WASM RDP decimation, and `tests/routing_routes.rs`.
+
+
 - **One row per feature.** IDs (`F-001`…) are stable. Tasks, tests and the migration plan refer to them. The Dependencies column names other F-ids that must land first or alongside.
 - **Paths** are relative to `products/lavender/`. `legacy/...` is GEV as vendored. `:n` line references come from the audits.
 - **Notation:**

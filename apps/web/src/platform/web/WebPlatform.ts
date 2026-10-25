@@ -242,6 +242,21 @@ export class WebPlatform implements LavenderPlatform {
     return this.#get('/mapillary/status', options);
   }
 
+  mapillarySearch(
+    bbox: BBox,
+    limit = 20,
+    options?: CallOptions,
+  ): Promise<import('../types').MapillarySearchResponse> {
+    const qs = new URLSearchParams({
+      west: String(bbox.west),
+      south: String(bbox.south),
+      east: String(bbox.east),
+      north: String(bbox.north),
+      limit: String(limit),
+    });
+    return this.#get(`/mapillary/search?${qs.toString()}`, options);
+  }
+
   boundaries(
     bbox: BBox,
     options?: {

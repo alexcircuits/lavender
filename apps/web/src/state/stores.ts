@@ -266,6 +266,8 @@ export type SidePanel =
   | 'missions'
   | 'launches'
   | 'directions'
+  | 'imagery'
+  | 'replay'
   | 'settings';
 
 export interface UiState {

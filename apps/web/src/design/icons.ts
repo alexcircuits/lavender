@@ -16,6 +16,7 @@ export { CheckIcon } from '@phosphor-icons/react/dist/csr/Check';
 export { CheckCircleIcon } from '@phosphor-icons/react/dist/csr/CheckCircle';
 export { CircleIcon } from '@phosphor-icons/react/dist/csr/Circle';
 export { CircleHalfIcon } from '@phosphor-icons/react/dist/csr/CircleHalf';
+export { ClockCounterClockwiseIcon } from '@phosphor-icons/react/dist/csr/ClockCounterClockwise';
 export { CompassIcon } from '@phosphor-icons/react/dist/csr/Compass';
 export { CopyIcon } from '@phosphor-icons/react/dist/csr/Copy';
 export { CrosshairIcon } from '@phosphor-icons/react/dist/csr/Crosshair';
@@ -35,6 +36,7 @@ export { NavigationArrowIcon } from '@phosphor-icons/react/dist/csr/NavigationAr
 export { PathIcon } from '@phosphor-icons/react/dist/csr/Path';
 export { PauseIcon } from '@phosphor-icons/react/dist/csr/Pause';
 export { PlanetIcon } from '@phosphor-icons/react/dist/csr/Planet';
+export { PlayIcon } from '@phosphor-icons/react/dist/csr/Play';
 export { PlusIcon } from '@phosphor-icons/react/dist/csr/Plus';
 export { QuestionIcon } from '@phosphor-icons/react/dist/csr/Question';
 export { RocketLaunchIcon } from '@phosphor-icons/react/dist/csr/RocketLaunch';

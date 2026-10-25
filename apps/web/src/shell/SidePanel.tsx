@@ -2,9 +2,11 @@ import { Button, ErrorState, Panel, Skeleton } from '../design';
 import { AnnotationsPanel } from '../features/annotations/AnnotationsPanel';
 import { DirectionsPanel } from '../features/directions';
 import { GeofencesPanel } from '../features/geofences/GeofencesPanel';
+import { RecentImageryPanel } from '../features/imagery';
 import { LaunchesPanel } from '../features/launches';
 import { LayerExplorer } from '../features/layers';
 import { MissionsPanel } from '../features/missions/MissionsPanel';
+import { ReplayPanel } from '../features/replay';
 import { SettingsPanel } from '../features/settings';
 import { SourcesPanel } from '../features/sources';
 import { useRuntime, useSystem, useUi } from '../runtime';
@@ -43,8 +45,10 @@ export function SidePanel({ className }: SidePanelProps) {
   if (!panel) return null;
   if (panel === 'annotations') return <AnnotationsPanel className={className} />;
   if (panel === 'directions') return <DirectionsPanel className={className} />;
+  if (panel === 'imagery') return <RecentImageryPanel className={className} />;
   if (panel === 'geofences') return <GeofencesPanel className={className} />;
   if (panel === 'missions') return <MissionsPanel className={className} />;
+  if (panel === 'replay') return <ReplayPanel className={className} />;
   if (panel === 'settings') return <SettingsPanel className={className} />;
   const title =
     panel === 'layers' ? 'Layers' : panel === 'launches' ? 'Rocket launches' : 'Sources';

@@ -117,6 +117,29 @@ export interface GlobeController {
   setBoundaryClassVisibility(visibility: Partial<BoundaryClassVisibility>): void;
   /** Returns the current visibility per boundary class. */
   getBoundaryClassVisibility(): BoundaryClassVisibility;
+  /** Sets bounding box on globe for recent satellite imagery. */
+  setRecentImageryBox(box: BBox | null): void;
+  /** Sets slot configuration for recent imagery slot A or B. */
+  setRecentImagerySlot(
+    slot: 'a' | 'b',
+    config: {
+      candidate: import('../platform/recentImageryTypes').ImageryCandidate;
+      box: BBox;
+      tileTemplate?: string | undefined;
+    } | null,
+  ): void;
+  /** Sets recent imagery comparison mode. */
+  setRecentImageryMode(mode: 'image' | 'basemap' | 'ab'): void;
+  /** Sets opacity (0..1) for recent satellite imagery. */
+  setRecentImageryOpacity(opacity: number): void;
+  /** Sets split position (0..1) for imagery comparison. */
+  setRecentImagerySplitPosition(position: number): void;
+  /** Starts interactive box drawing on globe. */
+  startImageryBoxDrawing(onBox: (bbox: BBox) => void, onCancel?: () => void): void;
+  /** Cancels any active imagery box drawing. */
+  cancelImageryBoxDrawing(): void;
+  /** Whether the imagery box drawing tool is active. */
+  isImageryBoxDrawing(): boolean;
   /** Centroid location and symbol size for framing a selected boundary. */
   locateBoundary(id: string): Located | undefined;
   /** Retrieves a boundary feature by id, if currently loaded. */

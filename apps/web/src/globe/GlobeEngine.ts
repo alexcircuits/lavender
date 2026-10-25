@@ -25,6 +25,7 @@ import {
 } from '@cesium/engine';
 import type {
   AircraftTrack,
+  BBox,
   BoundaryFeature,
   CameraSource,
   CctvDetectionsResponse,
@@ -70,6 +71,11 @@ import { EarthquakeRenderer } from './renderers/earthquakes';
 import { FireRenderer } from './renderers/fires';
 import { LaunchPadRenderer } from './renderers/launches';
 import { PerimeterRenderer } from './renderers/perimeters';
+import {
+  type ImagerySlotConfig,
+  RecentImageryRenderer,
+  type SplitMode,
+} from './renderers/recentImagery';
 import { SatelliteRenderer } from './renderers/satellites';
 import { SelectionHalo } from './renderers/selection';
 import { aircraftAltitudeM, hasValidPosition } from './renderers/symbology';
@@ -103,6 +109,7 @@ interface Mounted {
   readonly cables: CableRenderer;
   readonly cctv: CctvRenderer;
   readonly directions: DirectionsRenderer;
+  readonly recentImagery: RecentImageryRenderer;
   readonly tracking: EntityTrackingService;
   readonly annotations: AnnotationRenderer;
   readonly halo: SelectionHalo;
@@ -208,6 +215,7 @@ export class GlobeEngine implements GlobeController {
     const cables = new CableRenderer(cablePolylines, cablePoints, ctx);
     const cctv = new CctvRenderer(primitives, ctx);
     const directions = new DirectionsRenderer(primitives, ctx);
+    const recentImagery = new RecentImageryRenderer(scene.imageryLayers, primitives, scene, ctx);
     const renderers = new Map<FeedId, FeedRenderer>([
       ['earthquakes', new EarthquakeRenderer(primitives, ctx)],
       ['cyclones', new CycloneRenderer(primitives, ctx)],
@@ -237,6 +245,7 @@ export class GlobeEngine implements GlobeController {
     cleanup.push(() => cables.destroy());
     cleanup.push(() => cctv.destroy());
     cleanup.push(() => directions.destroy());
+    cleanup.push(() => recentImagery.destroy());
     if (scene.preUpdate?.addEventListener) {
       cleanup.push(
         scene.preUpdate.addEventListener(() => {
@@ -301,6 +310,7 @@ export class GlobeEngine implements GlobeController {
       cables,
       cctv,
       directions,
+      recentImagery,
       tracking,
       annotations: new AnnotationRenderer(primitives, ctx, scene),
       halo: new SelectionHalo(primitives, colors),
@@ -463,6 +473,38 @@ export class GlobeEngine implements GlobeController {
 
   getRoute(): Route | null {
     return this.#mounted?.directions.getRoute() ?? null;
+  }
+
+  setRecentImageryBox(box: BBox | null): void {
+    this.#mounted?.recentImagery.setBox(box);
+  }
+
+  setRecentImagerySlot(slot: 'a' | 'b', config: ImagerySlotConfig | null): void {
+    this.#mounted?.recentImagery.setSlot(slot, config);
+  }
+
+  setRecentImageryMode(mode: SplitMode): void {
+    this.#mounted?.recentImagery.setMode(mode);
+  }
+
+  setRecentImageryOpacity(opacity: number): void {
+    this.#mounted?.recentImagery.setOpacity(opacity);
+  }
+
+  setRecentImagerySplitPosition(position: number): void {
+    this.#mounted?.recentImagery.setSplitPosition(position);
+  }
+
+  startImageryBoxDrawing(onBox: (bbox: BBox) => void, onCancel?: () => void): void {
+    this.#mounted?.recentImagery.startBoxDrawing(onBox, onCancel);
+  }
+
+  cancelImageryBoxDrawing(): void {
+    this.#mounted?.recentImagery.cancelBoxDrawing();
+  }
+
+  isImageryBoxDrawing(): boolean {
+    return this.#mounted?.recentImagery.isDrawing() ?? false;
   }
 
   startFollowing(target: EntityRef): void {

@@ -428,3 +428,36 @@ then run `check.sh` and e2e. The lanes' documentation notes are collected in
   session. Ready-to-run briefs for the next slices (LB-150 timeline
   replay, LB-152 admin-1 divisions, LB-109 provider audit) live in
   kanban.md.
+
+## 2026-10-25 — Wave B Layer Integration (ENG-991), Admin-1 Divisions (LB-152) & Timeline Replay (LB-150)
+
+- **Wave B Layer Integration & Parity Sign-off (`ENG-991` Done)**:
+  - Recent Satellite Imagery (`ENG-968` / `F-063`): `RecentImageryPanel.tsx` and `recentImagery.ts`
+    Cesium renderer integrating NASA GIBS EPSG:3857 tile layers (`S30`, `L30`, `VIIRS`), day grouping,
+    cloud cover rankings, interactive bounding-box drawing session on globe with camera suppression,
+    and NASA EOSDIS attribution.
+  - Imagery A/B Comparison (`F-064`): GPU-clipped comparisons using Cesium `scene.splitPosition` and
+    `layer.splitDirection` via accessible draggable `ImagerySplitDivider.tsx` with ARIA keyboard controls.
+  - Street-Level Photos (`ENG-965` / `F-062`): `StreetLevelViewerHost.tsx` container checking
+    Mapillary credentials, telemetry compass/heading readout, capture date, thumbnail carousel,
+    and CC BY-SA 4.0 credit.
+  - Travel Directions & Turn-by-Turn Routing (`ENG-963` / `F-072`): `DirectionsPanel.tsx` and `DirectionsRenderer`
+    with freestanding Zig WASM RDP decimation (`simplifyRdpWasm`), travel modes (`car`, `bike`, `foot`),
+    maneuver step navigation, and camera focus.
+  - Wave B Inspector Cards: CCTV with Mojo MLIR vision perception streaming (`CctvCard.tsx`), TeleGeography
+    submarine cables (`CableCard.tsx`), GTFS-RT public transit with Zig WASM RDP trails (`TransitCard.tsx`),
+    GBFS bikeshare docks (`BikeshareCard.tsx`), and defense installations (`MilitaryInstallationCard.tsx`).
+  - Feature parity matrix (`docs/audit/feature-parity-matrix.md`) updated with verified status for
+    rows F-048, F-049, F-056, F-062, F-063, F-064, F-068, F-069, F-070, F-071, F-072.
+  - Flokzy task `ENG-991` completed and closed with full verification evidence.
+- **LB-150 Timeline Replay (web)**:
+  - Built `features/replay` (`ReplayPanel.tsx`, `interpolate.ts`, `replay.module.css`, `types.ts`, `index.ts`).
+  - Integrated `'replay'` panel into `SidePanel` union, `SidePanel.tsx`, and `NavRail.tsx` with `ClockCounterClockwiseIcon`.
+  - Replays historical trajectory for active aircraft (`platform.aircraftTrack`) and vessels (`platform.vesselTrack`).
+  - Interactive timeline scrubber with UTC time readout, span formatting, and kinematics telemetry (lat, lon, altitude, heading).
+  - Transport controls (Play/Pause, 1×/2×/4× speeds, Start/End seek shortcuts).
+  - Camera follow via `globe.flyTo` at 500 ms throttled interval.
+  - Mirrored globe track trail rendering (`globe.showAircraftTrack` / `globe.showVesselTrack`).
+  - Comprehensive unit and integration test coverage (`interpolate.test.ts`, `ReplayPanel.test.tsx`),
+    strict design system token compliance (`architecture.test.ts` 11/11 passing).
+

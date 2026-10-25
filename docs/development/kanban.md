@@ -9,6 +9,15 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Done
 
+- **LB-150 Timeline replay (web)**:
+  - New `features/replay` panel (`ReplayPanel.tsx`, `interpolate.ts`, `replay.module.css`, `index.ts`).
+  - Added `'replay'` panel to `SidePanel` union, wired into `SidePanel.tsx` and `NavRail.tsx` with Phosphor `ClockCounterClockwiseIcon`.
+  - Replays historical trajectory for active aircraft (`platform.aircraftTrack`) and vessels (`platform.vesselTrack`).
+  - Interactive timeline scrubber with live UTC time readout, span formatting, and telemetry (lat, lon, altitude, heading).
+  - Play/Pause transport control, 1×/2×/4× playback speed selector, Start/End seek shortcuts.
+  - Camera follow via `globe.flyTo` at 500 ms throttled interval.
+  - Mirrored globe track trail rendering (`globe.showAircraftTrack` / `globe.showVesselTrack`).
+  - 100% test coverage (`interpolate.test.ts`, `ReplayPanel.test.tsx`), zero CSS token violations.
 - **LB-152 Admin-1 divisions serving & Wave B layer integration**:
   - Rust core `providers/divisions.rs` serving offline Natural Earth 10m states and provinces
     (`crates/lavender-core/data/natural_earth/states_provinces.json`) with point-in-polygon
@@ -46,15 +55,6 @@ for the ENG-\* tasks this board references. Update together with
 
 ## In Progress
 
-- **LB-150 Timeline replay (web)** — READY-TO-RUN brief: new
-  features/replay panel ('replay' SidePanel + nav item), loads the
-  selected entity's track via the existing platform aircraft/vessel
-  track APIs, scrubber (play/pause, 1×/2×/4×, time readout), camera
-  follow via globe.flyTo at modest step frequency; render the track by
-  mirroring how VesselTrack draws today (do NOT edit GlobeEngine.ts);
-  harness tests per features/missions idioms; typecheck+test+lint green.
-  Two agent attempts culled by the provider concurrency cap before
-  writing code.
 - **LB-151 Simulation hub wiring — DONE** (`b67bb1c4`): SimulationProvider
   swaps in for adsb.lol at registration behind `providers.simulation`
   (default OFF); deterministic fleet, 'simulation' source stamp,

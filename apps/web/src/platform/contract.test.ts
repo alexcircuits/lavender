@@ -288,6 +288,10 @@ function webAdapter(backend: FakeBackend): LavenderPlatform {
       );
     if (url.includes('/api/v1/mapillary/status'))
       return new Response(JSON.stringify({ configured: true }), { status: 200 });
+    if (url.includes('/api/v1/mapillary/search'))
+      return new Response(JSON.stringify({ data: [{ id: 'img-123', captured_at: 1690000000 }] }), {
+        status: 200,
+      });
     if (url.includes('/api/v1/route'))
       return new Response(
         JSON.stringify({
@@ -421,6 +425,8 @@ function desktopAdapter(backend: FakeBackend): LavenderPlatform {
         } as T;
       case 'mapillary_status':
         return { configured: true } as T;
+      case 'mapillary_search':
+        return { data: [{ id: 'img-123', captured_at: 1690000000 }] } as T;
       case 'calculate_route':
         return {
           ok: true,
@@ -552,6 +558,9 @@ describe.each([
   it('reports Mapillary credentials status through either adapter', async () => {
     const platform = make(new FakeBackend());
     await expect(platform.mapillaryStatus()).resolves.toEqual({ configured: true });
+    await expect(
+      platform.mapillarySearch?.({ west: 0, south: 0, east: 1, north: 1 }),
+    ).resolves.toEqual({ data: [{ id: 'img-123', captured_at: 1690000000 }] });
   });
 
   it('calculates travel routes and queries divisions and military sites through either adapter', async () => {

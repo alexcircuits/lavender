@@ -1,0 +1,126 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  background-color: var(--island);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  color: var(--ink);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.viewerFrame {
+  position: relative;
+  width: 100%;
+  height: 240px;
+  background-color: var(--ground);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photoOverlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: var(--s-2);
+  background: linear-gradient(transparent, var(--ground));
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 11px;
+}
+
+.telemetry {
+  display: flex;
+  gap: var(--s-2);
+  font-family: var(--font-mono);
+  color: var(--ink);
+}
+
+.telemetryItem {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.thumbsList {
+  display: flex;
+  gap: var(--s-1_5);
+  overflow-x: auto;
+  padding-bottom: var(--s-1);
+}
+
+.thumbButton {
+  flex: 0 0 64px;
+  height: 48px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--hairline);
+  overflow: hidden;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) ease,
+    transform var(--motion-fast) ease;
+}
+
+.thumbButton:hover {
+  border-color: var(--accent);
+  transform: scale(1.04);
+}
+
+.thumbButtonSelected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.thumbImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attribution {
+  font-size: 10px;
+  color: var(--ink-3);
+  line-height: 1.4;
+}
+
+.attribution a {
+  color: var(--ink-2);
+  text-decoration: underline;
+}
+
+.unconfiguredNotice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}

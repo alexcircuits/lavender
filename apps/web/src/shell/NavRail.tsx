@@ -1,6 +1,8 @@
 import { BookOpenIcon } from '@phosphor-icons/react/dist/csr/BookOpen';
 import { PencilSimpleIcon } from '@phosphor-icons/react/dist/csr/PencilSimple';
 import {
+  CircleHalfIcon,
+  ClockCounterClockwiseIcon,
   cx,
   GearSixIcon,
   type Icon,
@@ -24,6 +26,8 @@ const ITEMS: ReadonlyArray<{
 }> = [
   { panel: 'layers', label: 'Layers', icon: StackIcon },
   { panel: 'directions', label: 'Directions', icon: NavigationArrowIcon },
+  { panel: 'imagery', label: 'Recent imagery', icon: CircleHalfIcon },
+  { panel: 'replay', label: 'Timeline replay', icon: ClockCounterClockwiseIcon },
   { panel: 'sources', label: 'Sources', icon: InfoIcon },
   { panel: 'annotations', label: 'Annotations', icon: PencilSimpleIcon },
   { panel: 'geofences', label: 'Geofences', icon: PathIcon },
