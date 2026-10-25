@@ -17,6 +17,7 @@ import type {
   GeoPoint,
   ImageryDescriptor,
   LayerDescriptor,
+  Route,
   SatellitePasses,
   SatellitePassRequest,
   SatelliteTrack,
@@ -37,8 +38,10 @@ import type {
 } from '../globe';
 import type {
   CallOptions,
+  DivisionRecordItem,
   FeedEvent,
   LavenderPlatform,
+  MilitaryInstallationItem,
   PreferenceStore,
   RecentImageryResponse,
   SecretStatusResponse,
@@ -307,6 +310,72 @@ export class FakePlatform implements LavenderPlatform {
     ): Promise<SubmarineCableItem[]> => [],
   );
 
+  calculateRoute = vi.fn(
+    async (
+      profile: 'car' | 'bike' | 'foot',
+      _coords: string,
+      withSteps = true,
+      _options?: CallOptions,
+    ): Promise<Route> => ({
+      ok: true,
+      profile,
+      distanceM: 1000,
+      durationS: 600,
+      geometry: [
+        [13.4, 52.5],
+        [13.41, 52.51],
+      ],
+      ...(withSteps
+        ? {
+            steps: [
+              {
+                index: 0,
+                type: 'depart',
+                name: 'Start',
+                distanceM: 500,
+                durationS: 300,
+                lon: 13.4,
+                lat: 52.5,
+                instruction: 'Depart north',
+              },
+              {
+                index: 1,
+                type: 'arrive',
+                name: 'End',
+                distanceM: 500,
+                durationS: 300,
+                lon: 13.41,
+                lat: 52.51,
+                instruction: 'Arrive at destination',
+              },
+            ],
+          }
+        : {}),
+    }),
+  );
+
+  divisionsAt = vi.fn(
+    async (
+      _lon: number,
+      _lat: number,
+      _options?: CallOptions,
+    ): Promise<readonly DivisionRecordItem[]> => [],
+  );
+
+  divisionsSearch = vi.fn(
+    async (_query: string, _options?: CallOptions): Promise<readonly DivisionRecordItem[]> => [],
+  );
+
+  militaryInstallations = vi.fn(
+    async (
+      _bbox: BBox,
+      _limit?: number,
+      _options?: CallOptions,
+    ): Promise<{ readonly elements: readonly MilitaryInstallationItem[] }> => ({
+      elements: [],
+    }),
+  );
+
   secretStatus = vi.fn(
     async (_options?: CallOptions): Promise<SecretStatusResponse> => ({
       managedBy: 'memory',
@@ -395,6 +464,12 @@ export function fakeGlobe(): FakeGlobe {
     setCctvCameras: vi.fn(),
     setCctvDetections: vi.fn(),
     getCctvDetections: vi.fn(() => null),
+    getCable: vi.fn(),
+    getCctvCamera: vi.fn(),
+    setRoute: vi.fn(),
+    setRouteWaypoints: vi.fn(),
+    selectRouteStep: vi.fn(),
+    getRoute: vi.fn(() => null),
     setBoundaries: vi.fn(),
     setBoundaryClassVisibility: vi.fn(),
     getBoundaryClassVisibility: vi.fn(() => ({

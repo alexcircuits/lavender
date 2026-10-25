@@ -1,5 +1,6 @@
 import { Button, ErrorState, Panel, Skeleton } from '../design';
 import { AnnotationsPanel } from '../features/annotations/AnnotationsPanel';
+import { DirectionsPanel } from '../features/directions';
 import { GeofencesPanel } from '../features/geofences/GeofencesPanel';
 import { LaunchesPanel } from '../features/launches';
 import { LayerExplorer } from '../features/layers';
@@ -41,6 +42,7 @@ export function SidePanel({ className }: SidePanelProps) {
   const runtime = useRuntime();
   if (!panel) return null;
   if (panel === 'annotations') return <AnnotationsPanel className={className} />;
+  if (panel === 'directions') return <DirectionsPanel className={className} />;
   if (panel === 'geofences') return <GeofencesPanel className={className} />;
   if (panel === 'missions') return <MissionsPanel className={className} />;
   if (panel === 'settings') return <SettingsPanel className={className} />;

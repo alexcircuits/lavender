@@ -19,6 +19,7 @@ import {
   vesselFacts,
   vesselVoyageFacts,
 } from './facts';
+import { installationFacts } from './MilitaryInstallationCard';
 
 const value = (facts: Fact[], label: string) => facts.find((f) => f.label === label)?.value;
 
@@ -337,6 +338,27 @@ describe('facts', () => {
         isValidFireCell(candidate),
       );
     }
+  });
+
+  it('formats military installation facts with operator and MGRS coordinates', () => {
+    const facts = installationFacts({
+      id: 'way/987654',
+      name: 'Ramstein Air Base',
+      kind: 'airfield',
+      position: { lon: 7.6, lat: 49.43 },
+      tags: {
+        operator: 'United States Air Force',
+        military: 'airfield',
+      },
+    });
+
+    expect(value(facts, 'Facility Name')).toBe('Ramstein Air Base');
+    expect(value(facts, 'Facility Type')).toBe('Military Airbase');
+    expect(value(facts, 'Facility ID')).toBe('way/987654');
+    expect(value(facts, 'Operator / Branch')).toBe('United States Air Force');
+    expect(value(facts, 'Military Classification')).toBe('airfield');
+    expect(value(facts, 'MGRS Grid')).toBeDefined();
+    expect(value(facts, 'Coordinates')).toBe('49.43000°, 7.60000°');
   });
 
   it('trims trailing zeros and uses a real minus sign', () => {

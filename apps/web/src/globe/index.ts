@@ -17,6 +17,7 @@ import type {
   FeedSnapshot,
   GeoPoint,
   ImageryDescriptor,
+  Route,
   SatelliteTrack,
   TransitTrail,
   VesselTrackResponse,
@@ -37,7 +38,14 @@ export type {
 };
 
 /** Provenance kind of selectable items on the globe. */
-export type EntitySource = FeedId | 'boundaries' | 'cables' | 'cctv';
+export type EntitySource =
+  | FeedId
+  | 'boundaries'
+  | 'cables'
+  | 'cctv'
+  | 'installations'
+  | 'directions-step'
+  | 'directions-waypoint';
 
 /** A selectable thing on the globe. */
 export interface EntityRef {
@@ -91,6 +99,18 @@ export interface GlobeController {
   setCctvDetections(detections: CctvDetectionsResponse | null): void;
   /** Returns the current CCTV detections, or null if none loaded. */
   getCctvDetections(): CctvDetectionsResponse | null;
+  /** Returns a submarine cable by ID if rendered. */
+  getCable(id: string): SubmarineCableItem | undefined;
+  /** Returns a CCTV camera by ID if rendered. */
+  getCctvCamera(id: string): CameraSource | undefined;
+  /** Sets the active travel route on the globe or null to clear. */
+  setRoute(route: Route | null): void;
+  /** Sets origin and destination waypoints for routing preview. */
+  setRouteWaypoints(origin: [number, number] | null, destination: [number, number] | null): void;
+  /** Selects or highlights a maneuver step dot on the active route. */
+  selectRouteStep(index: number | null): void;
+  /** Returns the active route, if any. */
+  getRoute(): Route | null;
   /** Replaces what the globe shows for boundaries (Natural Earth vector lines). */
   setBoundaries(features: readonly BoundaryFeature[]): void;
   /** Sets boundary visibility per class (international land, disputed, breakaway, maritime). */

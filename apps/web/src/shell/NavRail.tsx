@@ -6,6 +6,7 @@ import {
   type Icon,
   IconButton,
   InfoIcon,
+  NavigationArrowIcon,
   PathIcon,
   SquareIcon,
   StackIcon,
@@ -22,6 +23,7 @@ const ITEMS: ReadonlyArray<{
   readonly icon: Icon;
 }> = [
   { panel: 'layers', label: 'Layers', icon: StackIcon },
+  { panel: 'directions', label: 'Directions', icon: NavigationArrowIcon },
   { panel: 'sources', label: 'Sources', icon: InfoIcon },
   { panel: 'annotations', label: 'Annotations', icon: PencilSimpleIcon },
   { panel: 'geofences', label: 'Geofences', icon: PathIcon },

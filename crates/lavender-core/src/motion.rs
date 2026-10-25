@@ -8,6 +8,7 @@ use lavender_domain::GeoPoint;
 use lavender_geo::geodesy;
 
 /// Normalise a heading into [0, 360); NaN reads as 0 like upstream.
+#[must_use]
 pub fn normalize_heading_deg(value: f64) -> f64 {
     if !value.is_finite() {
         return 0.0;
@@ -18,6 +19,7 @@ pub fn normalize_heading_deg(value: f64) -> f64 {
 
 /// Advance a displayed heading toward `target` along the shortest arc without
 /// exceeding `max_step_deg`; a non-positive step freezes the display heading.
+#[must_use]
 pub fn slew_heading_deg(current: f64, target: f64, max_step_deg: f64) -> f64 {
     let from = normalize_heading_deg(current);
     let to = normalize_heading_deg(target);
@@ -33,6 +35,7 @@ pub fn slew_heading_deg(current: f64, target: f64, max_step_deg: f64) -> f64 {
 /// display position onto a delayed feed fix. Capping below the entity's
 /// forward speed stops a late fix from becoming a first-person surge or
 /// reversal while still removing drift (upstream `cockpitAnchorCorrectionStep`).
+#[must_use]
 pub fn anchor_correction_step_m(distance_m: f64, speed_mps: f64, dt_s: f64) -> f64 {
     if !distance_m.is_finite() || distance_m <= 0.0 || !dt_s.is_finite() || dt_s <= 0.0 {
         return 0.0;
@@ -56,6 +59,7 @@ pub struct CourseSpeedState {
 
 /// Advance a state by `dt_s` seconds along the great circle its track implies.
 /// A non-finite or non-positive speed or time leaves it untouched.
+#[must_use]
 pub fn advance(state: &CourseSpeedState, dt_s: f64) -> CourseSpeedState {
     if !dt_s.is_finite() || dt_s <= 0.0 || !state.speed_mps.is_finite() || state.speed_mps <= 0.0 {
         return *state;

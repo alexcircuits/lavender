@@ -317,7 +317,7 @@ pub fn simulate_ascent(vehicle: &AscentVehicle, params: &AscentParams) -> Ascent
 
         if t >= next_sample {
             next_sample += SAMPLE_INTERVAL_S;
-            samples.push(sample_at(&params, t, &st, alt));
+            samples.push(sample_at(params, t, &st, alt));
         }
 
         if reached_insertion || (staging.spent() && st.gamma_rad < -0.05) {

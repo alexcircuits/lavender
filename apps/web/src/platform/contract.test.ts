@@ -288,6 +288,48 @@ function webAdapter(backend: FakeBackend): LavenderPlatform {
       );
     if (url.includes('/api/v1/mapillary/status'))
       return new Response(JSON.stringify({ configured: true }), { status: 200 });
+    if (url.includes('/api/v1/route'))
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          profile: 'car',
+          distanceM: 1000,
+          durationS: 600,
+          geometry: [
+            [13.4, 52.5],
+            [13.41, 52.51],
+          ],
+        }),
+        { status: 200 },
+      );
+    if (url.includes('/api/v1/divisions/at') || url.includes('/api/v1/divisions/search'))
+      return new Response(
+        JSON.stringify([
+          {
+            id: 'DE-BE',
+            name: 'Berlin',
+            country: 'Germany',
+            polygons: [],
+            bbox: { west: 13.0, south: 52.3, east: 13.7, north: 52.7 },
+          },
+        ]),
+        { status: 200 },
+      );
+    if (url.includes('/api/v1/military-installations'))
+      return new Response(
+        JSON.stringify({
+          elements: [
+            {
+              id: 'node/1234',
+              name: 'Camp Mabry',
+              kind: 'barracks',
+              position: { lon: -97.76, lat: 30.31 },
+              tags: {},
+            },
+          ],
+        }),
+        { status: 200 },
+      );
     if (url.includes('/api/v1/feeds/earthquakes'))
       return new Response(JSON.stringify(snapshot('earthquakes', 5)), { status: 200 });
     return new Response(JSON.stringify({ code: 'notFound', message: 'no', retryable: false }), {
@@ -379,6 +421,40 @@ function desktopAdapter(backend: FakeBackend): LavenderPlatform {
         } as T;
       case 'mapillary_status':
         return { configured: true } as T;
+      case 'calculate_route':
+        return {
+          ok: true,
+          profile: 'car',
+          distanceM: 1000,
+          durationS: 600,
+          geometry: [
+            [13.4, 52.5],
+            [13.41, 52.51],
+          ],
+        } as T;
+      case 'divisions_at':
+      case 'divisions_search':
+        return [
+          {
+            id: 'DE-BE',
+            name: 'Berlin',
+            country: 'Germany',
+            polygons: [],
+            bbox: { west: 13.0, south: 52.3, east: 13.7, north: 52.7 },
+          },
+        ] as T;
+      case 'military_installations':
+        return {
+          elements: [
+            {
+              id: 'node/1234',
+              name: 'Camp Mabry',
+              kind: 'barracks',
+              position: { lon: -97.76, lat: 30.31 },
+              tags: {},
+            },
+          ],
+        } as T;
       default:
         throw { code: 'notFound', message: `no command ${command}`, retryable: false };
     }
@@ -476,6 +552,30 @@ describe.each([
   it('reports Mapillary credentials status through either adapter', async () => {
     const platform = make(new FakeBackend());
     await expect(platform.mapillaryStatus()).resolves.toEqual({ configured: true });
+  });
+
+  it('calculates travel routes and queries divisions and military sites through either adapter', async () => {
+    const platform = make(new FakeBackend());
+    const route = await platform.calculateRoute('car', '13.4,52.5;13.41,52.51', true);
+    expect(route.ok).toBe(true);
+    expect(route.profile).toBe('car');
+    expect(route.geometry.length).toBe(2);
+
+    const divisions = await platform.divisionsAt(13.4, 52.5);
+    expect(divisions.length).toBe(1);
+    expect(divisions[0]?.name).toBe('Berlin');
+
+    const searchDivs = await platform.divisionsSearch('Berlin');
+    expect(searchDivs.length).toBe(1);
+
+    const military = await platform.militaryInstallations({
+      west: -98,
+      south: 30,
+      east: -97,
+      north: 31,
+    });
+    expect(military.elements.length).toBe(1);
+    expect(military.elements[0]?.name).toBe('Camp Mabry');
   });
 
   it('subscribes, updates and unsubscribes', async () => {

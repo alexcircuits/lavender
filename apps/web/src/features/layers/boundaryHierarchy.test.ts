@@ -7,13 +7,13 @@ import {
 } from './boundaryHierarchy';
 
 describe('boundary hierarchy', () => {
-  it('serves admin-0 classes and marks deeper levels unserved', () => {
+  it('serves admin-0 and admin-1 classes and marks deeper levels unserved', () => {
     const admin0 = BOUNDARY_LEVELS[0];
     const admin1 = BOUNDARY_LEVELS[1];
     const admin2 = BOUNDARY_LEVELS[2];
     expect(admin0?.served).toBe(true);
     expect(admin0?.classes).toHaveLength(4);
-    expect(admin1?.served).toBe(false);
+    expect(admin1?.served).toBe(true);
     expect(admin2?.served).toBe(false);
     // Every unserved level explains itself: no silent gaps in the drill-down.
     for (const level of BOUNDARY_LEVELS.filter((l) => !l.served)) {

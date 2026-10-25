@@ -49,9 +49,9 @@ export const BOUNDARY_LEVELS: readonly BoundaryLevel[] = [
     id: 'admin1',
     label: 'States & provinces (admin-1)',
     shortLabel: 'admin-1',
-    served: false,
+    served: true,
     classes: [],
-    note: 'The current boundary source serves admin-0 only; no admin-1 lines are returned.',
+    note: 'Natural Earth 10m admin-1 states and provinces with territorial drill-down.',
   },
   {
     id: 'admin2',

@@ -200,7 +200,10 @@ export class FeedController {
       !selection ||
       selection.feed === 'boundaries' ||
       selection.feed === 'cables' ||
-      selection.feed === 'cctv'
+      selection.feed === 'cctv' ||
+      selection.feed === 'installations' ||
+      selection.feed === 'directions-step' ||
+      selection.feed === 'directions-waypoint'
     ) {
       this.#heldKey = null;
       feeds.setSelectedEntity(null, null, false);

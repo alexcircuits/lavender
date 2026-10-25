@@ -53,6 +53,12 @@ pub const TOMTOM_TRAFFIC: &str = "tomtom-traffic";
 pub const OPENFREEMAP: &str = "openfreemap";
 pub const OPENSKY: &str = "opensky-network";
 pub const ADS_B_DB: &str = "adsbdb";
+pub const TELEGEOGRAPHY: &str = "telegeography-submarine-cables";
+pub const NOAA_NOWCOAST: &str = "noaa-nowcoast";
+pub const OSM_INFRASTRUCTURE: &str = "osm-infrastructure";
+pub const OSM_MILITARY: &str = "osm-military";
+pub const NASA_CMR: &str = "nasa-cmr";
+pub const NATURAL_EARTH_DIVISIONS: &str = "natural-earth-divisions";
 
 /// A source plus what it needs to run.
 #[derive(Debug, Clone)]
@@ -525,6 +531,80 @@ pub fn all() -> Vec<SourceDef> {
             Some(
                 "Community aircraft route and type enrichment cache. Route redistribution requires publisher permission.",
             ),
+        ),
+        source(
+            TELEGEOGRAPHY,
+            "TeleGeography Submarine Cable Map",
+            "https://www.submarinecablemap.com/",
+            "Data: TeleGeography (CC BY-NC-SA 3.0)",
+            (
+                "Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported",
+                "https://creativecommons.org/licenses/by-nc-sa/3.0/",
+            ),
+            CommercialUse::NonCommercialOnly,
+            Some(
+                "Submarine telecommunication cables and landing points. Non-commercial and share-alike terms apply.",
+            ),
+        ),
+        source(
+            NOAA_NOWCOAST,
+            "NOAA nowCOAST (Weather Radar & Hazards)",
+            "https://nowcoast.noaa.gov/",
+            "Weather radar & imagery: NOAA/NWS nowCOAST (public domain)",
+            (
+                "Public domain (U.S. Government work)",
+                "https://www.weather.gov/disclaimer",
+            ),
+            CommercialUse::Allowed,
+            Some("NOAA nowCOAST WMS weather radar tiles. Public domain; no endorsement implied."),
+        ),
+        source(
+            OSM_INFRASTRUCTURE,
+            "OpenStreetMap Infrastructure",
+            "https://www.openstreetmap.org/",
+            "Infrastructure data © OpenStreetMap contributors (ODbL 1.0)",
+            (
+                "Open Database License (ODbL) 1.0",
+                "https://opendatacommons.org/licenses/odbl/1-0/",
+            ),
+            CommercialUse::Allowed,
+            Some("Global infrastructure facilities including dams and datacenters from OpenStreetMap / Overture Maps."),
+        ),
+        source(
+            OSM_MILITARY,
+            "OpenStreetMap Military & Defense Installations",
+            "https://www.openstreetmap.org/",
+            "Military installation data © OpenStreetMap contributors (ODbL 1.0)",
+            (
+                "Open Database License (ODbL) 1.0",
+                "https://opendatacommons.org/licenses/odbl/1-0/",
+            ),
+            CommercialUse::Allowed,
+            Some("Curated defensive, airbase, naval base and military facility polygons via Overpass API."),
+        ),
+        source(
+            NASA_CMR,
+            "NASA Common Metadata Repository (CMR)",
+            "https://cmr.earthdata.nasa.gov/",
+            "Imagery search metadata: NASA Earth Science Data and Information System (ESDIS)",
+            (
+                "NASA open data policy",
+                "https://www.earthdata.nasa.gov/engage/open-data-services-software-policies",
+            ),
+            CommercialUse::Allowed,
+            Some("Satellite imagery granule search via NASA CMR STAC API."),
+        ),
+        source(
+            NATURAL_EARTH_DIVISIONS,
+            "Natural Earth Admin-1 States and Provinces",
+            "https://www.naturalearthdata.com/",
+            crate::providers::divisions::DIVISIONS_ATTRIBUTION,
+            (
+                "Public domain",
+                "https://www.naturalearthdata.com/about/terms-of-use/",
+            ),
+            CommercialUse::Allowed,
+            Some("Admin-1 divisions and polygons bundled offline for drill-down and territorial analysis."),
         ),
     ]
 }

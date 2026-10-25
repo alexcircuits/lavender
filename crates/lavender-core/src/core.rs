@@ -28,6 +28,7 @@ use crate::providers::boundaries::BoundaryStore;
 use crate::providers::cables::{CableStore, LandingPoint, SubmarineCable};
 use crate::providers::celestrak::CelestrakProvider;
 use crate::providers::cyclones::CyclonesProvider;
+use crate::providers::divisions::{DivisionIndex, DivisionRecord};
 use crate::providers::firms::FirmsProvider;
 use crate::providers::infrastructure::{InfrastructureIndex, InfrastructureItem};
 use crate::providers::launches::LaunchesProvider;
@@ -68,6 +69,7 @@ struct CoreInner {
     rule_engine: Option<Arc<crate::analytics::NimRuleEngine>>,
     infrastructure: Arc<InfrastructureIndex>,
     regions: Arc<RegionIndex>,
+    divisions: Arc<DivisionIndex>,
     cables: Arc<CableStore>,
     boundaries: Arc<BoundaryStore>,
     overpass: Arc<crate::providers::overpass::OverpassClient>,
@@ -119,6 +121,7 @@ pub struct LavenderCoreBuilder {
     rule_engine: Option<Arc<crate::analytics::NimRuleEngine>>,
     infrastructure: Option<Arc<InfrastructureIndex>>,
     regions: Option<Arc<RegionIndex>>,
+    divisions: Option<Arc<DivisionIndex>>,
     cables: Option<Arc<CableStore>>,
     boundaries: Option<Arc<BoundaryStore>>,
     overpass: Option<Arc<crate::providers::overpass::OverpassClient>>,
@@ -289,6 +292,7 @@ impl LavenderCoreBuilder {
         let infrastructure =
             self.infrastructure.unwrap_or_else(|| Arc::new(InfrastructureIndex::load_default()));
         let regions = self.regions.unwrap_or_else(|| Arc::new(RegionIndex::load_default()));
+        let divisions = self.divisions.unwrap_or_else(|| Arc::new(DivisionIndex::load_default()));
         let cables = self.cables.unwrap_or_else(|| Arc::new(CableStore::load_bundled()));
         let boundaries = self.boundaries.unwrap_or_else(|| Arc::new(BoundaryStore::load_bundled()));
         let overpass = self.overpass.unwrap_or_else(|| {
@@ -375,6 +379,7 @@ impl LavenderCoreBuilder {
                 rule_engine: self.rule_engine,
                 infrastructure,
                 regions,
+                divisions,
                 cables,
                 boundaries,
                 overpass,
@@ -415,6 +420,7 @@ impl LavenderCore {
             rule_engine: None,
             infrastructure: None,
             regions: None,
+            divisions: None,
             cables: None,
             boundaries: None,
             overpass: None,
@@ -1000,6 +1006,32 @@ impl LavenderCore {
     pub fn search_regions(&self, query: &str) -> Result<Vec<RegionRecord>, CoreError> {
         let limit = 50;
         Ok(self.inner.regions.search_regions(query, limit).into_iter().cloned().collect())
+    }
+
+    /// Admin-1 divisions containing `(lon, lat)`, most specific first.
+    ///
+    /// # Errors
+    /// Returns an error if coordinates are not finite or out of range.
+    pub fn divisions_at(&self, lon: f64, lat: f64) -> Result<Vec<DivisionRecord>, CoreError> {
+        if !lon.is_finite() || !(-180.0..=180.0).contains(&lon) {
+            return Err(CoreError::BadRequest(
+                "lon must be a finite number between -180 and 180".to_owned(),
+            ));
+        }
+        if !lat.is_finite() || !(-90.0..=90.0).contains(&lat) {
+            return Err(CoreError::BadRequest(
+                "lat must be a finite number between -90 and 90".to_owned(),
+            ));
+        }
+        Ok(self.inner.divisions.divisions_at(lon, lat).into_iter().cloned().collect())
+    }
+
+    /// Case-insensitive admin-1 division search by name, country or ISO code.
+    ///
+    /// # Errors
+    /// Returns an error if the search cannot be executed.
+    pub fn divisions_search(&self, query: &str) -> Result<Vec<DivisionRecord>, CoreError> {
+        Ok(self.inner.divisions.search(query, 20).into_iter().cloned().collect())
     }
 
     /// Queries submarine cables intersecting `bbox`.

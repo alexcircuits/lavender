@@ -32,6 +32,7 @@ import type {
   FeedSnapshot,
   GeoPoint,
   ImageryDescriptor,
+  Route,
   SatelliteTrack,
   TransitTrail,
   VesselTrackResponse,
@@ -64,6 +65,7 @@ import {
 import { CableRenderer, type SubmarineCableItem } from './renderers/cables';
 import { CctvRenderer } from './renderers/cctv';
 import { CycloneRenderer } from './renderers/cyclones';
+import { DirectionsRenderer } from './renderers/directions';
 import { EarthquakeRenderer } from './renderers/earthquakes';
 import { FireRenderer } from './renderers/fires';
 import { LaunchPadRenderer } from './renderers/launches';
@@ -100,6 +102,7 @@ interface Mounted {
   readonly boundaries: BoundaryRenderer;
   readonly cables: CableRenderer;
   readonly cctv: CctvRenderer;
+  readonly directions: DirectionsRenderer;
   readonly tracking: EntityTrackingService;
   readonly annotations: AnnotationRenderer;
   readonly halo: SelectionHalo;
@@ -204,6 +207,7 @@ export class GlobeEngine implements GlobeController {
     const cablePoints = primitives.add(new PointPrimitiveCollection());
     const cables = new CableRenderer(cablePolylines, cablePoints, ctx);
     const cctv = new CctvRenderer(primitives, ctx);
+    const directions = new DirectionsRenderer(primitives, ctx);
     const renderers = new Map<FeedId, FeedRenderer>([
       ['earthquakes', new EarthquakeRenderer(primitives, ctx)],
       ['cyclones', new CycloneRenderer(primitives, ctx)],
@@ -232,6 +236,7 @@ export class GlobeEngine implements GlobeController {
     cleanup.push(() => boundaries.destroy());
     cleanup.push(() => cables.destroy());
     cleanup.push(() => cctv.destroy());
+    cleanup.push(() => directions.destroy());
     if (scene.preUpdate?.addEventListener) {
       cleanup.push(
         scene.preUpdate.addEventListener(() => {
@@ -295,6 +300,7 @@ export class GlobeEngine implements GlobeController {
       boundaries,
       cables,
       cctv,
+      directions,
       tracking,
       annotations: new AnnotationRenderer(primitives, ctx, scene),
       halo: new SelectionHalo(primitives, colors),
@@ -420,13 +426,58 @@ export class GlobeEngine implements GlobeController {
     return this.#mounted?.boundaries.getFeature(id);
   }
 
+  getCable(id: string): SubmarineCableItem | undefined {
+    return this.#mounted?.cables.getCable(id);
+  }
+
+  getCctvCamera(id: string): CameraSource | undefined {
+    return this.#mounted?.cctv.getCamera(id);
+  }
+
+  setRoute(route: Route | null): void {
+    const m = this.#mounted;
+    if (!m) return;
+    m.directions.setRoute(route);
+    m.widget.scene.requestRender();
+  }
+
+  setRouteWaypoints(origin: [number, number] | null, destination: [number, number] | null): void {
+    const m = this.#mounted;
+    if (!m) return;
+    m.directions.setWaypoints(origin, destination);
+    m.widget.scene.requestRender();
+  }
+
+  selectRouteStep(index: number | null): void {
+    const m = this.#mounted;
+    if (!m) return;
+    m.directions.setSelectedStep(index);
+    if (index !== null) {
+      const loc = m.directions.locateStep(index);
+      if (loc) {
+        m.halo.follow(loc);
+      }
+    }
+    m.widget.scene.requestRender();
+  }
+
+  getRoute(): Route | null {
+    return this.#mounted?.directions.getRoute() ?? null;
+  }
+
   startFollowing(target: EntityRef): void {
     const m = this.#mounted;
     if (!m) return;
     this.#following = target;
     m.tracking.startTracking(target);
 
-    if (target.feed === 'boundaries') return;
+    if (
+      target.feed === 'boundaries' ||
+      target.feed === 'installations' ||
+      target.feed === 'directions-step' ||
+      target.feed === 'directions-waypoint'
+    )
+      return;
     let located: Located | undefined;
     if (target.feed === 'cables') {
       located = m.cables.locate(target.id);
@@ -662,7 +713,13 @@ export class GlobeEngine implements GlobeController {
       m.halo.follow(m.cables.locate(selection.id));
     } else if (selection?.feed === 'cctv') {
       m.halo.follow(m.cctv.locate(selection.id));
-    } else if (selection) {
+    } else if (selection?.feed === 'directions-step') {
+      m.halo.follow(m.directions.locateStep(Number(selection.id)) ?? undefined);
+    } else if (selection?.feed === 'directions-waypoint') {
+      m.halo.follow(
+        m.directions.locateWaypoint(selection.id as 'origin' | 'destination') ?? undefined,
+      );
+    } else if (selection && selection.feed !== 'installations') {
       m.halo.follow(m.renderers.get(selection.feed)?.locate(selection.id));
     } else {
       m.halo.follow(undefined);

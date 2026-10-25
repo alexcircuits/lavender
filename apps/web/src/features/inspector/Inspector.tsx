@@ -34,7 +34,10 @@ import type { FeedSummary } from '../../state/stores';
 import { GLOBE_REGION_ID } from '../commands';
 import { FamilySwatch, feedGlyph } from '../layers';
 import { AircraftHistory } from './AircraftHistory';
+import { bikeshareFacts } from './BikeshareCard';
 import { BoundaryCard } from './BoundaryCard';
+import { CableCard } from './CableCard';
+import { CctvCard } from './CctvCard';
 import { CycloneForecast } from './CycloneForecast';
 import { FactSheet } from './FactSheet';
 import {
@@ -55,6 +58,7 @@ import styles from './inspector.module.css';
 import { LaunchDetails, LaunchNotices, PadLaunches, useLaunchPadView } from './LaunchDetails';
 import { launchFacts, padFacts } from './launchFacts';
 import { SatellitePasses } from './SatellitePasses';
+import { transitFacts } from './TransitCard';
 import { useSatellitePosition } from './useSatellitePosition';
 import { VesselTrack, vesselReportedAtSec } from './VesselTrack';
 
@@ -219,6 +223,32 @@ function sheetFor(
         recordUrl: null,
       };
     }
+    case 'bikeshare': {
+      const station = view.item;
+      const bikes = station.bikesAvailable ?? 0;
+      const docks = station.docksAvailable ?? 0;
+      return {
+        title: station.name,
+        summary: `${station.systemId} · ${bikes} bikes · ${docks} docks`,
+        facts: bikeshareFacts(station),
+        position: station.position,
+        observedMs: fetchedMs,
+        sourceIds: snapshotSources,
+        recordUrl: null,
+      };
+    }
+    case 'transit': {
+      const v = view.item;
+      return {
+        title: v.routeId ? `Route ${v.routeId} • Vehicle ${v.vehicleId}` : `Vehicle ${v.vehicleId}`,
+        summary: `${v.feedId}${v.speedMps !== undefined ? ` · ${(v.speedMps * 3.6).toFixed(0)} km/h` : ''}`,
+        facts: transitFacts(v),
+        position: v.position,
+        observedMs: v.timestamp ? Number(v.timestamp) * 1000 : fetchedMs,
+        sourceIds: snapshotSources,
+        recordUrl: null,
+      };
+    }
   }
 }
 
@@ -317,6 +347,32 @@ function BoundaryInspector({ selection, className }: InspectorBodyProps) {
   return (
     <InspectorFrame title={selection.id} layer={undefined} className={className}>
       <EmptyState icon={InfoIcon}>Boundary {selection.id} is not loaded.</EmptyState>
+    </InspectorFrame>
+  );
+}
+
+function CableInspector({ selection, className }: InspectorBodyProps) {
+  const globe = useGlobe();
+  const cable = globe?.getCable(selection.id);
+  if (cable) {
+    return <CableCard cable={cable} className={className} />;
+  }
+  return (
+    <InspectorFrame title={selection.id} layer={undefined} className={className}>
+      <EmptyState icon={InfoIcon}>Submarine cable {selection.id} is not loaded.</EmptyState>
+    </InspectorFrame>
+  );
+}
+
+function CctvInspector({ selection, className }: InspectorBodyProps) {
+  const globe = useGlobe();
+  const camera = globe?.getCctvCamera(selection.id);
+  if (camera) {
+    return <CctvCard camera={camera} className={className} />;
+  }
+  return (
+    <InspectorFrame title={selection.id} layer={undefined} className={className}>
+      <EmptyState icon={InfoIcon}>Camera {selection.id} is not loaded.</EmptyState>
     </InspectorFrame>
   );
 }
@@ -500,6 +556,24 @@ export function Inspector({ className }: InspectorProps) {
   if (selection.feed === 'boundaries') {
     return (
       <BoundaryInspector
+        key={`${selection.feed}:${selection.id}`}
+        selection={selection}
+        className={className}
+      />
+    );
+  }
+  if (selection.feed === 'cables') {
+    return (
+      <CableInspector
+        key={`${selection.feed}:${selection.id}`}
+        selection={selection}
+        className={className}
+      />
+    );
+  }
+  if (selection.feed === 'cctv') {
+    return (
+      <CctvInspector
         key={`${selection.feed}:${selection.id}`}
         selection={selection}
         className={className}

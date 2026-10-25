@@ -240,6 +240,13 @@ export class CableRenderer {
   }
 
   /**
+   * Returns a submarine cable by ID.
+   */
+  getCable(id: string): SubmarineCableItem | undefined {
+    return this.cables.get(id)?.item;
+  }
+
+  /**
    * Returns the world Cartesian centroid and symbol size of an entity for camera framing.
    */
   locate(id: string): Located | undefined {
@@ -282,7 +289,18 @@ export class CableRenderer {
   }
 
   destroy(): void {
-    this.clear();
+    for (const entry of this.cables.values()) {
+      for (const poly of entry.polylines) {
+        this.polylines.remove(poly);
+      }
+    }
+    this.cables.clear();
+
+    for (const entry of this.landings.values()) {
+      this.points.remove(entry.point);
+    }
+    this.landings.clear();
+    this.selectedId = null;
   }
 
   get cableCount(): number {

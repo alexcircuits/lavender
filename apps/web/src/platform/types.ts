@@ -16,6 +16,8 @@ import type {
   CctvDetectionsResponse,
   FeedQuery,
   FeedSnapshot,
+  GeoPoint,
+  Route,
   SatellitePasses,
   SatellitePassRequest,
   SatelliteTrack,
@@ -45,6 +47,27 @@ export interface SubmarineCableApiItem {
         readonly north: number;
       }
     | undefined;
+}
+
+/** Admin-1 division record item. */
+export interface DivisionRecordItem {
+  readonly id: string;
+  readonly name: string;
+  readonly nameEn?: string | null | undefined;
+  readonly country: string;
+  readonly iso?: string | null | undefined;
+  readonly kind?: string | null | undefined;
+  readonly polygons: readonly (readonly GeoPoint[])[];
+  readonly bbox: BBox;
+}
+
+/** Military installation entity. */
+export interface MilitaryInstallationItem {
+  readonly id: string;
+  readonly name?: string | undefined;
+  readonly kind: 'airfield' | 'naval_base' | 'range' | 'barracks' | 'base' | 'general';
+  readonly position: GeoPoint;
+  readonly tags: Readonly<Record<string, string>>;
 }
 
 /** What a live subscription delivers. */
@@ -156,6 +179,27 @@ export interface LavenderPlatform {
     limit?: number,
     options?: CallOptions,
   ): Promise<SubmarineCableApiItem[]>;
+  /** Travel directions between coordinates via OSRM with paced queuing and step instructions. */
+  calculateRoute(
+    profile: 'car' | 'bike' | 'foot',
+    coords: string,
+    withSteps?: boolean,
+    options?: CallOptions,
+  ): Promise<Route>;
+  /** Admin-1 divisions containing (lon, lat), most specific first. */
+  divisionsAt(
+    lon: number,
+    lat: number,
+    options?: CallOptions,
+  ): Promise<readonly DivisionRecordItem[]>;
+  /** Case-insensitive Admin-1 division search by name, country or ISO code. */
+  divisionsSearch(query: string, options?: CallOptions): Promise<readonly DivisionRecordItem[]>;
+  /** Military defense, airfield and naval facilities in viewport. */
+  militaryInstallations(
+    bbox: BBox,
+    limit?: number,
+    options?: CallOptions,
+  ): Promise<{ readonly elements: readonly MilitaryInstallationItem[] }>;
   /** Returns whether upstream credentials are configured without exposing values. */
   secretStatus?(options?: CallOptions): Promise<SecretStatusResponse>;
   /** Desktop only: stores an upstream provider credential into the secure credential store. */

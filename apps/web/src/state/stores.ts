@@ -265,6 +265,7 @@ export type SidePanel =
   | 'geofences'
   | 'missions'
   | 'launches'
+  | 'directions'
   | 'settings';
 
 export interface UiState {

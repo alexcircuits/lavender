@@ -36,6 +36,7 @@ impl SimulationProvider {
 impl SimulationProvider {
     /// One hub cadence step of the fleet, as a snapshot.
     fn tick_snapshot(&self) -> Fetched {
+        #[allow(clippy::cast_precision_loss)]
         let step_s = self.config.step_s.max(1) as f64;
         let aircraft = self.sim.lock().map(|mut sim| sim.tick(step_s)).unwrap_or_default();
         Fetched {

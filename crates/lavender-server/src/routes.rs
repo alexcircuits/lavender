@@ -10,7 +10,9 @@ use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use futures::StreamExt;
-use lavender_core::{CoreError, InfrastructureItem, LandingPoint, RegionRecord, SubmarineCable};
+use lavender_core::{
+    CoreError, DivisionRecord, InfrastructureItem, LandingPoint, RegionRecord, SubmarineCable,
+};
 use lavender_domain::text::clean;
 use lavender_domain::{
     AircraftRouteEnrichment, AircraftTrack, AircraftTypeEnrichment, ApiError, BBox, BoundaryClass,
@@ -625,6 +627,36 @@ pub async fn search_regions(
 ) -> Result<Json<Vec<RegionRecord>>, HttpError> {
     let q = params.q.unwrap_or_default();
     Ok(Json(state.core.search_regions(&q)?))
+}
+
+/// `GET /api/v1/divisions/at?lat&lon` — admin-1 divisions containing the
+/// coordinate, most specific first.
+///
+/// # Errors
+/// Rejection for invalid coordinates.
+pub async fn divisions_at(
+    State(state): State<AppState>,
+    ApiQuery(params): ApiQuery<RegionAtParams>,
+) -> Result<Json<Vec<DivisionRecord>>, HttpError> {
+    if !params.lat.is_finite() || !(-90.0..=90.0).contains(&params.lat) {
+        return Err(bad("lat must be a finite number between -90 and 90"));
+    }
+    if !params.lon.is_finite() || !(-180.0..=180.0).contains(&params.lon) {
+        return Err(bad("lon must be a finite number between -180 and 180"));
+    }
+    Ok(Json(state.core.divisions_at(params.lon, params.lat)?))
+}
+
+/// `GET /api/v1/divisions/search?q` — admin-1 search by name, country or ISO.
+///
+/// # Errors
+/// Bad request errors.
+pub async fn divisions_search(
+    State(state): State<AppState>,
+    ApiQuery(params): ApiQuery<RegionSearchParams>,
+) -> Result<Json<Vec<DivisionRecord>>, HttpError> {
+    let q = params.q.unwrap_or_default();
+    Ok(Json(state.core.divisions_search(&q)?))
 }
 
 /// `GET /api/v1/infrastructure?west&south&east&north&zoom` — viewport query for static facilities.

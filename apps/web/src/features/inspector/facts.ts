@@ -4,6 +4,7 @@
  */
 import type {
   Aircraft,
+  BikeshareStation,
   Cyclone,
   Earthquake,
   FeedId,
@@ -11,6 +12,7 @@ import type {
   GeoPoint,
   Launch,
   SatelliteElements,
+  TransitVehicle,
   Vessel,
   VesselDimensions,
   VesselEta,
@@ -443,6 +445,8 @@ export type Inspected =
   | { readonly kind: 'fires'; readonly item: FireCell }
   | { readonly kind: 'vessels'; readonly item: Vessel }
   | { readonly kind: 'launches'; readonly item: Launch }
+  | { readonly kind: 'bikeshare'; readonly item: BikeshareStation }
+  | { readonly kind: 'transit'; readonly item: TransitVehicle }
   /** A launch pad and its launches (selected on the globe; see `useLaunchPadView`). */
   | { readonly kind: 'launchPad'; readonly item: LaunchPadGroup };
 
@@ -499,9 +503,13 @@ export function inspect(feed: FeedId, id: string, entity: unknown): Inspected | 
         ? { kind: 'vessels', item: entity as unknown as Vessel }
         : null;
     case 'bikeshare':
-      return null;
+      return entity.id === id && isPoint(entity.position)
+        ? { kind: 'bikeshare', item: entity as unknown as BikeshareStation }
+        : null;
     case 'transit':
-      return null;
+      return entity.id === id && isPoint(entity.position)
+        ? { kind: 'transit', item: entity as unknown as TransitVehicle }
+        : null;
     default:
       return null;
   }

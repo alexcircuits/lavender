@@ -2,6 +2,8 @@ target/
 node_modules/
 dist/
 *.tsbuildinfo
+.zig-cache/
+zig-out/
 .env
 .env.*
 !.env.example

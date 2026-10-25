@@ -33,9 +33,11 @@ pub struct AircraftSimulator {
 
 impl AircraftSimulator {
     /// Spawn `count` aircraft on random short-to-medium great-circle legs.
+    #[must_use]
     pub fn new(seed: u64, count: usize) -> Self {
         let mut rng = fastrand::Rng::with_seed(seed);
         let mut fleet = Vec::with_capacity(count);
+        let seed_byte = (seed & 0xff) as usize;
         for i in 0..count {
             // Random-ish legs between mid-latitude waypoints, over water or land alike.
             let lat = (rng.f64() * 120.0 - 60.0).round() / 1.0;
@@ -63,7 +65,7 @@ impl AircraftSimulator {
                 // Deterministic, stable, plausible mode-S style addresses (ICAO
                 // block starts at 0xA00000) so ids never collide with real feeds
                 // in a way the inspector could confuse.
-                hex: format!("{:06x}", 0xa0_0000 + i * 7 + (seed as usize & 0xff)),
+                hex: format!("{:06x}", 0xa0_0000 + i * 7 + seed_byte),
                 callsign: format!("SIM{}", 100 + i),
                 altitude_ft,
                 climb_fpm: if cruising { 0.0 } else { 600.0 },
@@ -116,6 +118,7 @@ impl AircraftSimulator {
     }
 
     /// Mission-elapsed time the fleet has flown, seconds (determinism checks).
+    #[must_use]
     pub fn elapsed_s(&self) -> f64 {
         self.elapsed_s
     }

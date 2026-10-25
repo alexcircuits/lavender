@@ -110,6 +110,10 @@ export class CctvRenderer {
     return this.#detections;
   }
 
+  getCamera(id: string): CameraSource | undefined {
+    return this.#cameras.get(id);
+  }
+
   #updateFrustum(): void {
     // Clear previous frustum lines
     for (const line of this.#activeFrustum) {
@@ -195,7 +199,16 @@ export class CctvRenderer {
   }
 
   destroy(): void {
-    this.clear();
+    this.#entries.clear();
+    this.#cameras.clear();
+    this.#selectedId = null;
+    this.#detections = null;
+    for (const line of this.#activeFrustum) {
+      if (typeof this.#frustumLines.remove === 'function') {
+        this.#frustumLines.remove(line);
+      }
+    }
+    this.#activeFrustum = [];
     if (typeof this.#primitives.remove === 'function') {
       this.#primitives.remove(this.#points);
       this.#primitives.remove(this.#frustumLines);

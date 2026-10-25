@@ -14,6 +14,7 @@ import type {
   CctvDetectionsResponse,
   FeedQuery,
   FeedSnapshot,
+  Route,
   SatellitePasses,
   SatellitePassRequest,
   SatelliteTrack,
@@ -32,9 +33,11 @@ import type { RecentImageryResponse, ThumbnailProbeResponse } from '../recentIma
 import {
   type CallOptions,
   type DiagnosticsSink,
+  type DivisionRecordItem,
   type FeedEvent,
   type FeedSubscription,
   type LavenderPlatform,
+  type MilitaryInstallationItem,
   PlatformError,
   type PreferenceStore,
   type SecretStatusResponse,
@@ -184,6 +187,35 @@ export class TauriPlatform implements LavenderPlatform {
     options?: CallOptions,
   ): Promise<SubmarineCableItem[]> {
     return this.#call('cables', { bbox, zoom, limit }, options);
+  }
+
+  calculateRoute(
+    profile: 'car' | 'bike' | 'foot',
+    coords: string,
+    withSteps = true,
+    options?: CallOptions,
+  ): Promise<Route> {
+    return this.#call('calculate_route', { profile, coords, steps: withSteps }, options);
+  }
+
+  divisionsAt(
+    lon: number,
+    lat: number,
+    options?: CallOptions,
+  ): Promise<readonly DivisionRecordItem[]> {
+    return this.#call('divisions_at', { lon, lat }, options);
+  }
+
+  divisionsSearch(query: string, options?: CallOptions): Promise<readonly DivisionRecordItem[]> {
+    return this.#call('divisions_search', { query }, options);
+  }
+
+  militaryInstallations(
+    bbox: BBox,
+    limit?: number,
+    options?: CallOptions,
+  ): Promise<{ readonly elements: readonly MilitaryInstallationItem[] }> {
+    return this.#call('military_installations', { bbox, limit }, options);
   }
 
   async secretStatus(options?: CallOptions): Promise<SecretStatusResponse> {

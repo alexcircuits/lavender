@@ -9,6 +9,20 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Done
 
+- **LB-152 Admin-1 divisions serving & Wave B layer integration**:
+  - Rust core `providers/divisions.rs` serving offline Natural Earth 10m states and provinces
+    (`crates/lavender-core/data/natural_earth/states_provinces.json`) with point-in-polygon
+    spatial index, bbox prefetch, localized names (`name` and `name_en`), and routes
+    `/api/v1/divisions/at` and `/api/v1/divisions/search`.
+  - Web Admin-1 drill-down marked `served: true` in `boundaryHierarchy.ts` with `DivisionCard` inspector.
+  - Directions & Routing (`ENG-963` / `ENG-991`): OSRM route model and drawing via
+    `DirectionsRenderer` with Zig WASM RDP curve simplification (`simplifyRdpWasm`),
+    `DirectionsPanel` with travel profile selector (`car`, `bike`, `foot`), Origin/Destination
+    waypoint pickers, turn-by-turn maneuvers, camera step tracking, and `calculateRoute` on platform.
+  - Wave B Inspector cards: CCTV with Mojo MLIR vision perception stream (`CctvCard`), Submarine
+    Cables with TeleGeography CC BY-NC-SA licensing (`CableCard`), Public Transit GTFS-RT with
+    Zig WASM RDP trails (`TransitCard`), GBFS Bikeshare docks (`BikeshareCard`), and Military
+    Installations with defense surveys and MGRS coordinates (`MilitaryInstallationCard`).
 - **LB-110 Borders, divisions & region drawing** (commit 12129766):
   geofence draw tool (polygon/box, naming, persistence, share links),
   per-class boundary styling, honest division drill-down, zoom-aware
@@ -32,13 +46,6 @@ for the ENG-\* tasks this board references. Update together with
 
 ## In Progress
 
-- **LB-152 Admin-1 divisions serving (Rust)** — READY-TO-RUN brief:
-  extend providers/regions.rs to serve admin-1 (states/provinces) with
-  stable ids, names, admin-0 parent, bboxes and simplified polygons;
-  copy states_provinces.json from legacy into crates/lavender-core/data/
-  (keep < ~3 MB, simplify like boundaries.rs); Natural Earth attribution
-  like boundaries.rs; tests for load/lookup/bbox/geometry sanity; then
-  wire the route/UI so the web drill-down stops marking admin-1 unserved.
 - **LB-150 Timeline replay (web)** — READY-TO-RUN brief: new
   features/replay panel ('replay' SidePanel + nav item), loads the
   selected entity's track via the existing platform aircraft/vessel

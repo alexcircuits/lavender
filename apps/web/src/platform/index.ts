@@ -23,9 +23,11 @@ export type {
 export type {
   CallOptions,
   DiagnosticsSink,
+  DivisionRecordItem,
   FeedEvent,
   FeedSubscription,
   LavenderPlatform,
+  MilitaryInstallationItem,
   PreferenceStore,
   SecretStatusResponse,
   TransportState,

@@ -14,6 +14,7 @@ pub mod cables;
 pub mod cctv;
 pub mod celestrak;
 pub mod cyclones;
+pub mod divisions;
 pub mod firms;
 pub mod fixture;
 pub mod imagery_search;

@@ -14,6 +14,7 @@ import type {
   ClientFrame,
   FeedQuery,
   FeedSnapshot,
+  Route,
   SatellitePasses,
   SatellitePassRequest,
   SatelliteTrack,
@@ -30,10 +31,12 @@ import { LocalPreferences } from '../preferences';
 import type { RecentImageryResponse, ThumbnailProbeResponse } from '../recentImageryTypes';
 import {
   type CallOptions,
+  type DivisionRecordItem,
   type FeedEvent,
   type FeedSubscription,
   isApiError,
   type LavenderPlatform,
+  type MilitaryInstallationItem,
   PlatformError,
   type PreferenceStore,
   type SecretStatusResponse,
@@ -309,6 +312,54 @@ export class WebPlatform implements LavenderPlatform {
     if (limit !== undefined) qs.set('limit', String(limit));
     const query = qs.toString();
     return this.#get(`/infrastructure/cables${query ? `?${query}` : ''}`, options);
+  }
+
+  calculateRoute(
+    profile: 'car' | 'bike' | 'foot',
+    coords: string,
+    withSteps = true,
+    options?: CallOptions,
+  ): Promise<Route> {
+    const qs = new URLSearchParams({
+      profile,
+      coords,
+    });
+    if (withSteps) qs.set('steps', '1');
+    return this.#get(`/route?${qs.toString()}`, options);
+  }
+
+  divisionsAt(
+    lon: number,
+    lat: number,
+    options?: CallOptions,
+  ): Promise<readonly DivisionRecordItem[]> {
+    const qs = new URLSearchParams({
+      lon: String(lon),
+      lat: String(lat),
+    });
+    return this.#get(`/divisions/at?${qs.toString()}`, options);
+  }
+
+  divisionsSearch(query: string, options?: CallOptions): Promise<readonly DivisionRecordItem[]> {
+    const qs = new URLSearchParams({
+      q: query,
+    });
+    return this.#get(`/divisions/search?${qs.toString()}`, options);
+  }
+
+  militaryInstallations(
+    bbox: BBox,
+    limit?: number,
+    options?: CallOptions,
+  ): Promise<{ readonly elements: readonly MilitaryInstallationItem[] }> {
+    const qs = new URLSearchParams({
+      west: String(bbox.west),
+      south: String(bbox.south),
+      east: String(bbox.east),
+      north: String(bbox.north),
+    });
+    if (limit !== undefined) qs.set('limit', String(limit));
+    return this.#get(`/military-installations?${qs.toString()}`, options);
   }
 
   secretStatus(options?: CallOptions): Promise<SecretStatusResponse> {

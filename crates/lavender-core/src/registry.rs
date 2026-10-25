@@ -88,6 +88,22 @@ pub fn layers() -> Vec<LayerDef> {
             sources: vec![sources::NIFC_WFIGS, sources::INCIWEB],
             default_on: false,
         },
+        LayerDef {
+            feed: FeedId::Bikeshare,
+            name: "Bikeshare",
+            description: "Live station availability and dock capacity for municipal bike share networks.",
+            family: LayerFamily::Mobility,
+            sources: vec![sources::GBFS],
+            default_on: false,
+        },
+        LayerDef {
+            feed: FeedId::Transit,
+            name: "Public transit",
+            description: "Live public transit vehicle positions and historical routes (GTFS-RT).",
+            family: LayerFamily::Mobility,
+            sources: vec![sources::GTFS_RT],
+            default_on: false,
+        },
     ]
 }
 
