@@ -32,8 +32,12 @@ for the ENG-\* tasks this board references. Update together with
 
 ## In Progress
 
-- **LB-130 Zig kernels + WASM provenance** (agent in flight): point-in-
-  polygon and heatmap binning kernels, TS wrappers, rebuild script.
+- **LB-130 Zig kernels + WASM provenance** (wrappers + script done): the Zig
+  kernels already exported point-in-polygon (batch/multi-polygon/wrapped) and
+  heatmap binning; `wasmHeatmap.ts` adds the TS wrapper with a pure-TS
+  fallback, `scripts/build-zig-kernels.sh` pins the toolchain and rebuilds
+  the artifact. BLOCKED: this 0.16-dev toolchain cannot link on macOS —
+  bump the pin and rerun (see language-fit.md provenance note).
 - **LB-140 Gotham-inspired build list** (from `docs/research/gotham-feature-set.md`
   top-10): geo-search (1), geofence alerting + inbox (2), timeline replay (3),
   provenance view (4), saved searches (5), entity resolution (6), briefing

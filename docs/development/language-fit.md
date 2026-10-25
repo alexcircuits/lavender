@@ -44,3 +44,19 @@ ADR 0009 (targeted polyglot performance extensions) — this file records the
   ndarray) is fine but the sidecar isolates model churn from the server.
 - Everything that must be trustworthy (ingestion, licensing, contracts, maths
   used by both sides) stays in Rust, once, behind tests.
+
+## Provenance note (2026-10-24, LB-130)
+
+`scripts/build-zig-kernels.sh` rebuilds `apps/web/public/wasm/lavender_kernels.wasm`
+from `kernels/zig` with a pinned toolchain (`0.16.0-dev.2296+fd3657bf8` via zigup),
+runs the Zig test suite and prints the artifact's sha256. Run it after any kernel
+change and commit the refreshed artifact with the source.
+
+Known blocker on this machine: that 0.16-dev build-runner fails to link on macOS
+(`undefined symbol: _sigemptyset/_sysctlbyname` in the build runner itself, cache
+cleared and retried), so the artifact could not be rebuilt today. The heatmap
+wrapper therefore dispatches through `heatmapBin`, which uses the Zig kernel when
+the loaded artifact exports `lavender_heatmap_bin` and an identical pure-TS
+fallback (`heatmapBinTs`) otherwise. Action: bump the pinned toolchain to a fixed
+0.16-dev or stable, rerun the script, and drop the fallback path once the kernel
+is proven live.

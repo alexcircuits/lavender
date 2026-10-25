@@ -96,6 +96,18 @@ export interface LavenderWasmExports extends WebAssembly.Exports {
     poly_coords_ptr: number,
     num_points: number,
   ) => boolean;
+  readonly lavender_heatmap_bin?: (
+    points_ptr: number,
+    num_points: number,
+    width: number,
+    height: number,
+    lon_min: number,
+    lon_max: number,
+    lat_min: number,
+    lat_max: number,
+    out_weight_sum_ptr: number,
+    out_count_ptr: number,
+  ) => number;
   readonly lavender_cctv_compute_frustum?: (
     lat: number,
     lon: number,
