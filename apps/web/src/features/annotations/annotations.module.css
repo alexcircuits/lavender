@@ -2,7 +2,7 @@
 .editor {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--s-3);
 }
 .stack p,
 .stack h3 {
@@ -21,26 +21,30 @@
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--s-2);
 }
 .coordinates {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: var(--s-2);
 }
 .editor {
-  padding-block: 12px;
-  border-block: 1px solid var(--hairline);
+  composes: sq from global;
+  padding: var(--s-3);
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  background: var(--well);
+  border: 1px solid transparent;
 }
 .textarea {
+  composes: sq from global;
   width: 100%;
   resize: vertical;
   min-height: 80px;
   max-height: 240px;
-  padding: 8px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-sm);
-  background: var(--well);
+  padding: var(--s-2);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-sm) * var(--corner-k));
+  background: var(--control);
   color: var(--ink);
   font: 12px var(--font-mono);
 }
@@ -48,16 +52,22 @@
   color: var(--warning);
 }
 .list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
   list-style: none;
   padding: 0;
   margin: 0;
 }
 .mark {
+  composes: sq from global;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-block: 12px;
-  border-top: 1px solid var(--hairline);
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  background: var(--well);
+  border: 1px solid transparent;
   overflow-wrap: anywhere;
 }
 .note {

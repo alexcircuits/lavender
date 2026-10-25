@@ -4,6 +4,7 @@ import { Button, IconButton, Panel, TextField, XIcon } from '../../design';
 import { useGlobe, useRuntime, useUi, useWorkspace } from '../../runtime';
 import { GLOBE_REGION_ID } from '../commands';
 import styles from './annotations.module.css';
+import { exportAnnotationsToGeoJson, parseGeoJsonToAnnotations } from './geojson';
 import { annotationCentre, geometryError, greatCircleM, measurement } from './geometry';
 import { visiblePopupOwnsKeys } from './keyboardOwnership';
 import {
@@ -46,6 +47,39 @@ export function AnnotationsPanel({ className }: { readonly className?: string | 
   const [coordinateText, setCoordinateText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const fieldId = useId();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const onImportGeoJsonFile = async (file: File) => {
+    try {
+      claim();
+      const raw = await file.text();
+      const imported = parseGeoJsonToAnnotations(raw, annotations.length);
+      const next = [...annotations, ...imported];
+      setAnnotations(next);
+      setError(null);
+      const first = imported[0];
+      if (first) {
+        const centre = annotationCentre(first.points);
+        if (centre) globe?.flyTo({ kind: 'point', position: rounded(centre) });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not import GeoJSON file.');
+    }
+  };
+
+  const onExportGeoJson = () => {
+    if (!annotations.length) return;
+    const json = exportAnnotationsToGeoJson(annotations);
+    const blob = new Blob([json], { type: 'application/geo+json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'lavender-annotations.geojson';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const addPoint = useCallback((point: GeoPoint | null) => {
     if (!point) {
@@ -253,6 +287,30 @@ export function AnnotationsPanel({ className }: { readonly className?: string | 
                 New {kind}
               </Button>
             ))}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".geojson,.json,application/geo+json,application/json"
+              hidden
+              aria-label="Import GeoJSON file"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) void onImportGeoJsonFile(file);
+              }}
+            />
+            <Button
+              variant="secondary"
+              disabled={annotations.length >= MAX_ANNOTATIONS}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Import GeoJSON
+            </Button>
+            {annotations.length > 0 ? (
+              <Button variant="ghost" onClick={onExportGeoJson}>
+                Export GeoJSON
+              </Button>
+            ) : null}
           </div>
         ) : (
           <div className={styles.editor}>

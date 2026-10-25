@@ -3,6 +3,7 @@ import { createStore } from 'zustand';
 export type CoordinateFormat = 'dd' | 'dms' | 'mgrs';
 export type UnitSystem = 'nautical' | 'metric' | 'imperial';
 export type MotionPreference = 'system' | 'reduced' | 'full';
+export type VisualPreset = 'normal' | 'noir' | 'thermal' | 'nvg' | 'crt';
 
 export interface UserPreferences {
   readonly coordinateFormat: CoordinateFormat;
@@ -10,6 +11,7 @@ export interface UserPreferences {
   readonly motion: MotionPreference;
   readonly labelArbitration: boolean;
   readonly defaultImagery: string | null;
+  readonly visualPreset: VisualPreset;
 }
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
@@ -18,6 +20,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   motion: 'system',
   labelArbitration: true,
   defaultImagery: null,
+  visualPreset: 'normal',
 };
 
 export interface PreferencesState extends UserPreferences {
@@ -26,6 +29,7 @@ export interface PreferencesState extends UserPreferences {
   setMotion(motion: MotionPreference): void;
   setLabelArbitration(labelArbitration: boolean): void;
   setDefaultImagery(defaultImagery: string | null): void;
+  setVisualPreset(visualPreset: VisualPreset): void;
   hydrate(prefs: Partial<UserPreferences>): void;
 }
 
@@ -37,6 +41,7 @@ export const createPreferencesStore = () =>
     setMotion: (motion) => set({ motion }),
     setLabelArbitration: (labelArbitration) => set({ labelArbitration }),
     setDefaultImagery: (defaultImagery) => set({ defaultImagery }),
+    setVisualPreset: (visualPreset) => set({ visualPreset }),
     hydrate: (prefs) => set((s) => ({ ...s, ...prefs })),
   }));
 

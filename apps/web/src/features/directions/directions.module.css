@@ -1,25 +1,25 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--s-3);
 }
 
 .modeRow {
   display: flex;
-  gap: 8px;
+  gap: var(--s-2);
   align-items: center;
 }
 
 .inputsGroup {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s-2);
 }
 
 .inputRow {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--s-1);
 }
 
 .label {
@@ -32,39 +32,41 @@
 
 .fieldWithAction {
   display: flex;
-  gap: 6px;
+  gap: var(--s-1_5);
   align-items: center;
 }
 
 .textInput {
+  composes: sq from global;
   flex: 1;
-  padding: 6px 8px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-sm);
+  padding: var(--s-1_5) var(--s-2);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-sm) * var(--corner-k));
   background: var(--well);
   color: var(--ink);
   font: 12px var(--font-mono);
 }
 
 .textInput:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .actions {
   display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  gap: var(--s-2);
+  margin-top: var(--s-1);
 }
 
 .summaryCard {
+  composes: sq from global;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px;
-  border-radius: var(--r-sm);
+  gap: var(--s-1_5);
+  padding: var(--s-2_5) var(--s-3);
+  border-radius: calc(var(--r-md) * var(--corner-k));
   background: var(--well);
-  border: 1px solid var(--hairline);
+  border: 1px solid transparent;
 }
 
 .statsRow {
@@ -92,7 +94,7 @@
 .stepsList {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   max-height: 280px;
   overflow-y: auto;
   padding: 0 4px 0 0;
@@ -101,25 +103,26 @@
 }
 
 .stepItem {
+  composes: sq from global;
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: var(--r-xs);
-  background: transparent;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-2_5);
+  border-radius: calc(var(--r-sm) * var(--corner-k));
+  background: var(--well);
   border: 1px solid transparent;
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s ease;
+  transition: background var(--motion-fast) var(--ease-standard);
 }
 
 .stepItem:hover {
-  background: var(--well);
+  background: var(--control);
 }
 
 .stepItemSelected {
-  background: var(--well);
-  border-color: var(--accent);
+  background: var(--accent-muted);
+  border-color: transparent;
 }
 
 .stepIndex {
@@ -129,7 +132,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--hairline);
+  background: var(--control);
   font-size: 11px;
   font-weight: 600;
   color: var(--ink-2);
@@ -158,5 +161,4 @@
   font-size: 10.5px;
   color: var(--ink-3, var(--ink-2));
   line-height: 1.4;
-  margin-top: 4px;
 }

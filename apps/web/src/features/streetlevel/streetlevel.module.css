@@ -1,11 +1,11 @@
 .container {
+  composes: sq from global;
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
-  padding: var(--s-3);
-  background-color: var(--island);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-md);
+  gap: var(--s-2);
+  padding: var(--s-2);
+  background-color: var(--well);
+  border-radius: calc(var(--r-md) * var(--corner-k-md));
   color: var(--ink);
 }
 
@@ -79,26 +79,26 @@
 }
 
 .thumbButton {
+  composes: sq from global;
   flex: 0 0 64px;
   height: 48px;
-  border-radius: var(--r-xs);
-  border: 1px solid var(--hairline);
+  border-radius: calc(var(--r-xs) * var(--corner-k-sm));
+  border: none;
   overflow: hidden;
-  background: transparent;
+  background: var(--control);
   padding: 0;
   cursor: pointer;
   transition:
-    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
     transform var(--motion-fast) ease;
 }
 
 .thumbButton:hover {
-  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
   transform: scale(1.04);
 }
 
 .thumbButtonSelected {
-  border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent);
 }
 

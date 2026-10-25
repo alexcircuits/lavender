@@ -69,4 +69,22 @@ describe('share view control', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Allow clipboard access and try again.');
     act(() => runtime.detachGlobe());
   });
+
+  it('flies to a curated tactical city preset from Quick locations', async () => {
+    const user = userEvent.setup();
+    const platform = new FakePlatform();
+    const runtime = createRuntime(platform, { workspaceLocation: null });
+    const fake = fakeGlobe();
+    runtime.attachGlobe(fake.globe);
+    renderWithRuntime(runtime, <MapControls />);
+
+    await user.click(screen.getByRole('button', { name: 'Quick locations' }));
+    const tallinnItem = await screen.findByRole('menuitem', { name: /Tallinn · Viru Square/ });
+    await user.click(tallinnItem);
+    expect(fake.globe.flyTo).toHaveBeenCalledWith({
+      kind: 'point',
+      position: { lat: 59.4366, lon: 24.7527 },
+    });
+    act(() => runtime.detachGlobe());
+  });
 });

@@ -8,14 +8,26 @@ import {
   MagnifyingGlassIcon,
   Panel,
   SearchField,
+  SegmentedControl,
   StackIcon,
   XIcon,
 } from '../../design';
 import { useUi, useWorkspace } from '../../runtime';
 import { BoundariesRow } from './BoundariesRow';
-import { FAMILY_ORDER, familyLabel } from './families';
+import { FAMILY_ORDER, familyLabel, familySwatch, type Swatch } from './families';
 import { LayerRow } from './LayerRow';
 import styles from './layers.module.css';
+
+type LayerCategoryTab = 'all' | Swatch;
+
+const LAYER_CATEGORY_TABS: readonly { value: LayerCategoryTab; label: string }[] = [
+  { value: 'all', label: 'All families' },
+  { value: 'air', label: 'Air' },
+  { value: 'maritime', label: 'Sea' },
+  { value: 'space', label: 'Space' },
+  { value: 'hazard', label: 'Hazards' },
+  { value: 'context', label: 'Context' },
+];
 
 interface LayerGroup {
   readonly family: LayerFamily;
@@ -42,16 +54,37 @@ export function groupLayers(layers: readonly LayerDescriptor[], filter: string):
   });
 }
 
-function LayersOnCount({ layers }: { layers: readonly LayerDescriptor[] }) {
-  const on = useWorkspace(
-    (s) =>
-      layers.filter((l) => l.availability.state === 'available' && s.layers[l.feed]?.enabled)
-        .length,
+function LayersFooterActions({ layers }: { layers: readonly LayerDescriptor[] }) {
+  const layerStates = useWorkspace((s) => s.layers);
+  const setLayerEnabled = useWorkspace((s) => s.setLayerEnabled);
+  const activeFeeds = useMemo(
+    () =>
+      layers
+        .filter((l) => l.availability.state === 'available' && layerStates[l.feed]?.enabled)
+        .map((l) => l.feed),
+    [layers, layerStates],
   );
+  const on = activeFeeds.length;
+
   return (
-    <span className={styles.footnote}>
-      {on} of {layers.length} layers on
-    </span>
+    <>
+      <span className={styles.footnote}>
+        {on} of {layers.length} layers on
+      </span>
+      {on > 0 ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            for (const feed of activeFeeds) {
+              setLayerEnabled(feed, false);
+            }
+          }}
+        >
+          Turn all off
+        </Button>
+      ) : null}
+    </>
   );
 }
 
@@ -63,6 +96,7 @@ export interface LayerExplorerProps {
 /** The layer explorer island (design-system §6): grouped by family, one row per layer. */
 export function LayerExplorer({ catalog, className }: LayerExplorerProps) {
   const [filter, setFilter] = useState('');
+  const [categoryTab, setCategoryTab] = useState<LayerCategoryTab>('all');
   const filterRef = useRef<HTMLInputElement | null>(null);
   const setSidePanel = useUi((s) => s.setSidePanel);
   const groups = useMemo(() => groupLayers(catalog.layers, filter), [catalog, filter]);
@@ -87,6 +121,7 @@ export function LayerExplorer({ catalog, className }: LayerExplorerProps) {
         key="boundaries-context"
         className={styles.group}
         aria-labelledby="layer-group-boundaries"
+        hidden={categoryTab !== 'all' && categoryTab !== 'context'}
       >
         <h3 id="layer-group-boundaries" className={styles.groupLabel}>
           Context
@@ -123,22 +158,30 @@ export function LayerExplorer({ catalog, className }: LayerExplorerProps) {
       </EmptyState>
     );
   } else {
-    const layerSections = groups.map((group) => (
-      <section
-        key={group.family}
-        className={styles.group}
-        aria-labelledby={`layer-group-${group.family}`}
-      >
-        <h3 id={`layer-group-${group.family}`} className={styles.groupLabel}>
-          {group.label}
-        </h3>
-        <List aria-label={`${group.label} layers`} dense>
-          {group.layers.map((layer) => (
-            <LayerRow key={layer.feed} layer={layer} sources={sourceNames.get(layer.feed) ?? ''} />
-          ))}
-        </List>
-      </section>
-    ));
+    const layerSections = groups.map((group) => {
+      const swatch = familySwatch(group.family);
+      return (
+        <section
+          key={group.family}
+          className={styles.group}
+          aria-labelledby={`layer-group-${group.family}`}
+          hidden={categoryTab !== 'all' && categoryTab !== swatch}
+        >
+          <h3 id={`layer-group-${group.family}`} className={styles.groupLabel}>
+            {group.label}
+          </h3>
+          <List aria-label={`${group.label} layers`} dense>
+            {group.layers.map((layer) => (
+              <LayerRow
+                key={layer.feed}
+                layer={layer}
+                sources={sourceNames.get(layer.feed) ?? ''}
+              />
+            ))}
+          </List>
+        </section>
+      );
+    });
 
     body = (
       <>
@@ -155,18 +198,26 @@ export function LayerExplorer({ catalog, className }: LayerExplorerProps) {
       className={className}
       actions={<IconButton label="Close layers" icon={XIcon} onClick={() => setSidePanel(null)} />}
       toolbar={
-        <SearchField
-          ref={filterRef}
-          label="Filter layers"
-          placeholder="Filter layers"
-          size="sm"
-          value={filter}
-          onValueChange={setFilter}
-        />
+        <div className={styles.toolbarStack}>
+          <SearchField
+            ref={filterRef}
+            label="Filter layers"
+            placeholder="Filter layers"
+            size="sm"
+            value={filter}
+            onValueChange={setFilter}
+          />
+          <SegmentedControl<LayerCategoryTab>
+            aria-label="Layer family filter"
+            options={LAYER_CATEGORY_TABS}
+            value={categoryTab}
+            onValueChange={setCategoryTab}
+          />
+        </div>
       }
       footer={
         <>
-          <LayersOnCount layers={catalog.layers} />
+          <LayersFooterActions layers={catalog.layers} />
           <Button variant="ghost" size="sm" onClick={() => setSidePanel('sources')}>
             Sources
           </Button>

@@ -2,6 +2,7 @@ import type { ImageryDescriptor } from '../contracts';
 import {
   CompassIcon,
   CopyIcon,
+  CrosshairIcon,
   HouseIcon,
   type Icon,
   IconButton,
@@ -10,6 +11,7 @@ import {
   MenuContent,
   MenuGroup,
   MenuGroupLabel,
+  MenuItem,
   MenuRadioGroup,
   MenuRadioItem,
   MenuTrigger,
@@ -17,6 +19,7 @@ import {
   PlusIcon,
 } from '../design';
 import { commandById, runCommand, shortcutLabel, useCommandContext } from '../features/commands';
+import { CITY_PRESETS } from '../lib/cityPois';
 import { useGlobe, useSystem, useWorkspace } from '../runtime';
 import { moveFocusWithArrows } from './arrowFocus';
 import styles from './shell.module.css';
@@ -81,6 +84,35 @@ export function MapControls() {
           void ctx.runtime.copyViewLink();
         }}
       />
+      <Menu>
+        <MenuTrigger
+          disabled={disabled}
+          render={<IconButton label="Quick locations" icon={CrosshairIcon} tooltipSide="left" />}
+        />
+        <MenuContent side="left" align="end">
+          <MenuGroup>
+            <MenuGroupLabel>City &amp; landmark presets</MenuGroupLabel>
+            {CITY_PRESETS.map((city) => {
+              const primaryPoi = city.pois[0];
+              return (
+                <MenuItem
+                  key={city.id}
+                  onClick={() => {
+                    globe?.flyTo(
+                      primaryPoi
+                        ? { kind: 'point', position: primaryPoi.position }
+                        : { kind: 'bbox', bbox: city.bbox },
+                    );
+                  }}
+                >
+                  {city.name}
+                  {primaryPoi ? ` · ${primaryPoi.name}` : ''}
+                </MenuItem>
+              );
+            })}
+          </MenuGroup>
+        </MenuContent>
+      </Menu>
       <Menu>
         <MenuTrigger
           disabled={disabled || imagery.length === 0}

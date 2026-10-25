@@ -63,6 +63,12 @@ describe('SettingsPanel', () => {
     fireEvent.click(toggle);
     expect(harness.runtime.stores.preferences.getState().labelArbitration).toBe(false);
     expect(screen.getByText('Zig WASM SIMD')).toBeInTheDocument();
+
+    // Tactical optics preset selection
+    fireEvent.click(screen.getByText('FLIR'));
+    expect(harness.runtime.stores.preferences.getState().visualPreset).toBe('thermal');
+    fireEvent.click(screen.getByText('NVG'));
+    expect(harness.runtime.stores.preferences.getState().visualPreset).toBe('nvg');
   });
 
   it('safely handles desktop provider keys without ever exposing values in the DOM', async () => {

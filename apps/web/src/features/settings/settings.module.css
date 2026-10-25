@@ -1,24 +1,26 @@
-/* Settings panel tokens only. Follows design-system.md §7. */
+/* Settings panel tokens only. Follows NoirSystems flat design (§7). */
 
 .panel {
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
+  gap: var(--s-3);
   padding: var(--s-3);
   overflow-y: auto;
 }
 
+.viewTabs {
+  margin-bottom: var(--s-1);
+}
+
 .section {
+  composes: sq from global;
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
-  padding-bottom: var(--s-4);
-  border-bottom: 1px solid var(--hairline);
-}
-
-.section:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
+  padding: var(--s-3);
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  background: var(--well);
+  border: 1px solid transparent;
 }
 
 .sectionHeader {
@@ -34,12 +36,14 @@
   letter-spacing: 0.02em;
   text-transform: uppercase;
   font-size: var(--type-caption-size);
+  margin: 0;
 }
 
 .sectionDescription {
   color: var(--ink-2);
   font: var(--type-caption);
   max-width: var(--measure-prose);
+  margin: 0;
 }
 
 .settingRow {
@@ -67,9 +71,10 @@
 }
 
 .select {
+  composes: sq from global;
   appearance: none;
-  background: var(--well);
-  border: 1px solid var(--hairline);
+  background: var(--control);
+  border: 1px solid transparent;
   border-radius: calc(var(--r-sm) * var(--corner-k));
   color: var(--ink);
   font: var(--type-body);
@@ -80,7 +85,8 @@
 }
 
 .select:focus-visible {
-  border-color: var(--accent);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .notice {
@@ -89,9 +95,9 @@
   flex-direction: column;
   gap: var(--s-1);
   padding: var(--s-2_5) var(--s-3);
-  border-radius: calc(var(--r-md) * var(--corner-k));
-  background: var(--well);
-  border: 1px solid var(--hairline);
+  border-radius: calc(var(--r-sm) * var(--corner-k));
+  background: var(--control);
+  border: 1px solid transparent;
   color: var(--ink-2);
   font: var(--type-caption);
 }
@@ -99,20 +105,21 @@
 .secretList {
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .secretCard {
+  composes: sq from global;
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
   padding: var(--s-2_5) var(--s-3);
-  border-radius: calc(var(--r-md) * var(--corner-k));
-  background: var(--well);
-  border: 1px solid var(--hairline);
+  border-radius: calc(var(--r-sm) * var(--corner-k));
+  background: var(--control);
+  border: 1px solid transparent;
 }
 
 .secretHeader {
@@ -148,10 +155,11 @@
 }
 
 .secretInput {
+  composes: sq from global;
   flex: 1;
   min-width: 0;
-  background: var(--surface);
-  border: 1px solid var(--hairline);
+  background: var(--island);
+  border: 1px solid transparent;
   border-radius: calc(var(--r-sm) * var(--corner-k));
   color: var(--ink);
   font: var(--type-code);
@@ -160,7 +168,8 @@
 }
 
 .secretInput:focus-visible {
-  border-color: var(--accent);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .polyglotGrid {
@@ -170,13 +179,14 @@
 }
 
 .archCard {
+  composes: sq from global;
   display: flex;
   flex-direction: column;
   gap: var(--s-0_5);
-  padding: var(--s-2);
+  padding: var(--s-2_5);
   border-radius: calc(var(--r-sm) * var(--corner-k));
-  background: var(--well);
-  border: 1px solid var(--hairline);
+  background: var(--control);
+  border: 1px solid transparent;
 }
 
 .archTitle {

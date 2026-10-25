@@ -17,7 +17,7 @@ import { Inspector } from '../features/inspector';
 import { LayerAnnouncer, useBoundariesLayer } from '../features/layers';
 import { CommandPalette, SearchBar } from '../features/search';
 import type { MountGlobe } from '../globe';
-import { useUi, useWorkspace } from '../runtime';
+import { usePreferences, useUi, useWorkspace } from '../runtime';
 import { CreditsButton } from './CreditsButton';
 import { FeedStatusChip } from './FeedStatusChip';
 import { FollowingChip } from './FollowingChip';
@@ -48,6 +48,7 @@ export function AppShell({ mountGlobe }: AppShellProps) {
   const setPaletteOpen = useUi((s) => s.setPaletteOpen);
   const setBriefingOpen = useUi((s) => s.setBriefingOpen);
   const sidePanel = useUi((s) => s.sidePanel);
+  const visualPreset = usePreferences((s) => s.visualPreset);
   const selectionKey = useWorkspace((s) =>
     s.selection ? `${s.selection.feed}:${s.selection.id}` : 'none',
   );
@@ -65,7 +66,11 @@ export function AppShell({ mountGlobe }: AppShellProps) {
           aria-label="Globe"
           aria-busy={status === 'loading'}
         >
-          <div ref={hostRef} className={`lv-globe-host ${styles.globe}`} />
+          <div
+            ref={hostRef}
+            className={`lv-globe-host ${styles.globe}`}
+            data-visual-preset={visualPreset}
+          />
           {status === 'loading' ? <p className={styles.caption}>Loading globe…</p> : null}
           {status === 'failed' ? (
             <p className={styles.caption} role="alert">

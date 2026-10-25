@@ -16,3 +16,4 @@ export {
   makeTrackingKey,
   monitorGeofences,
 } from './geofenceMonitor';
+export { SavedSearchesTab } from './SavedSearchesTab';

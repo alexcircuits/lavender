@@ -13,11 +13,13 @@
 }
 
 .formSection {
+  composes: sq from global;
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
-  padding-bottom: var(--s-3);
-  border-bottom: 1px solid var(--hairline);
+  gap: var(--s-2);
+  padding: var(--s-2);
+  background: var(--well);
+  border-radius: calc(var(--r-md) * var(--corner-k-md));
 }
 
 .notesField {
@@ -32,40 +34,42 @@
 }
 
 .textarea {
+  composes: sq from global;
   width: 100%;
   resize: vertical;
   min-height: 72px;
   max-height: 180px;
   padding: var(--s-2);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-sm);
-  background: var(--well);
+  border: none;
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
+  background: var(--control);
   color: var(--ink);
   font: var(--type-body-sm);
   outline: none;
 }
 
 .textarea:focus {
-  border-color: var(--focus-ring-color);
   box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
 }
 
 .previewContainer {
+  composes: sq from global;
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
-  padding: var(--s-4);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-md);
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border-radius: calc(var(--r-md) * var(--corner-k-md));
   background: var(--well);
 }
 
 .previewHeader {
+  composes: sq from global;
   display: flex;
   flex-direction: column;
   gap: var(--s-1);
-  padding-bottom: var(--s-3);
-  border-bottom: 1px solid var(--hairline);
+  padding: var(--s-2) var(--s-3);
+  background: var(--control);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
 }
 
 .previewBadge {
@@ -76,8 +80,7 @@
   color: var(--accent-ink);
   background: var(--accent-subtle);
   padding: var(--dist-1) var(--dist-3);
-  border-radius: var(--r-xs);
-  border: 1px solid var(--accent);
+  border-radius: var(--r-pill);
 }
 
 .previewTitle {
@@ -119,10 +122,10 @@
 }
 
 .notesCard {
-  background: var(--island);
-  border: 1px solid var(--hairline);
+  composes: sq from global;
+  background: var(--control);
   border-left: 3px solid var(--accent);
-  border-radius: var(--r-sm);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
   padding: var(--s-2) var(--s-3);
   font: var(--type-body-sm);
   color: var(--ink);
@@ -130,9 +133,10 @@
 }
 
 .tableContainer {
+  composes: sq from global;
   overflow-x: auto;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-sm);
+  background: var(--control);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
 }
 
 .previewTable {
@@ -145,7 +149,6 @@
 .previewTable td {
   padding: var(--s-2) var(--s-3);
   text-align: left;
-  border-bottom: 1px solid var(--hairline);
 }
 
 .previewTable th {
@@ -161,9 +164,9 @@
 }
 
 .entityCard {
-  background: var(--island);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-sm);
+  composes: sq from global;
+  background: var(--control);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
   padding: var(--s-3);
   display: flex;
   flex-direction: column;
@@ -181,15 +184,17 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--s-2);
-  margin-top: var(--dist-2);
-  padding-top: var(--dist-2);
-  border-top: 1px solid var(--hairline);
+  margin-top: var(--dist-1);
 }
 
 .detailItem {
+  composes: sq from global;
   display: flex;
   flex-direction: column;
   gap: var(--dist-1);
+  background: var(--island);
+  padding: var(--s-1_5) var(--s-2);
+  border-radius: calc(var(--r-xs) * var(--corner-k-sm));
 }
 
 .detailLabel {
@@ -206,13 +211,13 @@
 .sourceList {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  gap: 6px;
 }
 
 .sourceCard {
-  background: var(--island);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-sm);
+  composes: sq from global;
+  background: var(--control);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
   padding: var(--s-2) var(--s-3);
   display: flex;
   flex-direction: column;

@@ -145,3 +145,93 @@
   flex-wrap: wrap;
   padding-top: var(--s-0_5);
 }
+
+.tabSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.createCard {
+  composes: sq from global;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  background: var(--well);
+  border: 1px solid transparent;
+}
+
+.formRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.toggleLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1_5);
+  font: var(--type-caption);
+  color: var(--ink-2);
+}
+
+.textInput {
+  composes: sq from global;
+  width: 100%;
+  height: var(--ctl-sm);
+  padding: 0 var(--s-2);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
+  background: var(--control);
+  color: var(--ink);
+  font: var(--type-body-sm);
+  border: 1px solid transparent;
+}
+
+.textInput::placeholder {
+  color: var(--ink-2);
+}
+
+.textInput:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.matchesList {
+  list-style: none;
+  padding: 0;
+  margin: var(--s-1) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1_5);
+}
+
+.matchRow {
+  composes: sq from global;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-1_5) var(--s-2);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
+  background: var(--control);
+  border: 1px solid transparent;
+}
+
+.matchMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1_5);
+  min-width: 0;
+}
+
+.matchLabel {
+  font: var(--type-body-sm);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

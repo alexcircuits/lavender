@@ -230,6 +230,24 @@ describe('LayerExplorer', () => {
     await turnOnAndDeliver(['a']);
     expect(status).toHaveTextContent('Earthquakes: 1 event');
   });
+
+  it('filters layer groups by family tab and turns all active layers off from the footer', async () => {
+    const { user, ...h } = await setup();
+    await user.click(screen.getByRole('switch', { name: 'Earthquakes' }));
+    await user.click(screen.getByRole('switch', { name: 'Aircraft' }));
+    expect(screen.getByText('2 of 3 layers on')).toBeVisible();
+
+    const hazardsTab = screen.getByRole('radio', { name: 'Hazards' });
+    await user.click(hazardsTab);
+    expect(screen.getByRole('heading', { name: 'Hazards' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Air' })).not.toBeInTheDocument();
+
+    const turnAllOff = screen.getByRole('button', { name: 'Turn all off' });
+    await user.click(turnAllOff);
+    expect(h.runtime.stores.workspace.getState().layers.earthquakes?.enabled).toBe(false);
+    expect(h.runtime.stores.workspace.getState().layers.aircraft?.enabled).toBe(false);
+    expect(screen.getByText('0 of 3 layers on')).toBeVisible();
+  });
 });
 
 describe('LayerRow rendering', () => {

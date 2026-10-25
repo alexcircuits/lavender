@@ -61,17 +61,16 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  padding: 2px 6px;
-  border-radius: var(--r-sm);
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.05em;
   background-color: var(--island);
-  border: 1px solid var(--hairline);
+  box-shadow: var(--float-shadow);
   color: var(--ink);
   white-space: nowrap;
   pointer-events: none;
-  backdrop-filter: blur(4px);
 }
 
 .badgeLeft {

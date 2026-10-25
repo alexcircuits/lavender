@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react';
 import { Badge, Button, cx, Panel, SegmentedControl, Toggle } from '../../design';
 import type { SecretStatusResponse } from '../../platform/types';
 import { usePlatform, usePreferences, useSystem } from '../../runtime';
-import type { CoordinateFormat, MotionPreference, UnitSystem } from '../../state/preferencesStore';
+import type {
+  CoordinateFormat,
+  MotionPreference,
+  UnitSystem,
+  VisualPreset,
+} from '../../state/preferencesStore';
 import styles from './settings.module.css';
 
 interface SecretDefinition {
@@ -37,6 +42,7 @@ export function SettingsPanel({ className }: SettingsPanelProps) {
   const [secretInfo, setSecretInfo] = useState<SecretStatusResponse | null>(null);
   const [draftKeys, setDraftKeys] = useState<Record<string, string>>({});
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'all' | 'display' | 'units' | 'keys' | 'about'>('all');
 
   useEffect(() => {
     let unmounted = false;
@@ -93,15 +99,54 @@ export function SettingsPanel({ className }: SettingsPanelProps) {
 
   return (
     <Panel title="Settings" dense className={cx(styles.panel, className)}>
+      <div className={styles.viewTabs}>
+        <SegmentedControl
+          aria-label="Settings section"
+          options={[
+            { value: 'all', label: 'All' },
+            { value: 'display', label: 'Display' },
+            { value: 'units', label: 'Units' },
+            { value: 'keys', label: 'Keys' },
+            { value: 'about', label: 'About' },
+          ]}
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+        />
+      </div>
+
       {/* 1. Display & Imagery */}
-      <section className={styles.section} aria-labelledby="display-heading">
+      <section
+        className={styles.section}
+        aria-labelledby="display-heading"
+        hidden={activeTab !== 'all' && activeTab !== 'display'}
+      >
         <div className={styles.sectionHeader}>
           <h3 id="display-heading" className={styles.sectionTitle}>
             Display & Imagery
           </h3>
           <p className={styles.sectionDescription}>
-            Configure base cartography, animation intensity, and spatial rendering acceleration.
+            Configure base cartography, tactical optics, animation intensity, and spatial rendering
+            acceleration.
           </p>
+        </div>
+
+        <div className={styles.settingRow}>
+          <div className={styles.settingHeader}>
+            <span className={styles.settingLabel}>Tactical Optics Preset</span>
+            <span className={styles.settingSubtext}>GPU compositor post-processing</span>
+          </div>
+          <SegmentedControl
+            aria-label="Tactical optics preset"
+            options={[
+              { value: 'normal', label: 'True Color' },
+              { value: 'noir', label: 'Noir' },
+              { value: 'thermal', label: 'FLIR' },
+              { value: 'nvg', label: 'NVG' },
+              { value: 'crt', label: 'CRT' },
+            ]}
+            value={preferences.visualPreset}
+            onValueChange={(val) => preferences.setVisualPreset(val as VisualPreset)}
+          />
         </div>
 
         {imageryList.length > 0 && (
@@ -162,7 +207,11 @@ export function SettingsPanel({ className }: SettingsPanelProps) {
       </section>
 
       {/* 2. Units & Coordinates */}
-      <section className={styles.section} aria-labelledby="units-heading">
+      <section
+        className={styles.section}
+        aria-labelledby="units-heading"
+        hidden={activeTab !== 'all' && activeTab !== 'units'}
+      >
         <div className={styles.sectionHeader}>
           <h3 id="units-heading" className={styles.sectionTitle}>
             Units & Coordinates
@@ -206,7 +255,11 @@ export function SettingsPanel({ className }: SettingsPanelProps) {
       </section>
 
       {/* 3. Data Sources & API Keys */}
-      <section className={styles.section} aria-labelledby="datasources-heading">
+      <section
+        className={styles.section}
+        aria-labelledby="datasources-heading"
+        hidden={activeTab !== 'all' && activeTab !== 'keys'}
+      >
         <div className={styles.sectionHeader}>
           <h3 id="datasources-heading" className={styles.sectionTitle}>
             Data Sources & Credentials
@@ -298,7 +351,11 @@ export function SettingsPanel({ className }: SettingsPanelProps) {
       </section>
 
       {/* 4. About & Polyglot Engine */}
-      <section className={styles.section} aria-labelledby="about-heading">
+      <section
+        className={styles.section}
+        aria-labelledby="about-heading"
+        hidden={activeTab !== 'all' && activeTab !== 'about'}
+      >
         <div className={styles.sectionHeader}>
           <h3 id="about-heading" className={styles.sectionTitle}>
             About Lavender

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, IconButton, Panel, TextField, XIcon } from '../../design';
+import { Button, IconButton, Panel, SegmentedControl, TextField, XIcon } from '../../design';
 import { usePlatform, useUi, useWorkspace } from '../../runtime';
 import styles from '../annotations/annotations.module.css';
 import {
@@ -26,6 +26,7 @@ export function MissionsPanel({ className }: { readonly className?: string | und
   const annotations = useWorkspace((s) => s.annotations);
   const [cards, setCards] = useState<readonly MissionCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeStage, setActiveStage] = useState<'all' | MissionColumn>('all');
 
   // Hydrate once from device preferences; every change writes back.
   useEffect(() => {
@@ -88,6 +89,19 @@ export function MissionsPanel({ className }: { readonly className?: string | und
       actions={<IconButton label="Close missions" icon={XIcon} onClick={() => close(null)} />}
     >
       <div className={styles.stack}>
+        <SegmentedControl
+          aria-label="Mission stage filter"
+          options={[
+            { value: 'all', label: 'All' },
+            { value: 'detected', label: 'Detected' },
+            { value: 'watching', label: 'Watching' },
+            { value: 'monitoring', label: 'Monitor' },
+            { value: 'analysing', label: 'Analyse' },
+            { value: 'reported', label: 'Reported' },
+          ]}
+          value={activeStage}
+          onValueChange={(v) => setActiveStage(v as 'all' | MissionColumn)}
+        />
         <p className={styles.help}>
           A kanban across the investigation workflow: Detected → Watching → Monitoring → Analysing →
           Reported. New cards link the entity you have selected; the board stays on this device.
@@ -100,7 +114,11 @@ export function MissionsPanel({ className }: { readonly className?: string | und
         {MISSION_COLUMNS.map((column) => {
           const inColumn = (cards ?? []).filter((c) => c.column === column);
           return (
-            <section key={column} aria-label={COLUMN_LABELS[column]}>
+            <section
+              key={column}
+              aria-label={COLUMN_LABELS[column]}
+              hidden={activeStage !== 'all' && activeStage !== column}
+            >
               <h3>
                 {COLUMN_LABELS[column]} · {inColumn.length}
               </h3>

@@ -1,11 +1,25 @@
 /* Layer explorer. Tokens only. */
 
+.toolbarStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1_5);
+  width: 100%;
+}
+
+.group {
+  composes: sq from global;
+  background: var(--well);
+  padding: var(--s-2);
+  border-radius: calc(var(--r-md) * var(--corner-k-md));
+}
+
 .group + .group {
   margin-top: var(--s-2);
 }
 
 .groupLabel {
-  padding: var(--s-1) var(--s-2);
+  padding: var(--s-0_5) var(--s-1) var(--s-1);
   color: var(--ink-2);
   font: var(--type-micro);
 }

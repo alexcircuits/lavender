@@ -7,26 +7,28 @@
 }
 
 .emptyPrompt {
+  composes: sq from global;
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
   padding: var(--s-4);
   background-color: var(--well);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-md) * var(--corner-k));
   font-size: 13px;
   line-height: 1.5;
   color: var(--ink-2);
 }
 
 .entityHeader {
+  composes: sq from global;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--s-2) var(--s-3);
+  padding: var(--s-2_5) var(--s-3);
   background-color: var(--well);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-md) * var(--corner-k));
 }
 
 .entityMeta {
@@ -51,13 +53,14 @@
 }
 
 .telemetryCard {
+  composes: sq from global;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--s-2);
   padding: var(--s-3);
   background-color: var(--well);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-md) * var(--corner-k));
   font-family: var(--font-mono);
   font-size: 12px;
 }
@@ -115,11 +118,12 @@
 }
 
 .speedGroup {
+  composes: sq from global;
   display: flex;
   align-items: center;
   background-color: var(--well);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-sm) * var(--corner-k));
   padding: 2px;
   gap: 2px;
 }
@@ -159,10 +163,5 @@
 
 .followCheckbox {
   accent-color: var(--accent);
-}
-
-.historySummary {
-  font-size: 11px;
-  color: var(--ink-3);
-  line-height: 1.4;
+  cursor: pointer;
 }

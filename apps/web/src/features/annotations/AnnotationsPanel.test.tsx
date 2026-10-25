@@ -225,4 +225,28 @@ describe('accessible annotation editor', () => {
     expect(screen.queryByRole('button', { name: 'Cancel drawing' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: pin.label })).toBeVisible();
   });
+
+  it('imports GeoJSON features into workspace annotations and flies to the first imported feature', async () => {
+    const { h, user } = await setup();
+    const fileInput = screen.getByLabelText('Import GeoJSON file');
+    const geojson = JSON.stringify({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { name: 'Imported Beacon', description: 'VHF relay' },
+          geometry: { type: 'Point', coordinates: [24.7536, 59.437] },
+        },
+      ],
+    });
+    const file = new File([geojson], 'beacon.geojson', { type: 'application/geo+json' });
+    await user.upload(fileInput, file);
+
+    expect(await screen.findByRole('heading', { name: 'Imported Beacon' })).toBeVisible();
+    expect(screen.getByText('VHF relay')).toBeVisible();
+    expect(h.globe?.globe.flyTo).toHaveBeenCalledWith({
+      kind: 'point',
+      position: { lat: 59.437, lon: 24.7536 },
+    });
+  });
 });
