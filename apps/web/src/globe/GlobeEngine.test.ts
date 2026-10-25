@@ -38,6 +38,10 @@ const fixtures = vi.hoisted(() => {
   const cableItems: unknown[] = [];
   const cctvCameras: unknown[] = [];
   const transitTrails: unknown[] = [];
+  const heatmapContacts: unknown[] = [];
+  const heatmapVisibilities: boolean[] = [];
+  const heatmapOpacities: number[] = [];
+  const heatmapCleared = { value: false };
   /** Screen point → globe point; null picks the centre for every point. */
   const pick = {
     at: null as null | ((x: number, y: number) => { lat: number; lon: number } | null),
@@ -57,6 +61,10 @@ const fixtures = vi.hoisted(() => {
     cableItems,
     cctvCameras,
     transitTrails,
+    heatmapContacts,
+    heatmapVisibilities,
+    heatmapOpacities,
+    heatmapCleared,
     pick,
   };
 });
@@ -72,6 +80,7 @@ vi.mock('@cesium/engine', () => ({
   EllipsoidTerrainProvider: class {},
   ImageryLayer: { fromProviderAsync: () => ({}) },
   Ion: {},
+  SingleTileImageryProvider: class {},
   PolylineCollection: class {
     add(options: unknown) {
       return { ...(typeof options === 'object' && options !== null ? options : {}), show: true };
@@ -154,6 +163,23 @@ vi.mock('./renderers/cctv', () => ({
     setSelected = vi.fn();
     locate = vi.fn();
     clear = vi.fn();
+    destroy = vi.fn();
+  },
+}));
+vi.mock('./renderers/heatmap', () => ({
+  HeatmapRenderer: class {
+    updateContacts = vi.fn((contacts: unknown) => {
+      fixtures.heatmapContacts.push(contacts);
+    });
+    show = vi.fn((visible: boolean) => {
+      fixtures.heatmapVisibilities.push(visible);
+    });
+    setOpacity = vi.fn((opacity: number) => {
+      fixtures.heatmapOpacities.push(opacity);
+    });
+    clear = vi.fn(() => {
+      fixtures.heatmapCleared.value = true;
+    });
     destroy = vi.fn();
   },
 }));
@@ -515,6 +541,25 @@ describe('GlobeEngine settled view publication', () => {
     };
     engine.setCctvDetections(mockDetections);
     expect(engine.getCctvDetections()).toEqual(mockDetections);
+
+    engine.destroy();
+  });
+
+  it('manages dense contact heatmap contacts, visibility, and opacity', () => {
+    const { engine } = setup();
+
+    const contacts = [{ lat: 40.7, lon: -74.0, weight: 3 }];
+    engine.setHeatmapContacts(contacts);
+    expect(fixtures.heatmapContacts).toContainEqual(contacts);
+
+    engine.setHeatmapVisible(false);
+    expect(fixtures.heatmapVisibilities).toContain(false);
+
+    engine.setHeatmapOpacity(0.65);
+    expect(fixtures.heatmapOpacities).toContain(0.65);
+
+    engine.clearHeatmap();
+    expect(fixtures.heatmapCleared.value).toBe(true);
 
     engine.destroy();
   });

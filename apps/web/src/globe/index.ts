@@ -26,11 +26,13 @@ import type {
 import type { AnnotationDraft, MapAnnotation } from '../features/annotations/model';
 import type { BoundaryClassVisibility } from './renderers/boundaries';
 import type { LandingPointItem, SubmarineCableItem } from './renderers/cables';
+import type { HeatmapContact } from './renderers/heatmap';
 import type { Located } from './renderers/types';
 import type { TrackingState, TrackingStatus } from './tracking';
 
 export type {
   BoundaryClassVisibility,
+  HeatmapContact,
   LandingPointItem,
   SubmarineCableItem,
   TrackingState,
@@ -140,6 +142,14 @@ export interface GlobeController {
   cancelImageryBoxDrawing(): void;
   /** Whether the imagery box drawing tool is active. */
   isImageryBoxDrawing(): boolean;
+  /** Sets dense contact heatmap points (aircraft, vessels, etc.). */
+  setHeatmapContacts(contacts: readonly HeatmapContact[]): void;
+  /** Controls dense contact heatmap layer visibility. */
+  setHeatmapVisible(visible: boolean): void;
+  /** Controls dense contact heatmap layer opacity (0..1). */
+  setHeatmapOpacity(opacity: number): void;
+  /** Clears dense contact heatmap points. */
+  clearHeatmap(): void;
   /** Centroid location and symbol size for framing a selected boundary. */
   locateBoundary(id: string): Located | undefined;
   /** Retrieves a boundary feature by id, if currently loaded. */

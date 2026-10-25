@@ -69,6 +69,7 @@ import { CycloneRenderer } from './renderers/cyclones';
 import { DirectionsRenderer } from './renderers/directions';
 import { EarthquakeRenderer } from './renderers/earthquakes';
 import { FireRenderer } from './renderers/fires';
+import { type HeatmapContact, HeatmapRenderer } from './renderers/heatmap';
 import { LaunchPadRenderer } from './renderers/launches';
 import { PerimeterRenderer } from './renderers/perimeters';
 import {
@@ -110,6 +111,7 @@ interface Mounted {
   readonly cctv: CctvRenderer;
   readonly directions: DirectionsRenderer;
   readonly recentImagery: RecentImageryRenderer;
+  readonly heatmap: HeatmapRenderer;
   readonly tracking: EntityTrackingService;
   readonly annotations: AnnotationRenderer;
   readonly halo: SelectionHalo;
@@ -251,6 +253,7 @@ export class GlobeEngine implements GlobeController {
     const cctv = new CctvRenderer(primitives, ctx);
     const directions = new DirectionsRenderer(primitives, ctx);
     const recentImagery = new RecentImageryRenderer(scene.imageryLayers, primitives, scene, ctx);
+    const heatmap = new HeatmapRenderer(scene.imageryLayers, ctx);
     const renderers = new Map<FeedId, FeedRenderer>([
       ['earthquakes', new EarthquakeRenderer(primitives, ctx)],
       ['cyclones', new CycloneRenderer(primitives, ctx)],
@@ -281,6 +284,7 @@ export class GlobeEngine implements GlobeController {
     cleanup.push(() => cctv.destroy());
     cleanup.push(() => directions.destroy());
     cleanup.push(() => recentImagery.destroy());
+    cleanup.push(() => heatmap.destroy());
     if (scene.preUpdate?.addEventListener) {
       cleanup.push(
         scene.preUpdate.addEventListener(() => {
@@ -346,6 +350,7 @@ export class GlobeEngine implements GlobeController {
       cctv,
       directions,
       recentImagery,
+      heatmap,
       tracking,
       annotations: new AnnotationRenderer(primitives, ctx, scene),
       halo: new SelectionHalo(primitives, colors),
@@ -540,6 +545,22 @@ export class GlobeEngine implements GlobeController {
 
   isImageryBoxDrawing(): boolean {
     return this.#mounted?.recentImagery.isDrawing() ?? false;
+  }
+
+  setHeatmapContacts(contacts: readonly HeatmapContact[]): void {
+    this.#mounted?.heatmap.updateContacts(contacts);
+  }
+
+  setHeatmapVisible(visible: boolean): void {
+    this.#mounted?.heatmap.show(visible);
+  }
+
+  setHeatmapOpacity(opacity: number): void {
+    this.#mounted?.heatmap.setOpacity(opacity);
+  }
+
+  clearHeatmap(): void {
+    this.#mounted?.heatmap.clear();
   }
 
   startFollowing(target: EntityRef): void {

@@ -537,6 +537,10 @@ export function fakeGlobe(): FakeGlobe {
     startImageryBoxDrawing: vi.fn(),
     cancelImageryBoxDrawing: vi.fn(),
     isImageryBoxDrawing: vi.fn(() => false),
+    setHeatmapContacts: vi.fn(),
+    setHeatmapVisible: vi.fn(),
+    setHeatmapOpacity: vi.fn(),
+    clearHeatmap: vi.fn(),
     destroy: vi.fn(),
   } satisfies GlobeController;
   return {

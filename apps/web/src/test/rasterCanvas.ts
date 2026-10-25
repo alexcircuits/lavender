@@ -100,6 +100,47 @@ export class RasterContext {
     );
   }
 
+  clearRect(x: number, y: number, width: number, height: number): void {
+    const p = this.#pixels;
+    for (let cy = y; cy < y + height && cy < this.#height; cy++) {
+      for (let cx = x; cx < x + width && cx < this.#width; cx++) {
+        const idx = (cy * this.#width + cx) * 4;
+        p[idx] = 0;
+        p[idx + 1] = 0;
+        p[idx + 2] = 0;
+        p[idx + 3] = 0;
+      }
+    }
+  }
+
+  createImageData(width: number, height: number): ImageData {
+    return {
+      width,
+      height,
+      data: new Uint8ClampedArray(width * height * 4),
+      colorSpace: 'srgb',
+    } as unknown as ImageData;
+  }
+
+  putImageData(imageData: ImageData, dx: number, dy: number): void {
+    const { width, height, data } = imageData;
+    const p = this.#pixels;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const srcIdx = (y * width + x) * 4;
+        const dstX = dx + x;
+        const dstY = dy + y;
+        if (dstX >= 0 && dstX < this.#width && dstY >= 0 && dstY < this.#height) {
+          const dstIdx = (dstY * this.#width + dstX) * 4;
+          p[dstIdx] = data[srcIdx] ?? 0;
+          p[dstIdx + 1] = data[srcIdx + 1] ?? 0;
+          p[dstIdx + 2] = data[srcIdx + 2] ?? 0;
+          p[dstIdx + 3] = (data[srcIdx + 3] ?? 0) / 255;
+        }
+      }
+    }
+  }
+
   /** The pixel at column `x`, row `y`. */
   pixel(x: number, y: number): Rgba {
     const i = (y * this.#width + x) * 4;
