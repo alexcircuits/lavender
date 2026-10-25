@@ -38,7 +38,7 @@ pub use hub::{FeedSubscription, RegionBudget, SubscriptionEvent};
 pub use providers::boundaries::{BOUNDARIES_ATTRIBUTION, BoundaryStore};
 pub use providers::cables::{CableStore, LandingPoint, SubmarineCable};
 pub use providers::cctv::{CctvCatalog, build_synthetic_cctv_svg};
-pub use providers::divisions::{DivisionIndex, DivisionRecord, DIVISIONS_ATTRIBUTION};
+pub use providers::divisions::{DIVISIONS_ATTRIBUTION, DivisionIndex, DivisionRecord};
 pub use providers::imagery_search::{
     DEFAULT_CATALOG_DAYS, ImageryAttribution, ImageryCandidate, ImageryError, ImageryErrorDetail,
     ImagerySearchProvider, RecentImageryResponse, ThumbnailProbeResponse, ValidatedBox,

@@ -13,6 +13,7 @@ import {
   SquareIcon,
   StackIcon,
   Tooltip,
+  WarningCircleIcon,
 } from '../design';
 import { useUi } from '../runtime';
 import type { SidePanel } from '../state/stores';
@@ -31,6 +32,7 @@ const ITEMS: ReadonlyArray<{
   { panel: 'sources', label: 'Sources', icon: InfoIcon },
   { panel: 'annotations', label: 'Annotations', icon: PencilSimpleIcon },
   { panel: 'geofences', label: 'Geofences', icon: PathIcon },
+  { panel: 'alerts', label: 'Alert inbox', icon: WarningCircleIcon },
   { panel: 'missions', label: 'Missions', icon: SquareIcon },
 ];
 

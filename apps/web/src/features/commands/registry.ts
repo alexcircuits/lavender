@@ -107,6 +107,27 @@ export const COMMANDS: readonly Command[] = [
     },
   },
   {
+    id: 'briefing.export',
+    title: 'Export briefing',
+    keywords: [
+      'briefing',
+      'dossier',
+      'export',
+      'report',
+      'intel',
+      'intelligence',
+      'situation',
+      'markdown',
+      'html',
+    ],
+    inPalette: true,
+    run: (ctx) => {
+      const state = ui(ctx);
+      state.setPaletteOpen(false);
+      state.setBriefingOpen(true);
+    },
+  },
+  {
     id: 'panel.layers',
     title: 'Show layers',
     keywords: ['layers', 'explorer', 'feeds'],

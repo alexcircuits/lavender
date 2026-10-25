@@ -9,6 +9,13 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Done
 
+- **LB-109 Provider verification audit**:
+  - Full static and dynamic verification audit across all 28 Rust data providers under
+    `crates/lavender-core/src/providers/` (`docs/audit/provider-verification.md`).
+  - Evaluated against mandatory roadmap criteria: (a) parser tests on fixtures, (b) error-path
+    and secret redaction tests, (c) rate-limit/budget/cache tests, (d) licence/attribution in `sources.rs`
+    gated by `registry.rs`, (e) frontend renderer journeys and ADR 0008 privacy governance.
+  - Formally gates completion of ENG-990 and ENG-991.
 - **LB-150 Timeline replay (web)**:
   - New `features/replay` panel (`ReplayPanel.tsx`, `interpolate.ts`, `replay.module.css`, `index.ts`).
   - Added `'replay'` panel to `SidePanel` union, wired into `SidePanel.tsx` and `NavRail.tsx` with Phosphor `ClockCounterClockwiseIcon`.
@@ -74,8 +81,6 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Backlog (ranked)
 
-- **LB-109** Per-provider verification of the landed second wave (fixtures,
-  licence lines, renderer journeys) — gates ENG-990/991 completion.
 - **LB-114** airQuality provider · **LB-115** GNSS integrity · **LB-116**
   streetLevel remainder (Mapillary/KartaView) · **LB-117** SDR/local receivers
   via Zig native artifact · **LB-118** scenes/evidence tours · **LB-119** maps
@@ -91,3 +96,6 @@ for the ENG-\* tasks this board references. Update together with
 
 - (none — ENG-974/976/983/1003 remain in review in Flokzy from before this
   board; see `task-index.md`.)
+
+## Fleet watchdog log
+- 2026-10-25 17:40 run 1: 2 unpushed commits (97aac60b, 93174c75), dirty set alerts/briefing/audit + 11 modified; baseline fingerprint b7db47cd85b7c334 — no prior run, baseline recorded only.

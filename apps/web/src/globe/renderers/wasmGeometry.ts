@@ -5,6 +5,7 @@
  * Ramer-Douglas-Peucker (RDP) polyline simplification, and point-in-polygon ray-casting
  * using the freestanding Zig WebAssembly kernel.
  */
+import type { GeoPoint } from '../../contracts';
 import {
   getActiveLavenderWasm,
   type LavenderWasmContext,
@@ -140,40 +141,82 @@ export function simplifyRdpWasm(
   return simplified;
 }
 
+function extractCoord(pt: readonly [number, number] | GeoPoint | undefined): {
+  lon: number;
+  lat: number;
+} {
+  if (!pt) return { lon: 0, lat: 0 };
+  if ('lon' in pt && 'lat' in pt) return { lon: pt.lon, lat: pt.lat };
+  const tuple = pt as readonly [number, number];
+  return { lon: tuple[0] ?? 0, lat: tuple[1] ?? 0 };
+}
+
+function raycastPointInPolygon(
+  lon: number,
+  lat: number,
+  polygon: ReadonlyArray<readonly [number, number] | GeoPoint>,
+): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const pi = extractCoord(polygon[i]);
+    const pj = extractCoord(polygon[j]);
+    const xi = pi.lon;
+    const yi = pi.lat;
+    const xj = pj.lon;
+    const yj = pj.lat;
+    const intersect = yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
 /**
  * Tests whether a point [lon, lat] is inside a polygon ring using ray-casting in WebAssembly.
+ * Accepts either [lon, lat] coordinate tuples or GeoPoint objects.
  *
  * @param lon Test longitude
  * @param lat Test latitude
- * @param polygon Array of [lon, lat] coordinate pairs forming the polygon ring
+ * @param polygon Array of [lon, lat] coordinate pairs or GeoPoints forming the polygon ring
  * @returns true if the point is strictly inside the polygon
  */
 export function pointInPolygonWasm(
   lon: number,
   lat: number,
-  polygon: ReadonlyArray<readonly [number, number]>,
+  polygon: ReadonlyArray<readonly [number, number] | GeoPoint>,
 ): boolean {
   if (polygon.length < 3) return false;
 
-  const ctx = getWasmContext();
+  const wasm = getActiveLavenderWasm();
+  if (!wasm) {
+    return raycastPointInPolygon(lon, lat, polygon);
+  }
+
   const numPoints = Math.min(polygon.length, 8192);
   const totalCoords = numPoints * 2;
 
-  const basePtr = ctx.heapBase + GEOMETRY_SCRATCH_OFFSET;
+  const basePtr = wasm.heapBase + GEOMETRY_SCRATCH_OFFSET;
   const inputPtr = basePtr;
   const requiredBytes = inputPtr + totalCoords * 8;
 
-  ensureMemory(ctx, requiredBytes);
+  ensureMemory(wasm, requiredBytes);
 
-  const inputView = new Float64Array(ctx.memory.buffer, inputPtr, totalCoords);
+  const inputView = new Float64Array(wasm.memory.buffer, inputPtr, totalCoords);
 
   for (let i = 0; i < numPoints; i++) {
     const pt = polygon[i];
-    inputView[i * 2] = pt ? pt[0] : 0;
-    inputView[i * 2 + 1] = pt ? pt[1] : 0;
+    if (Array.isArray(pt)) {
+      inputView[i * 2] = pt[0] ?? 0;
+      inputView[i * 2 + 1] = pt[1] ?? 0;
+    } else if (pt && typeof pt === 'object' && 'lon' in pt && 'lat' in pt) {
+      inputView[i * 2] = pt.lon;
+      inputView[i * 2 + 1] = pt.lat;
+    } else {
+      inputView[i * 2] = 0;
+      inputView[i * 2 + 1] = 0;
+    }
   }
 
-  return Boolean(ctx.exports.lavender_point_in_polygon(lon, lat, inputPtr, numPoints));
+  return Boolean(wasm.exports.lavender_point_in_polygon(lon, lat, inputPtr, numPoints));
 }
 
 export { loadLavenderWasm };

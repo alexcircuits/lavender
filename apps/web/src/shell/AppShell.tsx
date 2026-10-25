@@ -1,5 +1,11 @@
-import { useRef } from 'react';
-import { IconButton, MagnifyingGlassIcon } from '../design';
+import { lazy, Suspense, useRef } from 'react';
+import { Button, IconButton, MagnifyingGlassIcon } from '../design';
+
+// Code-split with the other Wave B panels to hold the startup budget.
+const BriefingModal = lazy(() =>
+  import('../features/briefing').then((m) => ({ default: m.BriefingModal })),
+);
+
 import {
   GLOBE_REGION_ID,
   ShortcutSheet,
@@ -40,6 +46,7 @@ export function AppShell({ mountGlobe }: AppShellProps) {
   useGlobalShortcuts(commandContext);
   const collapsed = useCollapsed();
   const setPaletteOpen = useUi((s) => s.setPaletteOpen);
+  const setBriefingOpen = useUi((s) => s.setBriefingOpen);
   const sidePanel = useUi((s) => s.sidePanel);
   const selectionKey = useWorkspace((s) =>
     s.selection ? `${s.selection.feed}:${s.selection.id}` : 'none',
@@ -98,6 +105,9 @@ export function AppShell({ mountGlobe }: AppShellProps) {
             <div className={styles.chipSlot}>
               <FollowingChip />
               <FeedStatusChip />
+              <Button variant="secondary" size="sm" onClick={() => setBriefingOpen(true)}>
+                Export briefing
+              </Button>
             </div>
           </div>
           <div className={styles.right} hidden={collapsed === 'inspector'}>
@@ -117,6 +127,9 @@ export function AppShell({ mountGlobe }: AppShellProps) {
       <StatusBar className={styles.statusArea} />
       <CommandPalette />
       <ShortcutSheet />
+      <Suspense fallback={null}>
+        <BriefingModal />
+      </Suspense>
       <LayerAnnouncer />
     </div>
   );

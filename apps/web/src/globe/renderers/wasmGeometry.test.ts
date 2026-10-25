@@ -93,5 +93,18 @@ describe('wasmGeometry (Zig WASM Vector Geometry Kernel)', () => {
       expect(pointInPolygonWasm(0.0, 2.0, box)).toBe(false);
       expect(pointInPolygonWasm(-3.0, -3.0, box)).toBe(false);
     });
+
+    it('detects points with GeoPoint vertex objects', () => {
+      const geoBox = [
+        { lon: 10, lat: 20 },
+        { lon: 12, lat: 20 },
+        { lon: 12, lat: 22 },
+        { lon: 10, lat: 22 },
+      ];
+
+      expect(pointInPolygonWasm(11, 21, geoBox)).toBe(true);
+      expect(pointInPolygonWasm(9, 21, geoBox)).toBe(false);
+      expect(pointInPolygonWasm(11, 25, geoBox)).toBe(false);
+    });
   });
 });

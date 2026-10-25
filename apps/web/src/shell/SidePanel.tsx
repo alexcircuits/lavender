@@ -1,14 +1,26 @@
+import { lazy, Suspense } from 'react';
 import { Button, ErrorState, Panel, Skeleton } from '../design';
 import { AnnotationsPanel } from '../features/annotations/AnnotationsPanel';
-import { DirectionsPanel } from '../features/directions';
 import { GeofencesPanel } from '../features/geofences/GeofencesPanel';
 import { RecentImageryPanel } from '../features/imagery';
 import { LaunchesPanel } from '../features/launches';
 import { LayerExplorer } from '../features/layers';
 import { MissionsPanel } from '../features/missions/MissionsPanel';
-import { ReplayPanel } from '../features/replay';
 import { SettingsPanel } from '../features/settings';
 import { SourcesPanel } from '../features/sources';
+
+// The Wave B panels are code-split: eager imports here pushed the startup
+// bundle over its 250 KiB budget (check-dist enforces it).
+const AlertsPanel = lazy(() =>
+  import('../features/alerts').then((m) => ({ default: m.AlertsPanel })),
+);
+const DirectionsPanel = lazy(() =>
+  import('../features/directions').then((m) => ({ default: m.DirectionsPanel })),
+);
+const ReplayPanel = lazy(() =>
+  import('../features/replay').then((m) => ({ default: m.ReplayPanel })),
+);
+
 import { useRuntime, useSystem, useUi } from '../runtime';
 import styles from './shell.module.css';
 
@@ -44,11 +56,45 @@ export function SidePanel({ className }: SidePanelProps) {
   const runtime = useRuntime();
   if (!panel) return null;
   if (panel === 'annotations') return <AnnotationsPanel className={className} />;
-  if (panel === 'directions') return <DirectionsPanel className={className} />;
+  if (panel === 'alerts')
+    return (
+      <Suspense
+        fallback={
+          <Panel title="Alerts" dense className={className}>
+            <SkeletonRows />
+          </Panel>
+        }
+      >
+        <AlertsPanel className={className} />
+      </Suspense>
+    );
+  if (panel === 'directions')
+    return (
+      <Suspense
+        fallback={
+          <Panel title="Directions" dense className={className}>
+            <SkeletonRows />
+          </Panel>
+        }
+      >
+        <DirectionsPanel className={className} />
+      </Suspense>
+    );
   if (panel === 'imagery') return <RecentImageryPanel className={className} />;
   if (panel === 'geofences') return <GeofencesPanel className={className} />;
   if (panel === 'missions') return <MissionsPanel className={className} />;
-  if (panel === 'replay') return <ReplayPanel className={className} />;
+  if (panel === 'replay')
+    return (
+      <Suspense
+        fallback={
+          <Panel title="Replay" dense className={className}>
+            <SkeletonRows />
+          </Panel>
+        }
+      >
+        <ReplayPanel className={className} />
+      </Suspense>
+    );
   if (panel === 'settings') return <SettingsPanel className={className} />;
   const title =
     panel === 'layers' ? 'Layers' : panel === 'launches' ? 'Rocket launches' : 'Sources';

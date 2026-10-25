@@ -263,6 +263,7 @@ export type SidePanel =
   | 'sources'
   | 'annotations'
   | 'geofences'
+  | 'alerts'
   | 'missions'
   | 'launches'
   | 'directions'
@@ -278,10 +279,12 @@ export interface UiState {
   readonly paletteOpen: boolean;
   /** The keyboard shortcut sheet (`?`). */
   readonly shortcutsOpen: boolean;
+  readonly briefingOpen: boolean;
   setGlobe(globe: GlobeController | null): void;
   setSidePanel(panel: SidePanel | null): void;
   setPaletteOpen(open: boolean): void;
   setShortcutsOpen(open: boolean): void;
+  setBriefingOpen(open: boolean): void;
 }
 
 export const createUiStore = () =>
@@ -290,10 +293,12 @@ export const createUiStore = () =>
     sidePanel: 'layers',
     paletteOpen: false,
     shortcutsOpen: false,
+    briefingOpen: false,
     setGlobe: (globe) => set({ globe }),
     setSidePanel: (sidePanel) => set({ sidePanel }),
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
+    setBriefingOpen: (briefingOpen) => set({ briefingOpen }),
   }));
 
 export type WorkspaceStore = ReturnType<typeof createWorkspaceStore>;

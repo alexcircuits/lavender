@@ -1,0 +1,244 @@
+.dialog {
+  width: min(840px, calc(100vw - var(--s-8)));
+  max-height: calc(100dvh - var(--s-12));
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  overflow-y: auto;
+  max-height: calc(100dvh - 220px);
+  padding-inline-end: var(--s-1);
+}
+
+.formSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.notesField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.fieldLabel {
+  color: var(--ink);
+  font: var(--type-label);
+}
+
+.textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 72px;
+  max-height: 180px;
+  padding: var(--s-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: var(--well);
+  color: var(--ink);
+  font: var(--type-body-sm);
+  outline: none;
+}
+
+.textarea:focus {
+  border-color: var(--focus-ring-color);
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+.previewContainer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--well);
+}
+
+.previewHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.previewBadge {
+  align-self: flex-start;
+  font: var(--type-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-ui);
+  color: var(--accent-ink);
+  background: var(--accent-subtle);
+  padding: var(--dist-1) var(--dist-3);
+  border-radius: var(--r-xs);
+  border: 1px solid var(--accent);
+}
+
+.previewTitle {
+  font: var(--type-title);
+  color: var(--ink);
+  margin: 0;
+}
+
+.previewMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  font: var(--type-caption);
+  color: var(--ink-2);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.sectionHeading {
+  font: var(--type-title-sm);
+  color: var(--ink);
+  margin: 0;
+}
+
+.subHeading {
+  font: var(--type-label);
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.emptyText {
+  font: var(--type-caption);
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+.notesCard {
+  background: var(--island);
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-3);
+  font: var(--type-body-sm);
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.tableContainer {
+  overflow-x: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+}
+
+.previewTable {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--type-body-sm);
+}
+
+.previewTable th,
+.previewTable td {
+  padding: var(--s-2) var(--s-3);
+  text-align: left;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.previewTable th {
+  background: var(--island);
+  color: var(--ink-2);
+  font: var(--type-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-ui);
+}
+
+.previewTable tr:last-child td {
+  border-bottom: none;
+}
+
+.entityCard {
+  background: var(--island);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.entityHeader {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+  font: var(--type-label);
+}
+
+.entityDetailsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--s-2);
+  margin-top: var(--dist-2);
+  padding-top: var(--dist-2);
+  border-top: 1px solid var(--hairline);
+}
+
+.detailItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dist-1);
+}
+
+.detailLabel {
+  font: var(--type-micro);
+  color: var(--ink-3);
+  text-transform: uppercase;
+}
+
+.detailValue {
+  font: var(--type-body-sm);
+  color: var(--ink);
+}
+
+.sourceList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.sourceCard {
+  background: var(--island);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding: var(--s-2) var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--dist-1);
+}
+
+.sourceCardHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.sourceCardName {
+  font: var(--type-label);
+  color: var(--ink);
+}
+
+.sourceCardDetail {
+  font: var(--type-caption);
+  color: var(--ink-2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  justify-content: flex-end;
+  width: 100%;
+}

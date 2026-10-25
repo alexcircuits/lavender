@@ -13,8 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::CoreError;
 use crate::providers::regions::point_in_polygon;
 
-const DEFAULT_DIVISIONS_JSON: &str =
-    include_str!("../../data/natural_earth/states_provinces.json");
+const DEFAULT_DIVISIONS_JSON: &str = include_str!("../../data/natural_earth/states_provinces.json");
 
 /// Delta rings store three-decimal degrees as integers.
 const COORD_SCALE: f64 = 1000.0;
@@ -32,6 +31,8 @@ pub struct DivisionRecord {
     pub id: String,
     pub name: String,
     pub name_en: Option<String>,
+    /// Alternate spellings and postal abbreviations, when Natural Earth has them.
+    pub alternates: Vec<String>,
     /// Admin-0 parent country name, as Natural Earth spells it.
     pub country: String,
     /// Full ISO 3166-2 code when assigned, for example `AF-BDS`.
@@ -55,6 +56,8 @@ struct RawDivision {
     name: String,
     #[serde(rename = "nameEn")]
     name_en: Option<String>,
+    #[serde(default)]
+    alt: Option<Vec<String>>,
     country: String,
     iso: Option<String>,
     #[serde(rename = "type")]
@@ -111,18 +114,18 @@ impl DivisionIndex {
             let mut bbox =
                 BBox { west: f64::MAX, south: f64::MAX, east: f64::MIN, north: f64::MIN };
             for part in &feature.polygons {
-              for ring in part {
-                let Some(points) = decode_ring(ring) else {
-                    continue;
-                };
-                for p in &points {
-                    bbox.west = bbox.west.min(p.lon);
-                    bbox.east = bbox.east.max(p.lon);
-                    bbox.south = bbox.south.min(p.lat);
-                    bbox.north = bbox.north.max(p.lat);
+                for ring in part {
+                    let Some(points) = decode_ring(ring) else {
+                        continue;
+                    };
+                    for p in &points {
+                        bbox.west = bbox.west.min(p.lon);
+                        bbox.east = bbox.east.max(p.lon);
+                        bbox.south = bbox.south.min(p.lat);
+                        bbox.north = bbox.north.max(p.lat);
+                    }
+                    polygons.push(points);
                 }
-                polygons.push(points);
-              }
             }
             if polygons.is_empty() {
                 continue;
@@ -134,6 +137,7 @@ impl DivisionIndex {
                     id,
                     name: feature.name,
                     name_en: feature.name_en,
+                    alternates: feature.alt.unwrap_or_default(),
                     country: feature.country,
                     iso: feature.iso,
                     kind: feature.kind,
@@ -179,10 +183,8 @@ impl DivisionIndex {
             .iter()
             .filter(|e| {
                 e.record.name.to_lowercase().contains(&q)
-                    || e.record
-                        .name_en
-                        .as_deref()
-                        .is_some_and(|ne| ne.to_lowercase().contains(&q))
+                    || e.record.name_en.as_deref().is_some_and(|ne| ne.to_lowercase().contains(&q))
+                    || e.record.alternates.iter().any(|a| a.to_lowercase().contains(&q))
                     || e.record.country.to_lowercase().contains(&q)
                     || e.record.iso.as_deref().is_some_and(|iso| iso.to_lowercase().contains(&q))
             })
@@ -281,12 +283,8 @@ mod tests {
     #[test]
     fn search_matches_names_countries_and_iso() {
         let index = DivisionIndex::load_default();
-        assert!(
-            index
-                .search("bavaria", DEFAULT_SEARCH_LIMIT)
-                .iter()
-                .any(|d| d.name == "Bayern" || d.name_en.as_deref() == Some("Bavaria"))
-        );
+        // Admin-1 names are local spellings; English is an alternate when present.
+        assert!(index.search("bayern", DEFAULT_SEARCH_LIMIT).iter().any(|d| d.name == "Bayern"));
         assert!(index.search("texas", DEFAULT_SEARCH_LIMIT).iter().any(|d| d.name == "Texas"));
         assert!(!index.search("AF-BDS", DEFAULT_SEARCH_LIMIT).is_empty());
         assert!(index.search("   ", DEFAULT_SEARCH_LIMIT).is_empty());

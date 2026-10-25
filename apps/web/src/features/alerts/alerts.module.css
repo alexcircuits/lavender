@@ -1,0 +1,128 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.count {
+  font: var(--type-caption);
+  color: var(--ink-2);
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--well);
+  border: 1px solid var(--hairline);
+  transition: border-color var(--motion-fast);
+}
+
+.item[data-dismissed='true'] {
+  opacity: 0.6;
+}
+
+.itemHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.badges {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex-wrap: wrap;
+}
+
+.kindEnter {
+  font: var(--type-micro);
+  font-weight: 600;
+  padding: 2px var(--s-1_5);
+  border-radius: var(--r-xs);
+  background: var(--accent-subtle);
+  color: var(--accent-ink);
+  letter-spacing: 0.04em;
+}
+
+.kindExit {
+  font: var(--type-micro);
+  font-weight: 600;
+  padding: 2px var(--s-1_5);
+  border-radius: var(--r-xs);
+  background: var(--control);
+  color: var(--warning);
+  letter-spacing: 0.04em;
+}
+
+.entityBadge {
+  font: var(--type-micro);
+  font-weight: 500;
+  padding: 2px var(--s-1_5);
+  border-radius: var(--r-xs);
+  background: var(--control);
+  color: var(--ink);
+}
+
+.geofenceBadge {
+  font: var(--type-micro);
+  font-weight: 500;
+  padding: 2px var(--s-1_5);
+  border-radius: var(--r-xs);
+  background: var(--control);
+  color: var(--ink-2);
+}
+
+.timestamp {
+  font: var(--type-caption);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.itemBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0_5);
+}
+
+.entityLabel {
+  font: var(--type-title-sm);
+  color: var(--ink);
+  margin: 0;
+}
+
+.details {
+  font: var(--type-caption);
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  gap: var(--s-1_5);
+  align-items: center;
+  flex-wrap: wrap;
+  padding-top: var(--s-1);
+  border-top: 1px solid var(--hairline);
+}
