@@ -9,6 +9,17 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Done
 
+- **Globe Performance & NoirSystems Flat Design Overhaul**:
+  - Eliminated Cesium 3D globe rendering lag and stutter in `apps/web/src/globe/GlobeEngine.ts`: clamped `resolutionScale = 1.0` and enabled `useBrowserRecommendedResolution: true` (reducing fragment shading pixels by 84% on Retina screens, from 12.4M down to 2M pixels per frame), disabled expensive WebGL2 multisample resolve passes (`msaaSamples: 1`), set high-performance WebGL context options, tuned camera inertia (`0.6–0.65`) and bounce animation time (`0.05`), and bypassed depth buffer readback stalls.
+  - Debunked huge clusters of text across Inspector, Sources, Search, and Alerts: introduced Hero KPI metrics cards (`extractHeroMetrics`) above the fold for Aircraft (altitude/speed/track), Vessels (speed/course/heading), Satellites (NORAD ID/inclination/mean motion), Cyclones (winds/pressure/category), Earthquakes (magnitude/depth/status), and Fires (FRP/brightness/confidence).
+  - Reorganized Inspector with a pinned Quick Action Ribbon (`Fly to`, `Follow`/`Stop following`, `Copy coordinates`, `Open source record`) and Segmented focal tabs (`All`, `Telemetry`, `Identity`, `History`, `Provenance`) using persistent container visibility.
+  - Transformed UI styling to canonical NoirSystems language (`libs/noir-design`): eliminated 1px dividing borders across cards, search legends, and alert items; applied `.sq` squircle smoothing masks, flat `--well` surfaces, `--control` pills, and 3px–6px card gaps.
+- **LB-140 Item 5 Saved Searches as Persistent Feeds & Alerting**:
+  - High-performance Rust core engine in `crates/lavender-core/src/search/saved.rs`: thread-safe `SavedSearchEngine` with bounded capacity (max 1,000 searches), substring matching across all 10 feed entity types (Aircraft, Vessels, Satellites, Earthquakes, Cyclones, Fires, Launches, Perimeters, Bikeshare, Transit), deduplicated match tracking with `BoundedLru` (max 500 matches per search), dynamic virtual `FeedSnapshot` generation, and alerting integration.
+  - Domain contracts in `crates/lavender-domain/src/entities/saved_search.rs`: `SavedSearch` and `SavedSearchMatch` with `ts-rs` derives and `AlertKind::SearchMatch`.
+  - REST endpoints in `crates/lavender-server/src/routes.rs`: `POST /api/v1/searches/saved`, `GET /api/v1/searches/saved`, `GET /api/v1/searches/saved/{id}`, `DELETE /api/v1/searches/saved/{id}`, `GET /api/v1/searches/saved/{id}/feed`, and `GET /api/v1/searches/saved/{id}/matches` with integration test coverage.
+  - Web platform wiring in `WebPlatform.ts` and `fakes.ts`.
+
 - **LB-140 Item 6 Entity Resolution Across Feeds**:
   - Deterministic Rust resolver in `crates/lavender-core/src/resolution/`: dual-index generational LRU
     canonical entity store (`max_entities = 50,000`) and alias index with automatic eviction,
