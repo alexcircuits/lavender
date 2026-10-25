@@ -394,6 +394,77 @@ export class FakePlatform implements LavenderPlatform {
     }),
   );
 
+  resolveEntity = vi.fn(
+    async (
+      scheme: string,
+      value: string,
+      _options?: CallOptions,
+    ): Promise<import('../contracts').CanonicalEntity> => ({
+      id: `canonical:${scheme}:${value}`,
+      kind: 'aircraft',
+      primaryLabel: value,
+      identifiers: [{ scheme, value }],
+      attributes: {},
+      firstSeen: 1_729_000_000n,
+      lastSeen: 1_729_000_000n,
+      confidence: 1.0,
+    }),
+  );
+
+  getEntity = vi.fn(
+    async (
+      id: string,
+      _options?: CallOptions,
+    ): Promise<import('../contracts').CanonicalEntity> => ({
+      id,
+      kind: 'aircraft',
+      primaryLabel: id,
+      identifiers: [],
+      attributes: {},
+      firstSeen: 1_729_000_000n,
+      lastSeen: 1_729_000_000n,
+      confidence: 1.0,
+    }),
+  );
+
+  getEntityAliases = vi.fn(
+    async (
+      _id: string,
+      _options?: CallOptions,
+    ): Promise<readonly import('../contracts').EntityIdentifier[]> => [],
+  );
+
+  createSavedSearch = vi.fn(
+    async (
+      search: import('../contracts').SavedSearch,
+      _options?: CallOptions,
+    ): Promise<import('../contracts').SavedSearch> => search,
+  );
+
+  listSavedSearches = vi.fn(
+    async (_options?: CallOptions): Promise<readonly import('../contracts').SavedSearch[]> => [],
+  );
+
+  getSavedSearch = vi.fn(
+    async (id: string, _options?: CallOptions): Promise<import('../contracts').SavedSearch> => ({
+      id,
+      name: id,
+      query: 'test',
+      notifyOnMatch: false,
+      createdAt: '2026-10-25T12:00:00Z',
+    }),
+  );
+
+  deleteSavedSearch = vi.fn(async (_id: string, _options?: CallOptions): Promise<void> => {});
+
+  savedSearchMatches = vi.fn(
+    async (
+      _id: string,
+      _limit?: number,
+      _options?: CallOptions,
+    ): Promise<readonly import('../contracts').SavedSearchMatch[]> => [],
+  );
+
   secretStatus = vi.fn(
     async (_options?: CallOptions): Promise<SecretStatusResponse> => ({
       managedBy: 'memory',

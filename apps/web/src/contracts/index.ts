@@ -73,6 +73,8 @@ export type { SatellitePasses } from './generated/SatellitePasses';
 export type { SatellitePassRequest } from './generated/SatellitePassRequest';
 export type { SatelliteTrack } from './generated/SatelliteTrack';
 export type { SatelliteTrackRequest } from './generated/SatelliteTrackRequest';
+export type { SavedSearch } from './generated/SavedSearch';
+export type { SavedSearchMatch } from './generated/SavedSearchMatch';
 export type { SearchQuery } from './generated/SearchQuery';
 export type { SearchResults } from './generated/SearchResults';
 export type { ServerFrame } from './generated/ServerFrame';

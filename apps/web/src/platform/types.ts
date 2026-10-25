@@ -13,8 +13,10 @@ import type {
   BoundaryClass,
   BoundaryResponse,
   CameraSource,
+  CanonicalEntity,
   Catalog,
   CctvDetectionsResponse,
+  EntityIdentifier,
   FeedQuery,
   FeedSnapshot,
   GeoPoint,
@@ -23,6 +25,8 @@ import type {
   SatellitePassRequest,
   SatelliteTrack,
   SatelliteTrackRequest,
+  SavedSearch,
+  SavedSearchMatch,
   SearchQuery,
   SearchResults,
   SystemStatus,
@@ -209,6 +213,28 @@ export interface LavenderPlatform {
   ): Promise<{ readonly elements: readonly MilitaryInstallationItem[] }>;
   /** Real-time air quality observation station readings. */
   airQuality?(options?: CallOptions): Promise<AirQualitySnapshot>;
+  /** Resolves a canonical entity by scheme and identifier value across feeds. */
+  resolveEntity?(scheme: string, value: string, options?: CallOptions): Promise<CanonicalEntity>;
+  /** Retrieves a canonical entity record by canonical ID. */
+  getEntity?(id: string, options?: CallOptions): Promise<CanonicalEntity>;
+  /** Retrieves all alias identifiers linked to a canonical entity. */
+  getEntityAliases?(id: string, options?: CallOptions): Promise<readonly EntityIdentifier[]>;
+  /** Creates or updates a persistent saved search filter. */
+  createSavedSearch?(search: SavedSearch, options?: CallOptions): Promise<SavedSearch>;
+  /** Lists all registered persistent saved searches. */
+  listSavedSearches?(options?: CallOptions): Promise<readonly SavedSearch[]>;
+  /** Retrieves a saved search by ID. */
+  getSavedSearch?(id: string, options?: CallOptions): Promise<SavedSearch>;
+  /** Deletes a persistent saved search by ID. */
+  deleteSavedSearch?(id: string, options?: CallOptions): Promise<void>;
+  /** Retrieves recent entity matches recorded for a saved search. */
+  savedSearchMatches?(
+    id: string,
+    limit?: number,
+    options?: CallOptions,
+  ): Promise<readonly SavedSearchMatch[]>;
+  /** Retrieves a dynamic virtual feed snapshot representing all current matching entities. */
+  savedSearchFeed?(id: string, options?: CallOptions): Promise<FeedSnapshot>;
   /** Returns whether upstream credentials are configured without exposing values. */
   secretStatus?(options?: CallOptions): Promise<SecretStatusResponse>;
   /** Desktop only: stores an upstream provider credential into the secure credential store. */

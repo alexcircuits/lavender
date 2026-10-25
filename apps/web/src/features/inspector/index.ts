@@ -9,6 +9,10 @@ export {
   divisionFacts,
 } from './DivisionCard';
 export {
+  EntityResolutionCard,
+  type EntityResolutionCardProps,
+} from './EntityResolutionCard';
+export {
   aircraftFacts,
   earthquakeFacts,
   type Fact,

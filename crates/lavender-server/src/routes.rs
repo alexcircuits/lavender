@@ -19,10 +19,10 @@ use lavender_domain::{
     AirQualitySnapshot, AircraftRouteEnrichment, AircraftTrack, AircraftTypeEnrichment, AlertEvent,
     ApiError, BBox, BoundaryClass, BoundaryFeature, BoundaryResponse, CameraHealth, CameraSource,
     CanonicalEntity, Catalog, CctvStreamInfo, EntityIdentifier, ErrorCode, FeedFilters, FeedId,
-    FeedItems, FeedQuery, GeoPoint, Geofence, GeofenceRule, GnssProvenance, GnssSnapshot,
-    SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery,
-    SearchResults, SpatialSearchRequest, SpatialSearchResponse, SystemStatus, Timestamp,
-    VesselTrackResponse, WeatherOverlay, WindModel,
+    FeedItems, FeedQuery, FeedSnapshot, GeoPoint, Geofence, GeofenceRule, GnssProvenance,
+    GnssSnapshot, SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest,
+    SavedSearch, SavedSearchMatch, SearchQuery, SearchResults, SpatialSearchRequest,
+    SpatialSearchResponse, SystemStatus, Timestamp, VesselTrackResponse, WeatherOverlay, WindModel,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -2085,6 +2085,86 @@ pub async fn get_entity_aliases(
     }
     let aliases = state.core.get_entity_aliases(&id)?;
     Ok(Json(aliases))
+}
+
+/// Query parameters for fetching recent saved search matches.
+#[derive(Debug, Deserialize)]
+pub struct SavedSearchMatchesParams {
+    /// Maximum number of matches to retrieve.
+    pub limit: Option<usize>,
+}
+
+/// `POST /api/v1/searches/saved` — create or replace a persistent saved search.
+///
+/// # Errors
+/// Returns [`HttpError`] with 400 Bad Request if search fields are malformed or invalid,
+/// or 429 Too Many Requests if maximum saved search capacity is exceeded.
+pub async fn create_saved_search(
+    State(state): State<AppState>,
+    Json(search): Json<SavedSearch>,
+) -> Result<(StatusCode, Json<SavedSearch>), HttpError> {
+    let created = state.core.create_saved_search(search)?;
+    Ok((StatusCode::CREATED, Json(created)))
+}
+
+/// `GET /api/v1/searches/saved` — list all persistent saved searches.
+///
+/// # Errors
+/// Returns [`HttpError`] with 500 Internal Server Error if the core is shutting down.
+pub async fn list_saved_searches(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<SavedSearch>>, HttpError> {
+    let list = state.core.list_saved_searches()?;
+    Ok(Json(list))
+}
+
+/// `GET /api/v1/searches/saved/{id}` — fetch a saved search by ID.
+///
+/// # Errors
+/// Returns [`HttpError`] with 404 Not Found if the saved search does not exist.
+pub async fn get_saved_search(
+    State(state): State<AppState>,
+    ApiPath(id): ApiPath<String>,
+) -> Result<Json<SavedSearch>, HttpError> {
+    let search = state.core.get_saved_search(&id)?;
+    Ok(Json(search))
+}
+
+/// `DELETE /api/v1/searches/saved/{id}` — delete a persistent saved search.
+///
+/// # Errors
+/// Returns [`HttpError`] with 404 Not Found if the saved search does not exist.
+pub async fn delete_saved_search(
+    State(state): State<AppState>,
+    ApiPath(id): ApiPath<String>,
+) -> Result<StatusCode, HttpError> {
+    state.core.delete_saved_search(&id)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `GET /api/v1/searches/saved/{id}/feed` — get dynamic virtual feed snapshot for a saved search.
+///
+/// # Errors
+/// Returns [`HttpError`] with 404 Not Found if the saved search does not exist.
+pub async fn get_saved_search_feed(
+    State(state): State<AppState>,
+    ApiPath(id): ApiPath<String>,
+) -> Result<Json<FeedSnapshot>, HttpError> {
+    let snapshot = state.core.get_saved_search_feed(&id)?;
+    Ok(Json(snapshot))
+}
+
+/// `GET /api/v1/searches/saved/{id}/matches` — get recent matches for a saved search.
+///
+/// # Errors
+/// Returns [`HttpError`] with 404 Not Found if the saved search does not exist.
+pub async fn get_saved_search_matches(
+    State(state): State<AppState>,
+    ApiPath(id): ApiPath<String>,
+    ApiQuery(params): ApiQuery<SavedSearchMatchesParams>,
+) -> Result<Json<Vec<SavedSearchMatch>>, HttpError> {
+    let matches = state.core.get_saved_search_matches(&id, params.limit)?;
+    Ok(Json(matches))
 }
 
 #[cfg(test)]

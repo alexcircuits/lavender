@@ -2,8 +2,10 @@
 //! configured geocoder. External lookup requires an explicit place-search request.
 
 pub mod geocoder;
+pub mod saved;
 pub mod spatial;
 
+pub use saved::SavedSearchEngine;
 pub use spatial::spatial_search;
 
 use lavender_domain::{CoordinateHit, EntityHit, FeedId, FeedItems, SearchQuery, SearchResults};

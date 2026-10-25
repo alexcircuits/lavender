@@ -19,6 +19,7 @@ import {
   InfoIcon,
   NavigationArrowIcon,
   Panel,
+  SegmentedControl,
   showToast,
   WarningIcon,
   XIcon,
@@ -40,6 +41,7 @@ import { BoundaryCard } from './BoundaryCard';
 import { CableCard } from './CableCard';
 import { CctvCard } from './CctvCard';
 import { CycloneForecast } from './CycloneForecast';
+import { EntityResolutionCard } from './EntityResolutionCard';
 import { FactSheet } from './FactSheet';
 import {
   aircraftFacts,
@@ -92,6 +94,103 @@ interface Sheet {
   readonly observedMs: number | null;
   readonly sourceIds: readonly string[];
   readonly recordUrl: string | null;
+}
+
+export interface HeroMetric {
+  readonly label: string;
+  readonly value: string;
+  readonly sub?: string | undefined;
+}
+
+export function extractHeroMetrics(view: Inspected): HeroMetric[] {
+  switch (view.kind) {
+    case 'aircraft': {
+      const a = view.item;
+      const alt = a.onGround
+        ? 'Ground'
+        : a.altitudeBaroFt !== undefined
+          ? `${Math.round(a.altitudeBaroFt).toLocaleString()} ft`
+          : a.altitudeGeomFt !== undefined
+            ? `${Math.round(a.altitudeGeomFt).toLocaleString()} ft`
+            : '—';
+      const spd = a.groundSpeedKt !== undefined ? `${Math.round(a.groundSpeedKt)} kt` : '—';
+      const hdg = a.trackDeg !== undefined ? `${Math.round(a.trackDeg)}°` : '—';
+      return [
+        {
+          label: 'Altitude',
+          value: alt,
+          sub: a.onGround ? undefined : a.altitudeBaroFt ? 'baro' : 'geom',
+        },
+        { label: 'Speed', value: spd, sub: 'ground' },
+        { label: 'Track', value: hdg, sub: 'heading' },
+      ];
+    }
+    case 'vessels': {
+      const v = view.item;
+      const spd = v.speedKnots !== undefined ? `${v.speedKnots.toFixed(1)} kn` : '—';
+      const course = v.courseDeg !== undefined ? `${Math.round(v.courseDeg)}°` : '—';
+      const heading =
+        v.headingDeg !== undefined
+          ? `${Math.round(v.headingDeg)}°`
+          : v.vesselType
+            ? v.vesselType.slice(0, 12)
+            : '—';
+      return [
+        { label: 'Speed', value: spd, sub: 'SOG' },
+        { label: 'Course', value: course, sub: 'COG' },
+        { label: 'Heading', value: heading, sub: v.headingDeg !== undefined ? 'true' : 'type' },
+      ];
+    }
+    case 'satellites': {
+      const s = view.item;
+      return [
+        { label: 'NORAD', value: String(s.noradId), sub: s.group },
+        { label: 'Inclination', value: `${s.inclinationDeg.toFixed(1)}°`, sub: 'orbit' },
+        { label: 'Motion', value: `${s.meanMotion.toFixed(1)} rev/d`, sub: 'mean' },
+      ];
+    }
+    case 'cyclones': {
+      const c = view.item;
+      const wind = c.intensityKt !== undefined ? `${c.intensityKt} kt` : '—';
+      const pres = c.pressureMb !== undefined ? `${c.pressureMb} hPa` : '—';
+      const cat = c.classification ? c.classification.slice(0, 12) : 'Active';
+      return [
+        { label: 'Intensity', value: wind, sub: 'max winds' },
+        { label: 'Pressure', value: pres, sub: 'central' },
+        { label: 'Class', value: cat, sub: c.basin },
+      ];
+    }
+    case 'earthquakes': {
+      const eq = view.item;
+      return [
+        {
+          label: 'Magnitude',
+          value: `M ${eq.magnitude.toFixed(1)}`,
+          sub: eq.magnitudeType ?? undefined,
+        },
+        { label: 'Depth', value: `${eq.depthKm.toFixed(1)} km` },
+        { label: 'Status', value: eq.status ?? 'Reviewed' },
+      ];
+    }
+    case 'fires': {
+      const f = view.item;
+      return [
+        { label: 'FRP', value: `${f.frp.toFixed(1)} MW`, sub: 'power' },
+        { label: 'Brightness', value: `${Math.round(f.brightness)} K` },
+        { label: 'Confidence', value: f.confidence },
+      ];
+    }
+    case 'launches': {
+      const l = view.item;
+      return [
+        { label: 'Status', value: l.status.slice(0, 16) },
+        { label: 'Provider', value: l.provider?.slice(0, 12) ?? 'Space' },
+        { label: 'Designator', value: l.launchDesignator ?? '—' },
+      ];
+    }
+    default:
+      return [];
+  }
 }
 
 function sheetFor(
@@ -435,6 +534,11 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
     followState.target?.feed === feed &&
     followState.target?.id === selection.id;
 
+  const [activeTab, setActiveTab] = useState<
+    'all' | 'telemetry' | 'identity' | 'history' | 'provenance'
+  >('all');
+  const metrics = useMemo(() => (view ? extractHeroMetrics(view) : []), [view]);
+
   if (!view) {
     const name = layer?.name ?? feed;
     const canTurnOn = !enabled && layer?.availability.state === 'available';
@@ -487,34 +591,33 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
             : `No longer in feed · last seen ${formatUtcTime(lastSeenMs)}`}
         </p>
       )}
-      {noticesOnTop ? <LaunchNotices /> : null}
-      <FactSheet facts={sheet.facts} label="Facts" />
-      {view.kind === 'launches' ? <LaunchDetails launch={view.item} /> : null}
-      {view.kind === 'launchPad' ? <PadLaunches pad={view.item} /> : null}
-      <h3 className={styles.subhead}>Provenance</h3>
-      <FactSheet facts={provenance} label="Provenance" />
-      {view.kind === 'aircraft' ? (
-        <AircraftHistory key={view.item.hex} hex={view.item.hex} />
+
+      {metrics.length > 0 ? (
+        <div className={styles.metricGrid}>
+          {metrics.map((m) => (
+            <div key={m.label} className={styles.metricCard}>
+              <span className={styles.metricLabel}>{m.label}</span>
+              <span className={styles.metricValue}>{m.value}</span>
+              {m.sub ? <span className={styles.metricSub}>{m.sub}</span> : null}
+            </div>
+          ))}
+        </div>
       ) : null}
-      {view.kind === 'vessels' ? (
-        <VesselTrack
-          key={view.item.mmsi}
-          mmsi={view.item.mmsi}
-          reportedAtSec={vesselReportedAtSec(view.item)}
-        />
-      ) : null}
-      {view.kind === 'satellites' ? (
-        <SatellitePasses key={view.item.noradId} noradId={view.item.noradId} />
-      ) : null}
-      {view.kind === 'cyclones' ? <CycloneForecast storm={view.item} /> : null}
-      <div className={styles.actions}>
+
+      <div className={styles.quickActions}>
         {isTrackable ? (
           isFollowingThis ? (
-            <Button variant="secondary" icon={CrosshairIcon} onClick={() => globe?.stopFollowing()}>
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={CrosshairIcon}
+              onClick={() => globe?.stopFollowing()}
+            >
               Stop following
             </Button>
           ) : (
             <Button
+              size="sm"
               variant="secondary"
               icon={CrosshairIcon}
               disabled={!globe || !position}
@@ -525,6 +628,7 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
           )
         ) : null}
         <Button
+          size="sm"
           variant="primary"
           icon={NavigationArrowIcon}
           disabled={!globe || !position}
@@ -533,6 +637,7 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
           Fly to
         </Button>
         <Button
+          size="sm"
           variant="ghost"
           icon={CopyIcon}
           disabled={!position}
@@ -551,6 +656,72 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
             Open source record
           </a>
         ) : null}
+      </div>
+
+      <SegmentedControl<'all' | 'telemetry' | 'identity' | 'history' | 'provenance'>
+        aria-label="Inspector views"
+        size="sm"
+        value={activeTab}
+        onValueChange={setActiveTab}
+        options={[
+          { value: 'all', label: 'All' },
+          { value: 'telemetry', label: 'Telemetry' },
+          { value: 'identity', label: 'Identity' },
+          { value: 'history', label: 'History' },
+          { value: 'provenance', label: 'Provenance' },
+        ]}
+        className={styles.viewTabs}
+      />
+
+      {noticesOnTop ? <LaunchNotices /> : null}
+
+      <div hidden={activeTab !== 'all' && activeTab !== 'telemetry'}>
+        <div className={styles.sectionCard}>
+          <div className={styles.cardHeader}>
+            <h4 className={styles.cardTitle}>Telemetry & Specifications</h4>
+          </div>
+          <FactSheet facts={sheet.facts} label="Facts" />
+          {view.kind === 'launches' ? <LaunchDetails launch={view.item} /> : null}
+          {view.kind === 'launchPad' ? <PadLaunches pad={view.item} /> : null}
+        </div>
+      </div>
+
+      <div hidden={activeTab !== 'all' && activeTab !== 'identity'}>
+        {view.kind === 'aircraft' ? (
+          <EntityResolutionCard feed="aircraft" entityId={view.item.hex} />
+        ) : null}
+        {view.kind === 'vessels' ? (
+          <EntityResolutionCard feed="vessels" entityId={view.item.mmsi} />
+        ) : null}
+        {view.kind === 'satellites' ? (
+          <EntityResolutionCard feed="satellites" entityId={String(view.item.noradId)} />
+        ) : null}
+      </div>
+
+      <div hidden={activeTab !== 'all' && activeTab !== 'history'}>
+        {view.kind === 'aircraft' ? (
+          <AircraftHistory key={view.item.hex} hex={view.item.hex} />
+        ) : null}
+        {view.kind === 'vessels' ? (
+          <VesselTrack
+            key={view.item.mmsi}
+            mmsi={view.item.mmsi}
+            reportedAtSec={vesselReportedAtSec(view.item)}
+          />
+        ) : null}
+        {view.kind === 'satellites' ? (
+          <SatellitePasses key={view.item.noradId} noradId={view.item.noradId} />
+        ) : null}
+        {view.kind === 'cyclones' ? <CycloneForecast storm={view.item} /> : null}
+      </div>
+
+      <div hidden={activeTab !== 'all' && activeTab !== 'provenance'}>
+        <div className={styles.sectionCard}>
+          <div className={styles.cardHeader}>
+            <h4 className={styles.cardTitle}>Data Provenance & Audit</h4>
+          </div>
+          <FactSheet facts={provenance} label="Provenance" />
+        </div>
       </div>
     </InspectorFrame>
   );

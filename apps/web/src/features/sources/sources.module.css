@@ -45,11 +45,13 @@
 }
 
 .source {
+  composes: sq from global;
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  padding-bottom: var(--s-3);
-  border-bottom: 1px solid var(--hairline);
+  padding: var(--s-2_5) var(--s-3);
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  background: var(--well);
 }
 
 .item:last-child .source {

@@ -8,8 +8,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: var(--s-2);
-  border-bottom: 1px solid var(--hairline);
+  padding-bottom: var(--s-1);
 }
 
 .count {
@@ -27,18 +26,19 @@
 }
 
 .item {
+  composes: sq from global;
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
   padding: var(--s-3);
-  border-radius: var(--r-md);
+  border-radius: calc(var(--r-md) * var(--corner-k));
   background: var(--well);
-  border: 1px solid var(--hairline);
-  transition: border-color var(--motion-fast);
+  border: 1px solid transparent;
+  transition: background var(--motion-fast) var(--ease-standard);
 }
 
 .item[data-dismissed='true'] {
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
 .itemHeader {
@@ -73,6 +73,26 @@
   border-radius: var(--r-xs);
   background: var(--control);
   color: var(--warning);
+  letter-spacing: 0.04em;
+}
+
+.kindSearchMatch {
+  font: var(--type-micro);
+  font-weight: 600;
+  padding: 2px var(--s-1_5);
+  border-radius: var(--r-xs);
+  background: var(--accent-subtle);
+  color: var(--accent-ink);
+  letter-spacing: 0.04em;
+}
+
+.kindOverflight {
+  font: var(--type-micro);
+  font-weight: 600;
+  padding: 2px var(--s-1_5);
+  border-radius: var(--r-xs);
+  background: var(--control);
+  color: var(--ink);
   letter-spacing: 0.04em;
 }
 
@@ -123,6 +143,5 @@
   gap: var(--s-1_5);
   align-items: center;
   flex-wrap: wrap;
-  padding-top: var(--s-1);
-  border-top: 1px solid var(--hairline);
+  padding-top: var(--s-0_5);
 }

@@ -162,17 +162,23 @@ export class GlobeEngine implements GlobeController {
       terrainProvider: new EllipsoidTerrainProvider(),
       creditContainer: this.#options.credits,
       skyBox: false,
+      orderIndependentTranslucency: false,
       requestRenderMode: true,
       maximumRenderTimeChange: Number.POSITIVE_INFINITY,
       showRenderLoopErrors: false,
-      useBrowserRecommendedResolution: false,
+      useBrowserRecommendedResolution: true,
+      msaaSamples: 1,
+      contextOptions: {
+        webgl: {
+          powerPreference: 'high-performance',
+          antialias: false,
+          alpha: false,
+        },
+      },
     });
-    // On high-DPI (Retina) screens, full native resolution (DPR 2x/3x) causes severe 4x-9x fill-rate bottleneck
-    // in WebGL fragment shaders. Clamping resolution ensures crisp lines without frame drops.
-    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-    if (dpr > 1) {
-      widget.resolutionScale = Math.min(1.25, dpr);
-    }
+    // With useBrowserRecommendedResolution: true, pixelRatio defaults to 1.0 (CSS pixel 1:1),
+    // eliminating 4x-9x fill-rate bottlenecks on high-DPI (Retina) screens while preserving 60+ FPS.
+    widget.resolutionScale = 1.0;
     try {
       this.#mounted = this.#build(widget);
     } catch (error) {
@@ -187,19 +193,22 @@ export class GlobeEngine implements GlobeController {
   #build(widget: CesiumWidget): Mounted {
     const scene = widget.scene;
     scene.backgroundColor = groundColor();
+    scene.highDynamicRange = false;
 
     const globe = scene.globe;
     if (globe) {
       // Tile cache: default 100 thrashes constantly during orbit and pan.
       globe.tileCacheSize = 400;
-      globe.loadingDescendantLimit = 20;
-      globe.maximumScreenSpaceError = 2.5;
+      globe.loadingDescendantLimit = 8;
+      globe.maximumScreenSpaceError = 3.5;
       globe.depthTestAgainstTerrain = false;
       globe.enableLighting = false;
       globe.showGroundAtmosphere = false;
       globe.showWaterEffect = false;
       globe.preloadAncestors = true;
       globe.preloadSiblings = false;
+      globe.backFaceCulling = true;
+      globe.showSkirts = false;
       globe.baseColor = Color.BLACK;
     }
     if (scene.skyAtmosphere) {
@@ -212,22 +221,25 @@ export class GlobeEngine implements GlobeController {
       scene.moon.show = false;
     }
     if (scene.fog) {
-      scene.fog.enabled = true;
-      scene.fog.density = 0.0002;
+      scene.fog.enabled = false;
     }
     if (scene.postProcessStages?.fxaa) {
       scene.postProcessStages.fxaa.enabled = false;
     }
+
+    // Disable depth picking and translucent depth passes to avoid blocking WebGL readbacks during cursor move.
+    (scene as unknown as { pickTranslucentDepth: boolean }).pickTranslucentDepth = false;
+    (scene as unknown as { useDepthPicking: boolean }).useDepthPicking = false;
 
     const controller = scene.screenSpaceCameraController;
     if (controller) {
       controller.minimumZoomDistance = MIN_ZOOM_DISTANCE_M;
       controller.maximumZoomDistance = MAX_HEIGHT_M;
       controller.enableCollisionDetection = false;
-      controller.inertiaSpin = 0.85;
-      controller.inertiaTranslate = 0.85;
-      controller.inertiaZoom = 0.8;
-      controller.bounceAnimationTime = 0.1;
+      controller.inertiaSpin = 0.65;
+      controller.inertiaTranslate = 0.65;
+      controller.inertiaZoom = 0.6;
+      controller.bounceAnimationTime = 0.05;
     }
     // Start at home without a flight (Cesium's default view is over North America).
     scene.camera.setView({

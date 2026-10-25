@@ -7,11 +7,11 @@ use std::time::Duration;
 use jiff::{SignedDuration, Timestamp};
 use lavender_domain::{
     AirQualitySnapshot, AircraftTrack, Availability, BBox, BoundaryClass, BoundaryFeature,
-    CanonicalEntity, Catalog, EntityIdentifier, EntityLink, FeedId, FeedItems, FeedQuery,
-    FeedSnapshot, FeedStatus, GnssProvenance, GnssSnapshot, Route, SatellitePassRequest,
-    SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults,
-    SpatialFilter, SpatialSearchRequest, SpatialSearchResponse, SystemStatus, VesselTrackResponse,
-    WeatherOverlay, WindManifest, WindModel, WindStatus,
+    CanonicalEntity, Catalog, Coverage, EntityIdentifier, EntityLink, FeedId, FeedItems, FeedQuery,
+    FeedSnapshot, FeedStatus, Freshness, GnssProvenance, GnssSnapshot, Route, SatellitePassRequest,
+    SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SavedSearch, SavedSearchMatch,
+    SearchQuery, SearchResults, SpatialFilter, SpatialSearchRequest, SpatialSearchResponse,
+    SystemStatus, VesselTrackResponse, WeatherOverlay, WindManifest, WindModel, WindStatus,
 };
 use lavender_geo::{OrbitError, Propagator};
 use tokio::sync::Semaphore;
@@ -91,6 +91,7 @@ struct CoreInner {
     gnss: Arc<crate::gnss::GnssEngine>,
     air_quality: Arc<crate::providers::air_quality::EcccAirQualityProvider>,
     resolution: Arc<crate::resolution::ResolutionEngine>,
+    saved_search_engine: Arc<crate::search::saved::SavedSearchEngine>,
 }
 
 /// Cheap to clone; all clones share one core.
@@ -138,6 +139,7 @@ pub struct LavenderCoreBuilder {
     mapillary: Option<Arc<crate::providers::mapillary::MapillaryProvider>>,
     cctv: Option<Arc<crate::providers::cctv::CctvCatalog>>,
     air_quality: Option<Arc<crate::providers::air_quality::EcccAirQualityProvider>>,
+    saved_search_engine: Option<Arc<crate::search::saved::SavedSearchEngine>>,
 }
 
 impl LavenderCoreBuilder {
@@ -192,6 +194,16 @@ impl LavenderCoreBuilder {
     #[must_use]
     pub fn alert_engine(mut self, engine: Arc<crate::alerting::GeofenceAlertEngine>) -> Self {
         self.alert_engine = Some(engine);
+        self
+    }
+
+    /// Configures a custom persistent saved search engine.
+    #[must_use]
+    pub fn saved_search_engine(
+        mut self,
+        engine: Arc<crate::search::saved::SavedSearchEngine>,
+    ) -> Self {
+        self.saved_search_engine = Some(engine);
         self
     }
 
@@ -400,6 +412,13 @@ impl LavenderCoreBuilder {
         });
         let resolution =
             Arc::new(crate::resolution::ResolutionEngine::new(self.config.resolution.clone()));
+        let saved_search_engine = self.saved_search_engine.unwrap_or_else(|| {
+            Arc::new(crate::search::saved::SavedSearchEngine::new(
+                alert_engine.clone(),
+                crate::search::saved::DEFAULT_MAX_SEARCHES,
+                crate::search::saved::DEFAULT_MAX_MATCHES_PER_SEARCH,
+            ))
+        });
         Ok(LavenderCore {
             inner: Arc::new(CoreInner {
                 config: self.config,
@@ -440,6 +459,7 @@ impl LavenderCoreBuilder {
                 gnss: Arc::new(crate::gnss::GnssEngine::new()),
                 air_quality,
                 resolution,
+                saved_search_engine,
             }),
         })
     }
@@ -475,6 +495,7 @@ impl LavenderCore {
             mapillary: None,
             cctv: None,
             air_quality: None,
+            saved_search_engine: None,
         }
     }
 
@@ -666,6 +687,7 @@ impl LavenderCore {
         match event {
             Some(SubscriptionEvent::Snapshot(s)) => {
                 let _ = self.inner.resolution.ingest_feed_snapshot(&s);
+                let _ = self.inner.saved_search_engine.ingest_snapshot(&s);
                 Ok(Arc::unwrap_or_clone(s))
             }
             // Keep the category: a capacity limit is a 429, not an upstream failure.
@@ -1182,6 +1204,123 @@ impl LavenderCore {
             )));
         };
         Ok(engine.inbox(limit))
+    }
+
+    /// Returns a reference to the active saved search engine.
+    #[must_use]
+    pub fn saved_search_engine(&self) -> &Arc<crate::search::saved::SavedSearchEngine> {
+        &self.inner.saved_search_engine
+    }
+
+    /// Creates or replaces a persistent saved search.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::ShuttingDown`] if the core is shutting down,
+    /// [`CoreError::BadRequest`] if the search parameters are invalid, or
+    /// [`CoreError::Limit`] if the maximum number of saved searches has been reached.
+    pub fn create_saved_search(&self, search: SavedSearch) -> Result<SavedSearch, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        let created = self.inner.saved_search_engine.create_or_update(search)?;
+
+        // Evaluate immediately against current hub items for all relevant feeds
+        let target_feeds = created.feed_filter.as_deref().unwrap_or(&FeedId::ALL);
+        for &feed in target_feeds {
+            for items in self.inner.hub.current_items(feed) {
+                let snap = FeedSnapshot {
+                    feed,
+                    sources: vec!["hub".into()],
+                    fetched_at: Some(Timestamp::now()),
+                    generated_at: Timestamp::now(),
+                    freshness: Freshness::Live,
+                    coverage: Coverage::Complete,
+                    source_count: u32::try_from(items.len()).unwrap_or(u32::MAX),
+                    pending_regions: 0,
+                    items: Arc::unwrap_or_clone(items),
+                    notices: Vec::new(),
+                };
+                let _ = self.inner.saved_search_engine.ingest_snapshot(&snap);
+            }
+        }
+
+        Ok(created)
+    }
+
+    /// Retrieves a saved search by its unique identifier.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::ShuttingDown`] if the core is shutting down, or
+    /// [`CoreError::NotFound`] if the search does not exist.
+    pub fn get_saved_search(&self, id: &str) -> Result<SavedSearch, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        self.inner
+            .saved_search_engine
+            .get(id)
+            .ok_or_else(|| CoreError::NotFound(format!("Saved search '{id}' does not exist.")))
+    }
+
+    /// Lists all registered saved searches.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::ShuttingDown`] if the core is shutting down.
+    pub fn list_saved_searches(&self) -> Result<Vec<SavedSearch>, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        Ok(self.inner.saved_search_engine.list())
+    }
+
+    /// Deletes a saved search by identifier.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::ShuttingDown`] if the core is shutting down, or
+    /// [`CoreError::NotFound`] if the search does not exist.
+    pub fn delete_saved_search(&self, id: &str) -> Result<(), CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        if self.inner.saved_search_engine.delete(id) {
+            Ok(())
+        } else {
+            Err(CoreError::NotFound(format!("Saved search '{id}' does not exist.")))
+        }
+    }
+
+    /// Generates or returns the dynamic virtual [`FeedSnapshot`] of matching items for a saved search.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::ShuttingDown`] if the core is shutting down, or
+    /// [`CoreError::NotFound`] if the search does not exist.
+    pub fn get_saved_search_feed(&self, id: &str) -> Result<FeedSnapshot, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        self.inner.saved_search_engine.get_feed_snapshot(id)
+    }
+
+    /// Retrieves recent match events for a saved search up to `limit`.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::ShuttingDown`] if the core is shutting down, or
+    /// [`CoreError::NotFound`] if the search does not exist.
+    pub fn get_saved_search_matches(
+        &self,
+        id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<SavedSearchMatch>, CoreError> {
+        if self.is_shut_down() {
+            return Err(CoreError::ShuttingDown);
+        }
+        self.inner.saved_search_engine.get_matches(id, limit)
+    }
+
+    /// Ingests a feed snapshot into the saved search engine for evaluation.
+    #[must_use]
+    pub fn ingest_saved_search_snapshot(&self, snapshot: &FeedSnapshot) -> Vec<SavedSearchMatch> {
+        self.inner.saved_search_engine.ingest_snapshot(snapshot)
     }
 
     /// Flushes buffered telemetry track observations to partitioned Parquet files under `base_dir`.

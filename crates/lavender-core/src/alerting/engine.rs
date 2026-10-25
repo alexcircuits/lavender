@@ -129,6 +129,15 @@ impl GeofenceAlertEngine {
         lock.clear();
     }
 
+    /// Directly records an alert event into the inbox ring buffer.
+    pub fn record_alert(&self, alert: AlertEvent) {
+        let mut inbox = self.inbox.lock().unwrap_or_else(PoisonError::into_inner);
+        inbox.push_front(alert);
+        while inbox.len() > self.inbox_capacity {
+            inbox.pop_back();
+        }
+    }
+
     /// Evaluates a feed snapshot against all active geofence rules.
     pub fn evaluate_snapshot(&self, snapshot: &FeedSnapshot) -> Vec<AlertEvent> {
         let as_of = snapshot.fetched_at.unwrap_or(snapshot.generated_at);

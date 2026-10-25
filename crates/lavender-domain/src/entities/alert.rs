@@ -6,7 +6,7 @@ use ts_rs::TS;
 
 use crate::{FeedId, GeoPoint};
 
-/// An alert event kind: entry into a geofence, exit from a geofence, or satellite overflight.
+/// An alert event kind: entry into a geofence, exit from a geofence, satellite overflight, or saved search match.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum AlertKind {
@@ -16,6 +16,8 @@ pub enum AlertKind {
     Exit,
     /// Satellite predicted to pass over the geofence centroid.
     Overflight,
+    /// Entity matched a persistent saved search query.
+    SearchMatch,
 }
 
 /// A geographic boundary polygon for geofence alerting.

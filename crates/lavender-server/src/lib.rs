@@ -148,6 +148,16 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/feeds/{feed}", get(routes::feed))
         .route("/search", get(routes::search))
         .route("/search/spatial", post(routes::spatial_search))
+        .route(
+            "/searches/saved",
+            post(routes::create_saved_search).get(routes::list_saved_searches),
+        )
+        .route(
+            "/searches/saved/{id}",
+            get(routes::get_saved_search).delete(routes::delete_saved_search),
+        )
+        .route("/searches/saved/{id}/feed", get(routes::get_saved_search_feed))
+        .route("/searches/saved/{id}/matches", get(routes::get_saved_search_matches))
         .route("/aircraft/{hex}/track", get(routes::aircraft_track))
         .route("/aircraft/{hex}/type", get(routes::aircraft_type))
         .route("/aircraft/route/{callsign}", get(routes::aircraft_route))

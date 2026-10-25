@@ -10,9 +10,11 @@ import type {
   BoundaryClass,
   BoundaryResponse,
   CameraSource,
+  CanonicalEntity,
   Catalog,
   CctvDetectionsResponse,
   ClientFrame,
+  EntityIdentifier,
   FeedQuery,
   FeedSnapshot,
   Route,
@@ -20,6 +22,8 @@ import type {
   SatellitePassRequest,
   SatelliteTrack,
   SatelliteTrackRequest,
+  SavedSearch,
+  SavedSearchMatch,
   SearchQuery,
   SearchResults,
   ServerFrame,
@@ -152,6 +156,46 @@ export class WebPlatform implements LavenderPlatform {
       throw httpError(response.status, await response.json().catch(() => undefined));
     }
     return readBody(() => response.arrayBuffer());
+  }
+
+  async #post<T>(path: string, body: unknown, options?: CallOptions): Promise<T> {
+    let response: Response;
+    try {
+      response = await this.#fetch(`${this.#base}/api/v1${path}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(body),
+        ...(options?.signal ? { signal: options.signal } : {}),
+      });
+    } catch (error) {
+      throw new PlatformError(toApiError(error));
+    }
+    if (!response.ok) {
+      throw httpError(response.status, await response.json().catch(() => undefined));
+    }
+    return readBody(() => response.json() as Promise<T>);
+  }
+
+  async #delete<T>(path: string, options?: CallOptions): Promise<T> {
+    let response: Response;
+    try {
+      response = await this.#fetch(`${this.#base}/api/v1${path}`, {
+        method: 'DELETE',
+        headers: {
+          Accept: 'application/json',
+        },
+        ...(options?.signal ? { signal: options.signal } : {}),
+      });
+    } catch (error) {
+      throw new PlatformError(toApiError(error));
+    }
+    if (!response.ok) {
+      throw httpError(response.status, await response.json().catch(() => undefined));
+    }
+    return readBody(() => response.json() as Promise<T>);
   }
 
   catalog(options?: CallOptions): Promise<Catalog> {
@@ -380,6 +424,44 @@ export class WebPlatform implements LavenderPlatform {
 
   airQuality(options?: CallOptions): Promise<AirQualitySnapshot> {
     return this.#get('/air-quality', options);
+  }
+
+  resolveEntity(scheme: string, value: string, options?: CallOptions): Promise<CanonicalEntity> {
+    const qs = new URLSearchParams({ scheme, value });
+    return this.#get(`/entities/resolve?${qs.toString()}`, options);
+  }
+
+  getEntity(id: string, options?: CallOptions): Promise<CanonicalEntity> {
+    return this.#get(`/entities/${encodeURIComponent(id)}`, options);
+  }
+
+  getEntityAliases(id: string, options?: CallOptions): Promise<readonly EntityIdentifier[]> {
+    return this.#get(`/entities/${encodeURIComponent(id)}/aliases`, options);
+  }
+
+  createSavedSearch(search: SavedSearch, options?: CallOptions): Promise<SavedSearch> {
+    return this.#post('/searches/saved', search, options);
+  }
+
+  listSavedSearches(options?: CallOptions): Promise<readonly SavedSearch[]> {
+    return this.#get('/searches/saved', options);
+  }
+
+  getSavedSearch(id: string, options?: CallOptions): Promise<SavedSearch> {
+    return this.#get(`/searches/saved/${encodeURIComponent(id)}`, options);
+  }
+
+  deleteSavedSearch(id: string, options?: CallOptions): Promise<void> {
+    return this.#delete(`/searches/saved/${encodeURIComponent(id)}`, options);
+  }
+
+  savedSearchMatches(
+    id: string,
+    limit?: number,
+    options?: CallOptions,
+  ): Promise<readonly SavedSearchMatch[]> {
+    const qs = limit ? `?limit=${limit}` : '';
+    return this.#get(`/searches/saved/${encodeURIComponent(id)}/matches${qs}`, options);
   }
 
   secretStatus(options?: CallOptions): Promise<SecretStatusResponse> {

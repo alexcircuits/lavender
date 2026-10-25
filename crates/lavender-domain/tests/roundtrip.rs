@@ -857,3 +857,52 @@ fn entity_resolution_contracts_round_trip() {
     assert_eq!(serde_json::to_value(EntityKind::Facility).unwrap(), "facility");
     assert_eq!(serde_json::to_value(EntityKind::Event).unwrap(), "event");
 }
+
+#[test]
+fn saved_search_contracts_round_trip() {
+    let search = SavedSearch {
+        id: "search-1".to_string(),
+        name: "Baltic Patrol".to_string(),
+        query: "B738".to_string(),
+        feed_filter: Some(vec![FeedId::Aircraft]),
+        created_at: ts(),
+        notify_on_match: true,
+    };
+    let json = roundtrip(&search);
+    assert_eq!(json["id"], "search-1");
+    assert_eq!(json["name"], "Baltic Patrol");
+    assert_eq!(json["query"], "B738");
+    assert_eq!(json["feedFilter"].as_array().unwrap().len(), 1);
+    assert_eq!(json["feedFilter"][0], "aircraft");
+    assert_eq!(json["createdAt"], "2026-10-11T12:00:00Z");
+    assert_eq!(json["notifyOnMatch"], true);
+
+    let search_no_filter = SavedSearch {
+        id: "search-2".to_string(),
+        name: "Ever Given".to_string(),
+        query: "ever given".to_string(),
+        feed_filter: None,
+        created_at: ts(),
+        notify_on_match: false,
+    };
+    let json_no_filter = roundtrip(&search_no_filter);
+    assert_eq!(json_no_filter["id"], "search-2");
+    assert!(json_no_filter.get("feedFilter").is_none());
+    assert_eq!(json_no_filter["notifyOnMatch"], false);
+
+    let search_match = SavedSearchMatch {
+        search_id: "search-1".to_string(),
+        search_name: "Baltic Patrol".to_string(),
+        feed: FeedId::Aircraft,
+        entity_id: "4ca1b2".to_string(),
+        label: "RYR12AB".to_string(),
+        matched_at: ts(),
+    };
+    let match_json = roundtrip(&search_match);
+    assert_eq!(match_json["searchId"], "search-1");
+    assert_eq!(match_json["searchName"], "Baltic Patrol");
+    assert_eq!(match_json["feed"], "aircraft");
+    assert_eq!(match_json["entityId"], "4ca1b2");
+    assert_eq!(match_json["label"], "RYR12AB");
+    assert_eq!(match_json["matchedAt"], "2026-10-11T12:00:00Z");
+}

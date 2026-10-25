@@ -162,3 +162,85 @@
   color: var(--ink-2);
   font: var(--type-micro);
 }
+
+/* ── NoirSystems Telemetry & Debunked Clusters ── */
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-1_5);
+  margin: var(--s-2) 0 var(--s-3);
+}
+
+.metricCard {
+  composes: sq from global;
+  display: flex;
+  flex-direction: column;
+  padding: var(--s-1_5) var(--s-2);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
+  background: var(--well);
+  min-width: 0;
+}
+
+.metricLabel {
+  color: var(--ink-2);
+  font: var(--type-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metricValue {
+  margin-top: 2px;
+  color: var(--ink);
+  font: var(--type-title-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metricSub {
+  color: var(--ink-3);
+  font: var(--type-micro);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quickActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1_5);
+  margin-bottom: var(--s-3);
+}
+
+.viewTabs {
+  margin-bottom: var(--s-3);
+  width: 100%;
+}
+
+.sectionCard {
+  composes: sq from global;
+  padding: var(--s-2_5) var(--s-3);
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  background: var(--well);
+  margin-bottom: var(--s-3);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--s-2);
+}
+
+.cardTitle {
+  margin: 0;
+  color: var(--ink-2);
+  font: var(--type-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

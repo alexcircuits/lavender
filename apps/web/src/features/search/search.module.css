@@ -228,7 +228,6 @@
   flex-wrap: wrap;
   gap: var(--s-4);
   padding: var(--s-2) var(--s-2) 0;
-  border-top: 1px solid var(--hairline);
   color: var(--ink-3);
   font: var(--type-caption);
 }
