@@ -14,12 +14,8 @@ import type {
   SystemStatus,
 } from '../contracts';
 import { type MapAnnotation, validateAnnotations } from '../features/annotations/model';
-import {
-  type BoundaryClassVisibility,
-  DEFAULT_BOUNDARY_VISIBILITY,
-  type EntityRef,
-  type GlobeController,
-} from '../globe';
+import { DEFAULT_BOUNDARY_VISIBILITY } from '../features/layers/boundaryHierarchy';
+import type { BoundaryClassVisibility, EntityRef, GlobeController } from '../globe';
 import type { TransportState } from '../platform';
 
 // ── workspace: what the analyst turned on and selected (persisted per device) ─────────────

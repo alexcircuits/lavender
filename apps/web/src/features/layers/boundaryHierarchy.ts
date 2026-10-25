@@ -9,6 +9,18 @@
 import type { BoundaryClass } from '../../contracts';
 import type { BoundaryClassVisibility } from '../../globe';
 
+/**
+ * The default per-class visibility. Canonical home: this eager-safe module,
+ * so `state/stores.ts` can use it without pulling the lazily loaded renderer
+ * (and Cesium) into the startup chunk. The renderer imports it from here.
+ */
+export const DEFAULT_BOUNDARY_VISIBILITY: BoundaryClassVisibility = Object.freeze({
+  internationalLand: true,
+  disputedLine: true,
+  breakawayArea: true,
+  maritimeIndicative: true,
+});
+
 export type BoundaryLevelId = 'admin0' | 'admin1' | 'admin2';
 
 export interface BoundaryLevel {

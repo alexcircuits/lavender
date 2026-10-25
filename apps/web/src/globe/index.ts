@@ -28,7 +28,6 @@ import type { LandingPointItem, SubmarineCableItem } from './renderers/cables';
 import type { Located } from './renderers/types';
 import type { TrackingState, TrackingStatus } from './tracking';
 
-export { DEFAULT_BOUNDARY_VISIBILITY } from './renderers/boundaries';
 export type {
   BoundaryClassVisibility,
   LandingPointItem,

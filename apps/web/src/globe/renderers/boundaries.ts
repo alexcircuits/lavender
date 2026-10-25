@@ -65,12 +65,10 @@ export interface BoundaryClassVisibility {
   readonly maritimeIndicative: boolean;
 }
 
-export const DEFAULT_BOUNDARY_VISIBILITY: BoundaryClassVisibility = Object.freeze({
-  internationalLand: true,
-  disputedLine: true,
-  breakawayArea: true,
-  maritimeIndicative: true,
-});
+// Canonical default lives in the eager-safe feature module (see import).
+import { DEFAULT_BOUNDARY_VISIBILITY } from '../../features/layers/boundaryHierarchy';
+
+export { DEFAULT_BOUNDARY_VISIBILITY };
 
 interface BoundaryEntry {
   readonly feature: BoundaryFeature;
