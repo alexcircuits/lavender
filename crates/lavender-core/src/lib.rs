@@ -7,6 +7,7 @@
 //! desktop app are thin adapters around it.
 
 pub mod aircraft_history;
+pub mod alerting;
 pub mod analytics;
 pub mod audit;
 pub mod config;
@@ -32,7 +33,8 @@ pub mod regions {
 }
 
 pub use crate::core::{LavenderCore, LavenderCoreBuilder};
-pub use config::CoreConfig;
+pub use alerting::{GeofenceAlertEngine, antimeridian_point_in_polygon, polygon_centroid};
+pub use config::{AlertingConfig, CoreConfig};
 pub use error::CoreError;
 pub use hub::{FeedSubscription, RegionBudget, SubscriptionEvent};
 pub use providers::boundaries::{BOUNDARIES_ATTRIBUTION, BoundaryStore};

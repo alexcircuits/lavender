@@ -23,11 +23,11 @@ pub use catalog::{
     ProviderScope,
 };
 pub use entities::{
-    Aircraft, AircraftRouteEnrichment, AircraftTypeEnrichment, AirportInfo, CameraHealth,
-    CameraSource, CctvStreamInfo, Cyclone, CycloneConeGeometry, CycloneForecastPoint,
+    Aircraft, AircraftRouteEnrichment, AircraftTypeEnrichment, AirportInfo, AlertEvent, AlertKind,
+    CameraHealth, CameraSource, CctvStreamInfo, Cyclone, CycloneConeGeometry, CycloneForecastPoint,
     CycloneGeometryStatus, CycloneMovement, CycloneTrackGeometry, Earthquake, FireCell,
-    FireCluster, FireDetection, Launch, LaunchPad, SatelliteElements, Vessel, VesselDimensions,
-    VesselEta, VesselTrackResponse, VesselTrackSample, VesselVoyage,
+    FireCluster, FireDetection, Geofence, GeofenceRule, Launch, LaunchPad, SatelliteElements,
+    Vessel, VesselDimensions, VesselEta, VesselTrackResponse, VesselTrackSample, VesselVoyage,
 };
 pub use entities::{AscentEvent, AscentEventKind, AscentSample, AscentTrajectory};
 pub use entities::{BikeshareStation, BikeshareSystem};

@@ -15,11 +15,12 @@ use lavender_core::{
 };
 use lavender_domain::text::clean;
 use lavender_domain::{
-    AircraftRouteEnrichment, AircraftTrack, AircraftTypeEnrichment, ApiError, BBox, BoundaryClass,
-    BoundaryFeature, BoundaryResponse, CameraHealth, CameraSource, Catalog, CctvStreamInfo,
-    ErrorCode, FeedFilters, FeedId, FeedItems, FeedQuery, GeoPoint, SatellitePassRequest,
-    SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SearchQuery, SearchResults,
-    SystemStatus, Timestamp, VesselTrackResponse, WeatherOverlay, WindModel,
+    AircraftRouteEnrichment, AircraftTrack, AircraftTypeEnrichment, AlertEvent, ApiError, BBox,
+    BoundaryClass, BoundaryFeature, BoundaryResponse, CameraHealth, CameraSource, Catalog,
+    CctvStreamInfo, ErrorCode, FeedFilters, FeedId, FeedItems, FeedQuery, GeoPoint, Geofence,
+    GeofenceRule, SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest,
+    SearchQuery, SearchResults, SystemStatus, Timestamp, VesselTrackResponse, WeatherOverlay,
+    WindModel,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -1846,6 +1847,98 @@ pub async fn secrets_reject() -> (StatusCode, axum::Json<serde_json::Value>) {
             "message": "Secrets in web server deployment are managed by the operator via environment or vault, not through client HTTP requests.",
         })),
     )
+}
+
+const fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateRuleRequest {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub geofences: Vec<Geofence>,
+    #[serde(default)]
+    pub polygon: Option<Vec<GeoPoint>>,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertInboxParams {
+    pub limit: Option<usize>,
+}
+
+/// `POST /api/v1/alerts/rules` — create or replace a geofence alerting rule.
+///
+/// # Errors
+/// Returns an error if the engine is disabled, rule capacity is exceeded, or parameters are invalid.
+pub async fn create_alert_rule(
+    State(state): State<AppState>,
+    Json(payload): Json<CreateRuleRequest>,
+) -> Result<Json<GeofenceRule>, HttpError> {
+    let mut geofences = payload.geofences;
+    if geofences.is_empty() {
+        geofences.extend(payload.polygon.map(|polygon| Geofence {
+            id: format!("{}-fence", payload.id),
+            name: payload.name.clone(),
+            polygon,
+        }));
+    }
+    let rule =
+        GeofenceRule { id: payload.id, name: payload.name, geofences, enabled: payload.enabled };
+    let created = state.core.create_alert_rule(rule)?;
+    Ok(Json(created))
+}
+
+/// `DELETE /api/v1/alerts/rules/{id}` — delete a geofence alerting rule.
+///
+/// # Errors
+/// Returns an error if the engine is disabled or the rule was not found.
+pub async fn delete_alert_rule(
+    State(state): State<AppState>,
+    ApiPath(id): ApiPath<String>,
+) -> Result<Json<serde_json::Value>, HttpError> {
+    state.core.delete_alert_rule(&id)?;
+    Ok(Json(serde_json::json!({ "deleted": true, "id": id })))
+}
+
+/// `GET /api/v1/alerts/rules/{id}` — fetch a geofence alerting rule by ID.
+///
+/// # Errors
+/// Returns an error if the engine is disabled or the rule was not found.
+pub async fn get_alert_rule(
+    State(state): State<AppState>,
+    ApiPath(id): ApiPath<String>,
+) -> Result<Json<GeofenceRule>, HttpError> {
+    let rule = state.core.get_alert_rule(&id)?;
+    Ok(Json(rule))
+}
+
+/// `GET /api/v1/alerts/rules` — list all geofence alerting rules.
+///
+/// # Errors
+/// Returns an error if alerting is disabled in server configuration.
+pub async fn list_alert_rules(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<GeofenceRule>>, HttpError> {
+    let rules = state.core.list_alert_rules()?;
+    Ok(Json(rules))
+}
+
+/// `GET /api/v1/alerts/inbox` — fetch recent alerting events from the ring buffer.
+///
+/// # Errors
+/// Returns an error if alerting is disabled in server configuration.
+pub async fn alerts_inbox(
+    State(state): State<AppState>,
+    ApiQuery(params): ApiQuery<AlertInboxParams>,
+) -> Result<Json<Vec<AlertEvent>>, HttpError> {
+    let events = state.core.alert_inbox(params.limit)?;
+    Ok(Json(events))
 }
 
 #[cfg(test)]

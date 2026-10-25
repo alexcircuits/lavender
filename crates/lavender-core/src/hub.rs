@@ -106,6 +106,7 @@ pub struct HubDeps {
     pub satellite_catalog: Arc<crate::satellite_catalog::SatelliteCatalog>,
     pub track_sink: Option<Arc<crate::analytics::TrackBatchBuffer>>,
     pub rule_engine: Option<Arc<crate::analytics::NimRuleEngine>>,
+    pub alert_engine: Option<Arc<crate::alerting::GeofenceAlertEngine>>,
 }
 
 #[derive(Debug)]
@@ -306,6 +307,12 @@ impl FeedHub {
     #[must_use]
     pub fn rule_engine(&self) -> Option<&Arc<crate::analytics::NimRuleEngine>> {
         self.inner.deps.rule_engine.as_ref()
+    }
+
+    /// Returns the geofence alerting engine if configured.
+    #[must_use]
+    pub fn alert_engine(&self) -> Option<&Arc<crate::alerting::GeofenceAlertEngine>> {
+        self.inner.deps.alert_engine.as_ref()
     }
 
     #[must_use]
