@@ -414,3 +414,17 @@ then run `check.sh` and e2e. The lanes' documentation notes are collected in
 - Everything of value is committed and pushed to
   github.com/alexcircuits/lavender (branch improvement/human-first-
   engineering, through 5607bb52).
+
+## 2026-10-24 (final) — simulation source live through the hub
+
+- **LB-151 core shipped** (`b67bb1c4`): `providers.simulation` config
+  (default off) swaps the aircraft feed's source to the deterministic
+  simulator at registration — global scope, step cadence, 'simulation'
+  provenance stamp, synthetic-data snapshot notice. Workspace green.
+- Agent fleet status: every launch this afternoon (7 across mixed briefs)
+  was culled by the account's model-concurrency cap / provider throttle,
+  including with the main session idle; two late launches failed at the
+  transport layer. All shipped work was therefore executed in the main
+  session. Ready-to-run briefs for the next slices (LB-150 timeline
+  replay, LB-152 admin-1 divisions, LB-109 provider audit) live in
+  kanban.md.

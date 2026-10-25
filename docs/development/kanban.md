@@ -32,6 +32,13 @@ for the ENG-\* tasks this board references. Update together with
 
 ## In Progress
 
+- **LB-152 Admin-1 divisions serving (Rust)** — READY-TO-RUN brief:
+  extend providers/regions.rs to serve admin-1 (states/provinces) with
+  stable ids, names, admin-0 parent, bboxes and simplified polygons;
+  copy states_provinces.json from legacy into crates/lavender-core/data/
+  (keep < ~3 MB, simplify like boundaries.rs); Natural Earth attribution
+  like boundaries.rs; tests for load/lookup/bbox/geometry sanity; then
+  wire the route/UI so the web drill-down stops marking admin-1 unserved.
 - **LB-150 Timeline replay (web)** — READY-TO-RUN brief: new
   features/replay panel ('replay' SidePanel + nav item), loads the
   selected entity's track via the existing platform aircraft/vessel
@@ -41,16 +48,11 @@ for the ENG-\* tasks this board references. Update together with
   harness tests per features/missions idioms; typecheck+test+lint green.
   Two agent attempts culled by the provider concurrency cap before
   writing code.
-- **LB-151 Simulation hub wiring + admin divisions (Rust)** —
-  READY-TO-RUN brief: register AircraftSimulator (core/src/simulation.rs)
-  as an aircraft-feed source behind config `simulation.enabled` (default
-  OFF, seed+count, 1-4 s tick, source 'simulation', offline);
-  flag-gated ascent enrichment via geo::simulate_ascent at the launches
-  seam; copy natural_earth states_provinces + us_census_counties into
-  crates/lavender-core/data/ and serve admin-1/-2 from regions with
-  Natural Earth/US Census attribution; regenerate contracts; fmt +
-  clippy -D warnings + workspace tests + check-contracts green. Same
-  cull.
+- **LB-151 Simulation hub wiring — DONE** (`b67bb1c4`): SimulationProvider
+  swaps in for adsb.lol at registration behind `providers.simulation`
+  (default OFF); deterministic fleet, 'simulation' source stamp,
+  synthetic-data notice. Remaining from the original brief: admin-1
+  division serving (see LB-152) and the optional ascent enrichment seam.
 - **LB-130 Zig kernels + WASM provenance** (wrappers + script done): the Zig
   kernels already exported point-in-polygon (batch/multi-polygon/wrapped) and
   heatmap binning; `wasmHeatmap.ts` adds the TS wrapper with a pure-TS
