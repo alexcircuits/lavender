@@ -12,6 +12,7 @@ use crate::motion::{CourseSpeedState, advance};
 /// Source id stamped on every synthetic contact.
 pub const SIMULATION_SOURCE: &str = "simulation";
 
+#[derive(Debug)]
 struct SimAircraft {
     state: CourseSpeedState,
     /// Great-circle distance remaining to the destination waypoint, metres.
@@ -24,6 +25,7 @@ struct SimAircraft {
 
 /// A deterministic fleet. Same seed and count always produce the same fleet,
 /// the same ids, and the same positions after the same ticks.
+#[derive(Debug)]
 pub struct AircraftSimulator {
     fleet: Vec<SimAircraft>,
     elapsed_s: f64,

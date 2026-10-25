@@ -242,8 +242,15 @@ impl LavenderCoreBuilder {
         };
         let providers = self.providers.unwrap_or_else(|| {
             let p = &self.config.providers;
+            // Simulation replaces the live aircraft source for that feed when
+            // enabled: one source per feed, swapped at registration.
+            let aircraft: Arc<dyn FeedProvider> = if p.simulation.enabled {
+                Arc::new(crate::providers::simulation::SimulationProvider::new(p.simulation))
+            } else {
+                Arc::new(AdsbLolProvider::new(p.adsb_lol.clone()))
+            };
             let mut list: Vec<Arc<dyn FeedProvider>> = vec![
-                Arc::new(AdsbLolProvider::new(p.adsb_lol.clone())) as Arc<dyn FeedProvider>,
+                aircraft,
                 Arc::new(UsgsProvider::new(p.usgs.clone())),
                 Arc::new(CelestrakProvider::new(p.celestrak.clone())),
                 Arc::new(CyclonesProvider::new(p.cyclones.clone())),

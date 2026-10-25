@@ -127,6 +127,10 @@ impl Default for HubConfig {
 pub struct ProvidersConfig {
     pub usgs: UsgsConfig,
     pub adsb_lol: AdsbLolConfig,
+    /// Synthetic aircraft: replaces the live adsb.lol source for the aircraft
+    /// feed when enabled. Default off — an owner decision, like every optional
+    /// source. No network is touched.
+    pub simulation: SimulationConfig,
     pub opensky: OpenSkyConfig,
     pub adsbdb: AdsbdbConfig,
     pub celestrak: CelestrakConfig,
@@ -1275,5 +1279,27 @@ mod tests {
     fn unknown_keys_are_rejected() {
         let parsed: Result<CoreConfig, _> = serde_json::from_str(r#"{"licenceMod":"commercial"}"#);
         assert!(parsed.is_err());
+    }
+}
+
+/// The synthetic aircraft simulation (LB-151): a deterministic seeded fleet
+/// flown by `crate::simulation::AircraftSimulator`, served as the aircraft
+/// feed's source instead of adsb.lol when enabled. Never the default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SimulationConfig {
+    /// Whether the aircraft feed runs on simulation instead of the live source.
+    pub enabled: bool,
+    /// Seed: the same seed always produces the same fleet and flight.
+    pub seed: u64,
+    /// How many simulated aircraft to fly.
+    pub fleet_size: usize,
+    /// Simulator (and hub refresh) step in seconds.
+    pub step_s: u64,
+}
+
+impl Default for SimulationConfig {
+    fn default() -> Self {
+        Self { enabled: false, seed: 42, fleet_size: 24, step_s: 2 }
     }
 }

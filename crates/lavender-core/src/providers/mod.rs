@@ -26,6 +26,7 @@ pub mod overpass;
 pub mod perimeters;
 pub mod regions;
 pub mod routing;
+pub mod simulation;
 pub mod terrain;
 pub mod traffic;
 pub mod transit;
