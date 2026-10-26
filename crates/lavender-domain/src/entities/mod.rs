@@ -15,6 +15,7 @@ mod fire;
 mod gnss;
 mod launch;
 mod local_receiver;
+mod map_catalog;
 mod perimeter;
 mod query_pack;
 mod radio;
@@ -22,7 +23,9 @@ mod resolution;
 mod route;
 mod satellite;
 mod saved_search;
+mod scene_pack;
 mod spatial_search;
+mod street_level;
 mod terrain;
 mod traffic;
 mod transit;
@@ -47,6 +50,7 @@ pub use launch::{Launch, LaunchPad};
 pub use local_receiver::{
     LocalAdsbAircraft, LocalReceiverBand, LocalReceiverFeedStatus, LocalReceiverSnapshot,
 };
+pub use map_catalog::{MapCatalogSnapshot, MapStackEntry, MapStackKind};
 pub use perimeter::{FirePerimeter, PerimeterDetail};
 pub use query_pack::{
     QueryPackBreakdownBucket, QueryPackDefinition, QueryPackDomain, QueryPackExecution,
@@ -57,7 +61,9 @@ pub use resolution::{CanonicalEntity, EntityIdentifier, EntityKind, EntityLink};
 pub use route::{Route, RouteStep};
 pub use satellite::SatelliteElements;
 pub use saved_search::{SavedSearch, SavedSearchMatch};
+pub use scene_pack::{EvidencePack, SceneCameraPose, SceneShot};
 pub use spatial_search::{SpatialFilter, SpatialHit, SpatialSearchRequest, SpatialSearchResponse};
+pub use street_level::{StreetLevelCoverageTile, StreetLevelProviderId, StreetLevelSequence};
 pub use terrain::{TerrainHeightsRequest, TerrainHeightsResponse, TerrainPointResult};
 pub use traffic::{TrafficRoadSegment, TrafficStatus, TrafficTileResponse};
 pub use transit::{TransitEpoch, TransitFeed, TransitTrail, TransitVehicle};

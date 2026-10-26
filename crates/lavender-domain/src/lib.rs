@@ -41,9 +41,12 @@ pub use entities::{AscentEvent, AscentEventKind, AscentSample, AscentTrajectory}
 pub use entities::{BikeshareStation, BikeshareSystem};
 pub use entities::{BoundaryClass, BoundaryFeature, BoundaryResponse};
 pub use entities::{CanonicalEntity, EntityIdentifier, EntityKind, EntityLink};
+pub use entities::{EvidencePack, SceneCameraPose, SceneShot};
 pub use entities::{FirePerimeter, PerimeterDetail};
+pub use entities::{MapCatalogSnapshot, MapStackEntry, MapStackKind};
 pub use entities::{Route, RouteStep};
 pub use entities::{SavedSearch, SavedSearchMatch};
+pub use entities::{StreetLevelCoverageTile, StreetLevelProviderId, StreetLevelSequence};
 pub use entities::{TerrainHeightsRequest, TerrainHeightsResponse, TerrainPointResult};
 pub use entities::{TrafficRoadSegment, TrafficStatus, TrafficTileResponse};
 pub use entities::{TransitEpoch, TransitFeed, TransitTrail, TransitVehicle};
