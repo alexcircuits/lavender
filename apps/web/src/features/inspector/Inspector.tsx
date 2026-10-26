@@ -9,6 +9,7 @@ import {
 } from 'react';
 import type { Catalog, FeedId, GeoPoint, LayerDescriptor } from '../../contracts';
 import {
+  AirplaneIcon,
   ArrowSquareOutIcon,
   Button,
   CopyIcon,
@@ -577,6 +578,8 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
     followState.target?.feed === feed &&
     followState.target?.id === selection.id;
 
+  const isCockpitThis = isFollowingThis && followState?.mode === 'cockpit';
+
   const [activeTab, setActiveTab] = useState<
     'all' | 'telemetry' | 'identity' | 'history' | 'provenance'
   >('all');
@@ -648,6 +651,28 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
       ) : null}
 
       <div className={styles.quickActions}>
+        {selection.feed === 'aircraft' ? (
+          isCockpitThis ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={AirplaneIcon}
+              onClick={() => globe?.exitCockpit()}
+            >
+              Exit Cockpit
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={AirplaneIcon}
+              disabled={!globe || !position}
+              onClick={() => globe?.enterCockpit(selection)}
+            >
+              Cockpit
+            </Button>
+          )
+        ) : null}
         {isTrackable ? (
           isFollowingThis ? (
             <Button

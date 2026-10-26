@@ -11,11 +11,14 @@ import { Cartesian3, Cartographic, Math as CesiumMath, Ellipsoid } from '@cesium
 import { prefersReducedMotion as defaultPrefersReducedMotion } from './camera';
 import type { EntityRef } from './index';
 import { Listeners } from './listeners';
+import { slewHeading } from './renderers/wasmSkyKinematics';
 
 export type TrackingStatus = 'tracking' | 'stale' | 'lost' | 'released';
+export type TrackingMode = 'follow' | 'cockpit';
 
 export interface TrackingState {
   readonly status: TrackingStatus;
+  readonly mode: TrackingMode;
   readonly target: EntityRef | null;
   readonly position: Cartesian3 | null;
   readonly headingDeg?: number | null;
@@ -92,6 +95,7 @@ export class EntityTrackingService {
   readonly #listeners = new Listeners<TrackingState>('tracking state');
 
   #status: TrackingStatus = 'released';
+  #mode: TrackingMode = 'follow';
   #target: EntityRef | null = null;
   #position: Cartesian3 | null = null;
   #headingDeg: number | null = null;
@@ -99,6 +103,7 @@ export class EntityTrackingService {
   #lastUpdateMs: number | null = null;
   #reason: string | null = null;
   #lastProjected: Cartesian3 | null = null;
+  #currentSlewHeadingDeg: number | null = null;
   #keyDownHandler: ((event: KeyboardEvent) => void) | null = null;
 
   constructor(options: TrackingOptions = {}) {
@@ -125,6 +130,7 @@ export class EntityTrackingService {
       this.#status === 'stale' && this.#lastProjected ? this.#lastProjected : this.#position;
     return {
       status: this.#status,
+      mode: this.#mode,
       target: this.#target,
       position,
       headingDeg: this.#headingDeg,
@@ -138,8 +144,9 @@ export class EntityTrackingService {
     return this.#listeners.add(listener);
   }
 
-  startTracking(target: EntityRef): void {
+  startTracking(target: EntityRef, mode: TrackingMode = 'follow'): void {
     this.#target = target;
+    this.#mode = mode;
     this.#status = 'tracking';
     this.#position = null;
     this.#headingDeg = null;
@@ -147,6 +154,13 @@ export class EntityTrackingService {
     this.#lastUpdateMs = null;
     this.#reason = null;
     this.#lastProjected = null;
+    this.#currentSlewHeadingDeg = null;
+    this.#emitState();
+  }
+
+  setMode(mode: TrackingMode): void {
+    if (this.#mode === mode) return;
+    this.#mode = mode;
     this.#emitState();
   }
 
@@ -232,6 +246,11 @@ export class EntityTrackingService {
   #moveCamera(targetPos: Cartesian3): void {
     if (!this.#camera) return;
 
+    if (this.#mode === 'cockpit') {
+      this.#moveCameraCockpit(targetPos);
+      return;
+    }
+
     let destination = targetPos;
     const carto = Cartographic.fromCartesian(targetPos, Ellipsoid.WGS84);
     if (carto) {
@@ -254,6 +273,45 @@ export class EntityTrackingService {
       this.#camera.position = next;
       this.#camera.setView({ destination: next });
     }
+
+    this.#requestRender?.();
+  }
+
+  #moveCameraCockpit(targetPos: Cartesian3): void {
+    if (!this.#camera) return;
+    const carto = Cartographic.fromCartesian(targetPos, Ellipsoid.WGS84);
+    if (!carto) return;
+
+    const targetHdg = this.#headingDeg ?? 0;
+    const curHdg = this.#currentSlewHeadingDeg ?? targetHdg;
+    const slewedHdg = slewHeading(curHdg, targetHdg, 2.5);
+    this.#currentSlewHeadingDeg = slewedHdg;
+
+    const hdgRad = CesiumMath.toRadians(slewedHdg);
+    const pitchRad = CesiumMath.toRadians(-3.0);
+    const r = Ellipsoid.WGS84.maximumRadius;
+
+    // Offset camera 15m forward, 3m up
+    const dLat = (15 * Math.cos(hdgRad)) / r;
+    const dLon = (15 * Math.sin(hdgRad)) / (r * Math.max(0.01, Math.cos(carto.latitude)));
+    const cameraHeight = carto.height + 3;
+
+    const destination = Cartesian3.fromRadians(
+      carto.longitude + dLon,
+      carto.latitude + dLat,
+      cameraHeight,
+      Ellipsoid.WGS84,
+    );
+
+    this.#camera.position = destination;
+    this.#camera.setView({
+      destination,
+      orientation: {
+        heading: hdgRad,
+        pitch: pitchRad,
+        roll: 0,
+      },
+    });
 
     this.#requestRender?.();
   }

@@ -714,6 +714,56 @@ export class GlobeEngine implements GlobeController {
     m.widget.scene.requestRender();
   }
 
+  enterCockpit(target: EntityRef): void {
+    const m = this.#mounted;
+    if (!m) return;
+    this.#following = target;
+    m.tracking.startTracking(target, 'cockpit');
+
+    if (
+      target.feed === 'boundaries' ||
+      target.feed === 'installations' ||
+      target.feed === 'directions-step' ||
+      target.feed === 'directions-waypoint'
+    )
+      return;
+    let located: Located | undefined;
+    if (target.feed === 'cables') {
+      located = m.cables.locate(target.id);
+    } else if (target.feed === 'cctv') {
+      located = m.cctv.locate(target.id);
+    } else if (target.feed === 'air-quality') {
+      located = m.airQuality.locate(target.id);
+    } else if (target.feed === 'gnss') {
+      located = m.gnss.locate(target.id);
+    } else if (target.feed === 'radio') {
+      located = m.radio.locate(target.id);
+    } else if (target.feed === 'alpr') {
+      located = m.alpr.locate(target.id);
+    } else {
+      const renderer = m.renderers.get(target.feed);
+      located = renderer?.locate?.(target.id);
+    }
+    if (located) {
+      m.tracking.updateTargetPosition(located.position);
+    }
+    m.widget.scene.requestRender();
+  }
+
+  exitCockpit(): void {
+    const m = this.#mounted;
+    if (!m) return;
+    if (m.tracking.getState().mode === 'cockpit') {
+      m.tracking.release('manual');
+      this.#following = null;
+    }
+  }
+
+  isCockpitActive(): boolean {
+    const state = this.#mounted?.tracking.getState();
+    return state !== undefined && state.status !== 'released' && state.mode === 'cockpit';
+  }
+
   stopFollowing(): void {
     this.#following = null;
     this.#mounted?.tracking.release('manual');

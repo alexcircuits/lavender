@@ -32,13 +32,14 @@ import type { BoundaryClassVisibility } from './renderers/boundaries';
 import type { LandingPointItem, SubmarineCableItem } from './renderers/cables';
 import type { HeatmapContact } from './renderers/heatmap';
 import type { Located } from './renderers/types';
-import type { TrackingState, TrackingStatus } from './tracking';
+import type { TrackingMode, TrackingState, TrackingStatus } from './tracking';
 
 export type {
   BoundaryClassVisibility,
   HeatmapContact,
   LandingPointItem,
   SubmarineCableItem,
+  TrackingMode,
   TrackingState,
   TrackingStatus,
 };
@@ -188,6 +189,12 @@ export interface GlobeController {
   getBoundaryFeature(id: string): BoundaryFeature | undefined;
   /** Follows an entity smoothly with the camera. */
   startFollowing(target: EntityRef): void;
+  /** Enters first-person cockpit view mode for an aircraft or tracked entity. */
+  enterCockpit(target: EntityRef): void;
+  /** Exits cockpit view mode, reverting to free or follow camera. */
+  exitCockpit(): void;
+  /** Whether cockpit mode is currently active. */
+  isCockpitActive(): boolean;
   /** Stops following the entity and returns camera authority to the user. */
   stopFollowing(): void;
   /** Whether the camera is currently following an entity. */

@@ -154,7 +154,8 @@ export function SettingsPanel({ className }: SettingsPanelProps) {
             <div>
               <div className={styles.settingLabel}>Reconnaissance Intelligence HUD</div>
               <div className={styles.settingSubtext}>
-                NRO/NGA telemetry: Grid coordinates, GSD, NIIRS, ONA, solar position, and classification
+                NRO/NGA telemetry: Grid coordinates, GSD, NIIRS, ONA, solar position, and
+                classification
               </div>
             </div>
             <Badge tone="accent">Zig Micro-Kernel</Badge>

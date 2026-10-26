@@ -9,6 +9,16 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Done
 
+- **Cockpit View Mode, Primary Flight Display (PFD) Avionics HUD & Aircraft Camera Kinematics**:
+  - **Entity Tracking Service & Kinematics (`apps/web/src/globe/tracking.ts`)**: Added `TrackingMode = 'follow' | 'cockpit'` to `EntityTrackingService`. Cockpit view integrates shortest-arc heading slewing via `slewHeading` (`kernels/zig/src/kinematics.zig`), locks camera 15m forward and 3m above the aircraft ellipsoid coordinate, applies -3° downward pitch attitude, and updates synchronously on frame renders.
+  - **Avonix HUD Primary Flight Display (`apps/web/src/features/cockpit/`)**: Implemented `CockpitPfd.tsx`, `cockpit.module.css`, `CockpitPfd.test.tsx`, `index.ts`. Authentic aviation PFD displaying top compass tape with cardinal headings, left airspeed tape (knots IAS), right altitude tape (ft MSL), center artificial horizon ladder with +/-10° pitch rungs and aircraft boresight reticle, bottom telemetry strip (Callsign, Registration, ICAO Type, Vertical Speed FPM, Squawk code), and one-click "Exit Cockpit" button, themed dynamically across Noir, NVG, FLIR, and CRT visual presets.
+  - **Globe Controller & Shell Wiring (`apps/web/src/globe/index.ts`, `GlobeEngine.ts`, `test/fakes.ts`, `shell/AppShell.tsx`, `shell/FollowingChip.tsx`, `features/inspector/Inspector.tsx`)**:
+    - Added `enterCockpit(target)`, `exitCockpit()`, `isCockpitActive()` to `GlobeController` and `GlobeEngine`.
+    - Added Quick Action "Cockpit" toggle button (`AirplaneIcon`) in `Inspector.tsx` whenever an aircraft contact is selected.
+    - Updated `FollowingChip.tsx` with dynamic cockpit detection ("Cockpit [ID] · Esc to exit").
+    - Lazy-loaded `CockpitPfd` in `AppShell.tsx` within `<Suspense fallback={null}>` without inflating startup bundle.
+  - **Bundle Budget & Test Verification**: Workspace JS bundle **248.1 KiB gzip <= 250 KiB limit**; all 141 web test files passing (**997/997 tests**); full Rust workspace test suite passing; Biome check 100% clean; contracts up to date.
+
 - **Reconnaissance Intelligence HUD, Tactical Scope Aperture Mask, Cyber Sonar Sweep, Solari Split-Flap & Zig Optics Kernel**:
   - **Zig Freestanding Optics Kernel (`kernels/zig/src/optics.zig`)**: Implemented zero-allocation micro-kernel for Ground Sample Distance (`lavender_sensor_calculate_gsd`), NIIRS General Image Quality Equation (`lavender_sensor_calculate_niirs`), Off-Nadir Angle (`lavender_sensor_calculate_ona`), high-precision solar elevation angle (`lavender_sensor_sun_elevation`), tactical Cyber Sonar radial sweep beam gain with hermite feathering (`lavender_sonar_calculate_sweep_gain`), quantized scope terminus alpha ramp (`lavender_scope_terminus_alpha`), and keyhole circular aperture geometry (`lavender_keyhole_geometry`). Rebuilt `lavender_kernels.wasm` (`70/70` Zig tests passing).
   - **Web Micro-Kernel Bridge (`apps/web/src/globe/renderers/wasmOptics.ts`)**: WASM bridge with aligned memory management and pure-TS reference fallbacks.

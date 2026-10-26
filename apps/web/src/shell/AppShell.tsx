@@ -1,20 +1,20 @@
-import { lazy, Suspense, useRef } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, IconButton, MagnifyingGlassIcon } from '../design';
 
 // Code-split with the other Wave B panels to hold the startup budget.
 const BriefingModal = lazy(() =>
   import('../features/briefing').then((m) => ({ default: m.BriefingModal })),
 );
-const HudOverlay = lazy(() =>
-  import('../features/hud').then((m) => ({ default: m.HudOverlay })),
-);
-const ScopeMask = lazy(() =>
-  import('../features/scope').then((m) => ({ default: m.ScopeMask })),
-);
+const HudOverlay = lazy(() => import('../features/hud').then((m) => ({ default: m.HudOverlay })));
+const ScopeMask = lazy(() => import('../features/scope').then((m) => ({ default: m.ScopeMask })));
 const CyberSonarOverlay = lazy(() =>
   import('../features/sonar').then((m) => ({ default: m.CyberSonarOverlay })),
 );
+const CockpitPfd = lazy(() =>
+  import('../features/cockpit').then((m) => ({ default: m.CockpitPfd })),
+);
 
+import type { Aircraft } from '../contracts';
 import {
   GLOBE_REGION_ID,
   ShortcutSheet,
@@ -25,8 +25,8 @@ import { ImagerySplitDivider } from '../features/imagery/ImagerySplitDivider';
 import { Inspector } from '../features/inspector';
 import { LayerAnnouncer, useBoundariesLayer } from '../features/layers';
 import { CommandPalette, SearchBar } from '../features/search';
-import type { MountGlobe } from '../globe';
-import { usePreferences, useUi, useWorkspace } from '../runtime';
+import type { MountGlobe, TrackingState } from '../globe';
+import { useFeeds, useGlobe, usePreferences, useUi, useWorkspace } from '../runtime';
 import { CreditsButton } from './CreditsButton';
 import { FeedStatusChip } from './FeedStatusChip';
 import { FollowingChip } from './FollowingChip';
@@ -64,6 +64,30 @@ export function AppShell({ mountGlobe }: AppShellProps) {
   const selectionKey = useWorkspace((s) =>
     s.selection ? `${s.selection.feed}:${s.selection.id}` : 'none',
   );
+  const globe = useGlobe();
+  const [followState, setFollowState] = useState<TrackingState | null>(
+    () => globe?.getFollowState() ?? null,
+  );
+
+  useEffect(() => {
+    if (!globe) return;
+    setFollowState(globe.getFollowState());
+    return globe.onFollowChange((state) => {
+      setFollowState(state.status === 'released' ? null : state);
+    });
+  }, [globe]);
+
+  const selectedEntity = useFeeds((s) => s.selectedEntity);
+  const isCockpit = followState?.mode === 'cockpit' && followState.status !== 'released';
+  const trackedAircraft = useMemo(() => {
+    if (!isCockpit || !followState?.target || followState.target.feed !== 'aircraft') return null;
+    if (selectedEntity && typeof selectedEntity === 'object' && 'hex' in selectedEntity) {
+      const a = selectedEntity as Aircraft;
+      if (a.hex === followState.target.id) return a;
+    }
+    return null;
+  }, [isCockpit, followState?.target, selectedEntity]);
+
   const leftRef = useRef<HTMLDivElement | null>(null);
   useRailFocusReturn(leftRef);
 
@@ -98,6 +122,34 @@ export function AppShell({ mountGlobe }: AppShellProps) {
                         ? 'crt'
                         : 'noir'
                 }
+              />
+            )}
+            {isCockpit && (
+              <CockpitPfd
+                callsign={
+                  trackedAircraft?.callsign?.trim() ||
+                  trackedAircraft?.hex ||
+                  followState?.target?.id
+                }
+                registration={trackedAircraft?.registration ?? undefined}
+                typeCode={trackedAircraft?.typeCode ?? undefined}
+                headingDeg={followState?.headingDeg ?? trackedAircraft?.trackDeg ?? undefined}
+                speedKnots={trackedAircraft?.groundSpeedKt ?? undefined}
+                altitudeFt={
+                  trackedAircraft?.altitudeBaroFt ?? trackedAircraft?.altitudeGeomFt ?? undefined
+                }
+                verticalSpeedFpm={trackedAircraft?.verticalRateFpm ?? undefined}
+                squawk={trackedAircraft?.squawk ?? undefined}
+                theme={
+                  visualPreset === 'thermal'
+                    ? 'flir'
+                    : visualPreset === 'nvg'
+                      ? 'nvg'
+                      : visualPreset === 'crt'
+                        ? 'crt'
+                        : 'noir'
+                }
+                onExit={() => globe?.exitCockpit()}
               />
             )}
           </Suspense>

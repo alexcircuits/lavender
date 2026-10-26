@@ -44,6 +44,7 @@ describe('FollowingChip', () => {
     act(() => {
       followListener?.({
         status: 'tracking',
+        mode: 'follow',
         target: { feed: 'aircraft', id: 'FIN123' },
         position: null,
         lastUpdateMs: Date.now(),
@@ -72,6 +73,7 @@ describe('FollowingChip', () => {
     act(() => {
       followListener?.({
         status: 'stale',
+        mode: 'follow',
         target: { feed: 'aircraft', id: 'FIN123' },
         position: null,
         lastUpdateMs: Date.now() - 35_000,
@@ -99,6 +101,7 @@ describe('FollowingChip', () => {
     act(() => {
       followListener?.({
         status: 'lost',
+        mode: 'follow',
         target: { feed: 'aircraft', id: 'FIN123' },
         position: null,
         lastUpdateMs: Date.now() - 65_000,
@@ -126,6 +129,7 @@ describe('FollowingChip', () => {
     act(() => {
       followListener?.({
         status: 'tracking',
+        mode: 'follow',
         target: { feed: 'aircraft', id: 'FIN123' },
         position: null,
         lastUpdateMs: Date.now(),
@@ -139,5 +143,32 @@ describe('FollowingChip', () => {
     // Test Esc key
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(h.globe?.globe.stopFollowing).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows "Cockpit [ID] · Esc to exit" when mode is cockpit', async () => {
+    const h = await setup();
+    let followListener: ((state: TrackingState) => void) | null = null;
+    if (h.globe) {
+      h.globe.globe.onFollowChange = (listener: (state: TrackingState) => void) => {
+        followListener = listener;
+        return () => {
+          followListener = null;
+        };
+      };
+    }
+
+    renderWithRuntime(h.runtime, <FollowingChip />);
+
+    act(() => {
+      followListener?.({
+        status: 'tracking',
+        mode: 'cockpit',
+        target: { feed: 'aircraft', id: 'AFR456' },
+        position: null,
+        lastUpdateMs: Date.now(),
+      });
+    });
+
+    expect(screen.getByText('Cockpit AFR456 · Esc to exit')).toBeInTheDocument();
   });
 });

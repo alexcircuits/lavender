@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Badge, Button, CrosshairIcon, formatAge } from '../design';
+import { AirplaneIcon, Badge, Button, CrosshairIcon, formatAge } from '../design';
 import type { TrackingState } from '../globe';
 import { useNow } from '../lib/useNow';
 import { useGlobe } from '../runtime';
 import styles from './shell.module.css';
 
 /**
- * Floating status chip displayed while following an entity (ENG-977).
+ * Floating status chip displayed while following an entity or in cockpit mode (ENG-977).
  *
  * Shows:
- * - "Following [ID] · Esc to stop"
+ * - "Following [ID] · Esc to stop" or "Cockpit [ID] · Esc to exit"
  * - Badge "Stale (estimating)" when updates stop > 30s
  * - Badge "Lost (last seen [X] ago)" when updates stop > 60s
  * - Click on chip or press Esc stops following.
@@ -43,6 +43,7 @@ export function FollowingChip() {
     return null;
   }
 
+  const isCockpit = followState.mode === 'cockpit';
   const ageSec = followState.lastUpdateMs
     ? Math.max(0, Math.round((nowMs - followState.lastUpdateMs) / 1000))
     : 0;
@@ -52,11 +53,21 @@ export function FollowingChip() {
       variant="secondary"
       className={styles.followingChip}
       onClick={() => globe?.stopFollowing()}
-      title="Click or press Esc to stop following"
+      title={
+        isCockpit ? 'Click or press Esc to exit cockpit' : 'Click or press Esc to stop following'
+      }
     >
       <span className={styles.followingChipInner}>
-        <CrosshairIcon size={14} aria-hidden />
-        <span>Following {followState.target.id} · Esc to stop</span>
+        {isCockpit ? (
+          <AirplaneIcon size={14} aria-hidden />
+        ) : (
+          <CrosshairIcon size={14} aria-hidden />
+        )}
+        <span>
+          {isCockpit
+            ? `Cockpit ${followState.target.id} · Esc to exit`
+            : `Following ${followState.target.id} · Esc to stop`}
+        </span>
         {followState.status === 'stale' ? <Badge tone="accent">Stale (estimating)</Badge> : null}
         {followState.status === 'lost' ? (
           <Badge tone="neutral">Lost (last seen {formatAge(ageSec)} ago)</Badge>

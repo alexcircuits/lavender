@@ -1,0 +1,217 @@
+.container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-widget);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  color: var(--pfd-color, var(--accent-ink));
+  user-select: none;
+}
+
+.themeNvg {
+  --pfd-color: var(--good);
+  --pfd-border: var(--hairline-strong);
+}
+
+.themeFlir {
+  --pfd-color: var(--ink);
+  --pfd-border: var(--hairline-strong);
+}
+
+.themeCrt {
+  --pfd-color: var(--warning);
+  --pfd-border: var(--hairline-strong);
+}
+
+.themeNoir {
+  --pfd-color: var(--accent-ink);
+  --pfd-border: var(--hairline);
+}
+
+/* Top Heading Compass Tape */
+.headingTape {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--island);
+  padding: 6px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--pfd-border, var(--hairline));
+  pointer-events: auto;
+}
+
+.headingDigits {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.headingRose {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 10px;
+  margin-top: 4px;
+  opacity: 0.75;
+}
+
+/* Left Airspeed Tape */
+.speedTape {
+  position: absolute;
+  top: 50%;
+  left: 32px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  background: var(--island);
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--pfd-border, var(--hairline));
+}
+
+.tapeValue {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tapeUnit {
+  font-size: 10px;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+/* Right Altitude Tape */
+.altitudeTape {
+  position: absolute;
+  top: 50%;
+  right: 32px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background: var(--island);
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--pfd-border, var(--hairline));
+}
+
+/* Center Pitch Ladder & Flight Path Vector */
+.pitchLadder {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 220px;
+  height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.horizonLine {
+  width: 140px;
+  height: 2px;
+  background: var(--pfd-color, var(--accent-ink));
+  opacity: 0.8;
+}
+
+.pitchRung {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 70px;
+  height: 1px;
+  background: var(--pfd-color, var(--accent-ink));
+  margin: 18px 0;
+  opacity: 0.5;
+}
+
+.pitchLabel {
+  font-size: 9px;
+  padding: 0 4px;
+}
+
+/* Aircraft Boresight / Reticle */
+.boresight {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.boresightCenter {
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-full);
+  background: var(--pfd-color, var(--accent-ink));
+}
+
+.boresightWingL {
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  width: 10px;
+  height: 2px;
+  background: var(--pfd-color, var(--accent-ink));
+}
+
+.boresightWingR {
+  position: absolute;
+  right: -12px;
+  top: 50%;
+  width: 10px;
+  height: 2px;
+  background: var(--pfd-color, var(--accent-ink));
+}
+
+/* Bottom Telemetry & Navigation Strip */
+.bottomStrip {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--island);
+  padding: 8px 18px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--pfd-border, var(--hairline));
+  font-size: 11px;
+  pointer-events: auto;
+}
+
+.statItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.statKey {
+  opacity: 0.7;
+}
+
+.statVal {
+  font-weight: 600;
+}
+
+.exitButton {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  pointer-events: auto;
+}
