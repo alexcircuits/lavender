@@ -281,11 +281,13 @@ export interface UiState {
   /** The keyboard shortcut sheet (`?`). */
   readonly shortcutsOpen: boolean;
   readonly briefingOpen: boolean;
+  readonly shareOpen: boolean;
   setGlobe(globe: GlobeController | null): void;
   setSidePanel(panel: SidePanel | null): void;
   setPaletteOpen(open: boolean): void;
   setShortcutsOpen(open: boolean): void;
   setBriefingOpen(open: boolean): void;
+  setShareOpen(open: boolean): void;
 }
 
 export const createUiStore = () =>
@@ -295,11 +297,13 @@ export const createUiStore = () =>
     paletteOpen: false,
     shortcutsOpen: false,
     briefingOpen: false,
+    shareOpen: false,
     setGlobe: (globe) => set({ globe }),
     setSidePanel: (sidePanel) => set({ sidePanel }),
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
     setBriefingOpen: (briefingOpen) => set({ briefingOpen }),
+    setShareOpen: (shareOpen) => set({ shareOpen }),
   }));
 
 export type WorkspaceStore = ReturnType<typeof createWorkspaceStore>;

@@ -1,9 +1,12 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, IconButton, MagnifyingGlassIcon } from '../design';
+import { Button, CopyIcon, IconButton, MagnifyingGlassIcon } from '../design';
 
 // Code-split with the other Wave B panels to hold the startup budget.
 const BriefingModal = lazy(() =>
   import('../features/briefing').then((m) => ({ default: m.BriefingModal })),
+);
+const ShareModal = lazy(() =>
+  import('../features/share/ShareModal').then((m) => ({ default: m.ShareModal })),
 );
 const HudOverlay = lazy(() => import('../features/hud').then((m) => ({ default: m.HudOverlay })));
 const ScopeMask = lazy(() => import('../features/scope').then((m) => ({ default: m.ScopeMask })));
@@ -25,6 +28,7 @@ import { ImagerySplitDivider } from '../features/imagery/ImagerySplitDivider';
 import { Inspector } from '../features/inspector';
 import { LayerAnnouncer, useBoundariesLayer } from '../features/layers';
 import { CommandPalette, SearchBar } from '../features/search';
+import { useShareRestoration } from '../features/share/useShareRestoration';
 import type { MountGlobe, TrackingState } from '../globe';
 import { useFeeds, useGlobe, usePreferences, useUi, useWorkspace } from '../runtime';
 import { CreditsButton } from './CreditsButton';
@@ -56,6 +60,7 @@ export function AppShell({ mountGlobe }: AppShellProps) {
   const collapsed = useCollapsed();
   const setPaletteOpen = useUi((s) => s.setPaletteOpen);
   const setBriefingOpen = useUi((s) => s.setBriefingOpen);
+  const setShareOpen = useUi((s) => s.setShareOpen);
   const sidePanel = useUi((s) => s.sidePanel);
   const visualPreset = usePreferences((s) => s.visualPreset);
   const hudEnabled = usePreferences((s) => s.hudEnabled);
@@ -65,6 +70,7 @@ export function AppShell({ mountGlobe }: AppShellProps) {
     s.selection ? `${s.selection.feed}:${s.selection.id}` : 'none',
   );
   const globe = useGlobe();
+  useShareRestoration(globe);
   const [followState, setFollowState] = useState<TrackingState | null>(
     () => globe?.getFollowState() ?? null,
   );
@@ -192,6 +198,14 @@ export function AppShell({ mountGlobe }: AppShellProps) {
             <div className={styles.chipSlot}>
               <FollowingChip />
               <FeedStatusChip />
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={CopyIcon}
+                onClick={() => setShareOpen(true)}
+              >
+                Share
+              </Button>
               <Button variant="secondary" size="sm" onClick={() => setBriefingOpen(true)}>
                 Export briefing
               </Button>
@@ -216,6 +230,7 @@ export function AppShell({ mountGlobe }: AppShellProps) {
       <ShortcutSheet />
       <Suspense fallback={null}>
         <BriefingModal />
+        <ShareModal />
       </Suspense>
       <LayerAnnouncer />
     </div>
