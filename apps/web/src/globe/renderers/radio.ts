@@ -133,18 +133,18 @@ export function reconcileRadioClusterCandidates<T extends RadioClusterCandidate>
   createId: ((candidate: T, index: number) => string) | null = null,
 ): ReconciledRadioCluster<T>[] {
   const list = candidates ?? [];
-  const current: CurrentCluster<T>[] = list.map(
-    (candidate) => {
-      const stationIds = [...new Set((candidate?.stationIds ?? []).map((id: string) => String(id)))].sort();
-      const membershipId = String(candidate?.id || `membership:${stationIds.join('|')}`);
-      return {
-        source: candidate,
-        stationIds,
-        membershipId,
-        canonicalKey: `${membershipId}\u0000${stationIds.join('\u0000')}`,
-      };
-    },
-  );
+  const current: CurrentCluster<T>[] = list.map((candidate) => {
+    const stationIds = [
+      ...new Set((candidate?.stationIds ?? []).map((id: string) => String(id))),
+    ].sort();
+    const membershipId = String(candidate?.id || `membership:${stationIds.join('|')}`);
+    return {
+      source: candidate,
+      stationIds,
+      membershipId,
+      canonicalKey: `${membershipId}\u0000${stationIds.join('\u0000')}`,
+    };
+  });
 
   const membershipByIdentity = new Map<string, Set<string>>();
   for (const candidate of Array.isArray(previous) ? previous : []) {

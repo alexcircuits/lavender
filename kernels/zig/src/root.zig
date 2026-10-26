@@ -15,6 +15,7 @@ pub const heatmap = @import("heatmap.zig");
 pub const gnss = @import("gnss.zig");
 pub const sky = @import("sky.zig");
 pub const kinematics = @import("kinematics.zig");
+pub const optics = @import("optics.zig");
 
 // Re-export core types
 pub const GeoPoint = cpr.GeoPoint;
@@ -466,6 +467,45 @@ export fn lavender_weather_derive_effects(
     return p.available;
 }
 
+export fn lavender_sensor_calculate_gsd(alt_m: f64) f64 {
+    return optics.calculateGsd(alt_m);
+}
+
+export fn lavender_sensor_calculate_niirs(gsd_m: f64) f64 {
+    return optics.calculateNiirs(gsd_m);
+}
+
+export fn lavender_sensor_calculate_ona(pitch_deg: f64) f64 {
+    return optics.calculateOna(pitch_deg);
+}
+
+export fn lavender_sensor_sun_elevation(lat_deg: f64, lon_deg: f64, unix_sec: f64) f64 {
+    return optics.estimateSunElevation(lat_deg, lon_deg, unix_sec);
+}
+
+export fn lavender_sonar_calculate_sweep_gain(
+    target_bearing_deg: f64,
+    sweep_heading_deg: f64,
+    sweep_width_deg: f64,
+    feather_deg: f64,
+) f64 {
+    return optics.calculateSonarSweepGain(target_bearing_deg, sweep_heading_deg, sweep_width_deg, feather_deg);
+}
+
+export fn lavender_scope_terminus_alpha(alt_m: f64) f64 {
+    return optics.calculateScopeTerminusAlpha(alt_m);
+}
+
+export fn lavender_keyhole_geometry(
+    viewport_w: f64,
+    viewport_h: f64,
+    feather_ratio: f64,
+    out_geo: [*]f64,
+) void {
+    const geo = optics.calculateKeyholeGeometry(viewport_w, viewport_h, feather_ratio);
+    @memcpy(out_geo[0..4], &geo);
+}
+
 comptime {
     _ = wind.lavender_wind_sample;
     _ = wind.lavender_wind_bake_streamline;
@@ -489,6 +529,13 @@ comptime {
     _ = lavender_weather_derive_effects;
     _ = lavender_iq_extract_adsb_frames;
     _ = lavender_adsb_decode_frame;
+    _ = lavender_sensor_calculate_gsd;
+    _ = lavender_sensor_calculate_niirs;
+    _ = lavender_sensor_calculate_ona;
+    _ = lavender_sensor_sun_elevation;
+    _ = lavender_sonar_calculate_sweep_gain;
+    _ = lavender_scope_terminus_alpha;
+    _ = lavender_keyhole_geometry;
 }
 
 test {
@@ -502,4 +549,5 @@ test {
     _ = @import("gnss_test.zig");
     _ = @import("sky_test.zig");
     _ = @import("kinematics_test.zig");
+    _ = @import("optics_test.zig");
 }

@@ -149,6 +149,55 @@ export function SettingsPanel({ className }: SettingsPanelProps) {
           />
         </div>
 
+        <div className={styles.settingRow}>
+          <div className={styles.settingHeader}>
+            <div>
+              <div className={styles.settingLabel}>Reconnaissance Intelligence HUD</div>
+              <div className={styles.settingSubtext}>
+                NRO/NGA telemetry: Grid coordinates, GSD, NIIRS, ONA, solar position, and classification
+              </div>
+            </div>
+            <Badge tone="accent">Zig Micro-Kernel</Badge>
+          </div>
+          <Toggle
+            aria-label="Enable reconnaissance intelligence HUD"
+            checked={preferences.hudEnabled}
+            onCheckedChange={(checked) => preferences.setHudEnabled(checked)}
+          />
+        </div>
+
+        <div className={styles.settingRow}>
+          <div className={styles.settingHeader}>
+            <div>
+              <div className={styles.settingLabel}>Tactical Scope Aperture Mask</div>
+              <div className={styles.settingSubtext}>
+                Circular keyhole mask with altitude-adaptive terminus alpha
+              </div>
+            </div>
+          </div>
+          <Toggle
+            aria-label="Enable tactical scope mask"
+            checked={preferences.scopeMaskEnabled}
+            onCheckedChange={(checked) => preferences.setScopeMaskEnabled(checked)}
+          />
+        </div>
+
+        <div className={styles.settingRow}>
+          <div className={styles.settingHeader}>
+            <div>
+              <div className={styles.settingLabel}>Cyber Sonar Acoustic Sweep</div>
+              <div className={styles.settingSubtext}>
+                Animated radial sweep beam, distance rings, and contact gain enhancement
+              </div>
+            </div>
+          </div>
+          <Toggle
+            aria-label="Enable cyber sonar overlay"
+            checked={preferences.sonarEnabled}
+            onCheckedChange={(checked) => preferences.setSonarEnabled(checked)}
+          />
+        </div>
+
         {imageryList.length > 0 && (
           <div className={styles.settingRow}>
             <div className={styles.settingHeader}>

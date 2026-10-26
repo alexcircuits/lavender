@@ -1,0 +1,66 @@
+.overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-raised);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hudSonar {
+  position: relative;
+  width: min(85vh, 85vw);
+  height: min(85vh, 85vw);
+  border-radius: var(--r-full);
+  pointer-events: none;
+  opacity: var(--sonar-opacity, 0.85);
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-full);
+  border: 1px solid var(--hairline);
+  box-sizing: border-box;
+}
+
+.spoke {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--hairline);
+}
+
+.sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-full);
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 336deg,
+    var(--accent-subtle) 345deg,
+    var(--accent-ink) 360deg
+  );
+  animation: cyber-sonar-sweep 5.2s linear infinite;
+}
+
+@keyframes cyber-sonar-sweep {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sweep {
+    animation: none;
+    opacity: 0.2;
+  }
+}

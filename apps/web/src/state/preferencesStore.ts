@@ -12,6 +12,9 @@ export interface UserPreferences {
   readonly labelArbitration: boolean;
   readonly defaultImagery: string | null;
   readonly visualPreset: VisualPreset;
+  readonly hudEnabled: boolean;
+  readonly scopeMaskEnabled: boolean;
+  readonly sonarEnabled: boolean;
 }
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
@@ -21,6 +24,9 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   labelArbitration: true,
   defaultImagery: null,
   visualPreset: 'normal',
+  hudEnabled: false,
+  scopeMaskEnabled: false,
+  sonarEnabled: false,
 };
 
 export interface PreferencesState extends UserPreferences {
@@ -30,6 +36,9 @@ export interface PreferencesState extends UserPreferences {
   setLabelArbitration(labelArbitration: boolean): void;
   setDefaultImagery(defaultImagery: string | null): void;
   setVisualPreset(visualPreset: VisualPreset): void;
+  setHudEnabled(hudEnabled: boolean): void;
+  setScopeMaskEnabled(scopeMaskEnabled: boolean): void;
+  setSonarEnabled(sonarEnabled: boolean): void;
   hydrate(prefs: Partial<UserPreferences>): void;
 }
 
@@ -42,6 +51,9 @@ export const createPreferencesStore = () =>
     setLabelArbitration: (labelArbitration) => set({ labelArbitration }),
     setDefaultImagery: (defaultImagery) => set({ defaultImagery }),
     setVisualPreset: (visualPreset) => set({ visualPreset }),
+    setHudEnabled: (hudEnabled) => set({ hudEnabled }),
+    setScopeMaskEnabled: (scopeMaskEnabled) => set({ scopeMaskEnabled }),
+    setSonarEnabled: (sonarEnabled) => set({ sonarEnabled }),
     hydrate: (prefs) => set((s) => ({ ...s, ...prefs })),
   }));
 

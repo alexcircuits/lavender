@@ -5,6 +5,15 @@ import { Button, IconButton, MagnifyingGlassIcon } from '../design';
 const BriefingModal = lazy(() =>
   import('../features/briefing').then((m) => ({ default: m.BriefingModal })),
 );
+const HudOverlay = lazy(() =>
+  import('../features/hud').then((m) => ({ default: m.HudOverlay })),
+);
+const ScopeMask = lazy(() =>
+  import('../features/scope').then((m) => ({ default: m.ScopeMask })),
+);
+const CyberSonarOverlay = lazy(() =>
+  import('../features/sonar').then((m) => ({ default: m.CyberSonarOverlay })),
+);
 
 import {
   GLOBE_REGION_ID,
@@ -12,7 +21,7 @@ import {
   useCommandContext,
   useGlobalShortcuts,
 } from '../features/commands';
-import { ImagerySplitDivider } from '../features/imagery';
+import { ImagerySplitDivider } from '../features/imagery/ImagerySplitDivider';
 import { Inspector } from '../features/inspector';
 import { LayerAnnouncer, useBoundariesLayer } from '../features/layers';
 import { CommandPalette, SearchBar } from '../features/search';
@@ -49,6 +58,9 @@ export function AppShell({ mountGlobe }: AppShellProps) {
   const setBriefingOpen = useUi((s) => s.setBriefingOpen);
   const sidePanel = useUi((s) => s.sidePanel);
   const visualPreset = usePreferences((s) => s.visualPreset);
+  const hudEnabled = usePreferences((s) => s.hudEnabled);
+  const scopeMaskEnabled = usePreferences((s) => s.scopeMaskEnabled);
+  const sonarEnabled = usePreferences((s) => s.sonarEnabled);
   const selectionKey = useWorkspace((s) =>
     s.selection ? `${s.selection.feed}:${s.selection.id}` : 'none',
   );
@@ -71,6 +83,24 @@ export function AppShell({ mountGlobe }: AppShellProps) {
             className={`lv-globe-host ${styles.globe}`}
             data-visual-preset={visualPreset}
           />
+          <Suspense fallback={null}>
+            {scopeMaskEnabled && <ScopeMask enabled={scopeMaskEnabled} />}
+            {sonarEnabled && <CyberSonarOverlay visible={sonarEnabled} />}
+            {hudEnabled && (
+              <HudOverlay
+                visible={hudEnabled}
+                theme={
+                  visualPreset === 'thermal'
+                    ? 'flir'
+                    : visualPreset === 'nvg'
+                      ? 'nvg'
+                      : visualPreset === 'crt'
+                        ? 'crt'
+                        : 'noir'
+                }
+              />
+            )}
+          </Suspense>
           {status === 'loading' ? <p className={styles.caption}>Loading globe…</p> : null}
           {status === 'failed' ? (
             <p className={styles.caption} role="alert">

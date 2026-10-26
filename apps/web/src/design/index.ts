@@ -59,6 +59,7 @@ export {
   type SegmentedOption,
 } from './primitives/SegmentedControl';
 export { Skeleton, type SkeletonProps } from './primitives/Skeleton';
+export { SplitFlap, type SplitFlapProps } from './primitives/SplitFlap';
 export {
   Badge,
   type BadgeProps,

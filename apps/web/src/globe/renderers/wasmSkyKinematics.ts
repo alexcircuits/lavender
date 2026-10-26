@@ -6,7 +6,11 @@
  * via the freestanding Zig WASM micro-kernel with pure-TypeScript reference fallbacks.
  */
 
-import { getActiveLavenderWasm, type LavenderWasmContext, loadLavenderWasm } from './wasmPropagation';
+import {
+  getActiveLavenderWasm,
+  type LavenderWasmContext,
+  loadLavenderWasm,
+} from './wasmPropagation';
 
 export { loadLavenderWasm };
 

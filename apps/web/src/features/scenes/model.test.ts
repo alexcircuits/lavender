@@ -26,9 +26,7 @@ describe('sampleCameraMove', () => {
   it('eases cubic by default', () => {
     const cubicMove = { from: move.from, to: move.to };
     expect(sampleCameraMove(cubicMove, 0.5).lon).toBeCloseTo(50);
-    expect(sampleCameraMove(cubicMove, 0.25).lon).toBeCloseTo(
-      100 * 4 * 0.25 ** 3,
-    );
+    expect(sampleCameraMove(cubicMove, 0.25).lon).toBeCloseTo(100 * 4 * 0.25 ** 3);
   });
   it('takes the short arc across the antimeridian', () => {
     const m = sampleCameraMove({ from: pose(170, 350), to: pose(-170, 10), easing: 'linear' }, 0.5);

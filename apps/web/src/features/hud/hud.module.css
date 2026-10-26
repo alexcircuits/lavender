@@ -1,0 +1,142 @@
+.overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-raised);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  color: var(--hud-color, var(--accent-ink));
+  user-select: none;
+}
+
+/* Color palettes based on optical presets */
+.themeNvg {
+  --hud-color: var(--good);
+  --hud-border: var(--hairline-strong);
+}
+
+.themeFlir {
+  --hud-color: var(--ink);
+  --hud-border: var(--hairline-strong);
+}
+
+.themeCrt {
+  --hud-color: var(--warning);
+  --hud-border: var(--hairline-strong);
+}
+
+.themeNoir {
+  --hud-color: var(--accent-ink);
+  --hud-border: var(--hairline);
+}
+
+/* Top Classification Banner */
+.classificationBanner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--island);
+  padding: 3px 14px;
+  border-radius: var(--r-full);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 1px solid var(--hud-border, var(--hairline));
+  pointer-events: auto;
+}
+
+/* Corner Telemetry Blocks */
+.corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 14px;
+  background: var(--island);
+  border-radius: var(--r-md);
+  font-size: 11px;
+  line-height: 1.35;
+  border: 1px solid var(--hud-border, var(--hairline));
+}
+
+.topLeft {
+  top: 48px;
+  left: 16px;
+}
+
+.topRight {
+  top: 48px;
+  right: 16px;
+  text-align: right;
+}
+
+.bottomLeft {
+  bottom: 36px;
+  left: 16px;
+}
+
+.bottomRight {
+  bottom: 36px;
+  right: 16px;
+  text-align: right;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  opacity: 0.7;
+}
+
+.value {
+  font-weight: 600;
+}
+
+/* Central Reticle */
+.reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 140px;
+  height: 140px;
+  border: 1px dashed var(--hud-border, var(--hairline));
+  border-radius: var(--r-full);
+  pointer-events: none;
+}
+
+.crosshairH {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  right: 10px;
+  height: 1px;
+  background: var(--hud-color, var(--accent-ink));
+  opacity: 0.4;
+}
+
+.crosshairV {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
+  background: var(--hud-color, var(--accent-ink));
+  opacity: 0.4;
+}
+
+.centerPip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  transform: translate(-50%, -50%);
+  background: var(--hud-color, var(--accent-ink));
+  border-radius: var(--r-full);
+}

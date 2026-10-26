@@ -4,6 +4,7 @@ test {
     _ = @import("gnss_test.zig");
     _ = @import("sky_test.zig");
     _ = @import("kinematics_test.zig");
+    _ = @import("optics_test.zig");
 }
 
 test "arraylist" {

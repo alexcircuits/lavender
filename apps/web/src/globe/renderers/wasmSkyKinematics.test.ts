@@ -77,7 +77,9 @@ describe('wasmSkyKinematics', () => {
       const wasm = buildStarVertices(stars);
       expect(wasm.count).toBe(2);
       for (let i = 0; i < wasm.vertices.length; i++) {
-        expect(wasm.vertices[i]!).toBeCloseTo(ts.vertices[i]!, 3);
+        const wasmVal = wasm.vertices[i] ?? 0;
+        const tsVal = ts.vertices[i] ?? 0;
+        expect(wasmVal).toBeCloseTo(tsVal, 3);
       }
     });
   });
