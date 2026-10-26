@@ -33,6 +33,7 @@ import type {
   FeedId,
   FeedSnapshot,
   GeoPoint,
+  GnssCell,
   ImageryDescriptor,
   Route,
   SatelliteTrack,
@@ -71,6 +72,7 @@ import { CycloneRenderer } from './renderers/cyclones';
 import { DirectionsRenderer } from './renderers/directions';
 import { EarthquakeRenderer } from './renderers/earthquakes';
 import { FireRenderer } from './renderers/fires';
+import { GnssRenderer } from './renderers/gnss';
 import { type HeatmapContact, HeatmapRenderer } from './renderers/heatmap';
 import { LaunchPadRenderer } from './renderers/launches';
 import { PerimeterRenderer } from './renderers/perimeters';
@@ -112,6 +114,7 @@ interface Mounted {
   readonly cables: CableRenderer;
   readonly cctv: CctvRenderer;
   readonly airQuality: AirQualityRenderer;
+  readonly gnss: GnssRenderer;
   readonly directions: DirectionsRenderer;
   readonly recentImagery: RecentImageryRenderer;
   readonly heatmap: HeatmapRenderer;
@@ -278,6 +281,7 @@ export class GlobeEngine implements GlobeController {
     const cables = new CableRenderer(cablePolylines, cablePoints, ctx);
     const cctv = new CctvRenderer(primitives, ctx);
     const airQuality = new AirQualityRenderer(primitives, ctx);
+    const gnss = new GnssRenderer(primitives, ctx);
     const directions = new DirectionsRenderer(primitives, ctx);
     const recentImagery = new RecentImageryRenderer(scene.imageryLayers, primitives, scene, ctx);
     const heatmap = new HeatmapRenderer(scene.imageryLayers, ctx);
@@ -310,6 +314,7 @@ export class GlobeEngine implements GlobeController {
     cleanup.push(() => cables.destroy());
     cleanup.push(() => cctv.destroy());
     cleanup.push(() => airQuality.destroy());
+    cleanup.push(() => gnss.destroy());
     cleanup.push(() => directions.destroy());
     cleanup.push(() => recentImagery.destroy());
     cleanup.push(() => heatmap.destroy());
@@ -377,6 +382,7 @@ export class GlobeEngine implements GlobeController {
       cables,
       cctv,
       airQuality,
+      gnss,
       directions,
       recentImagery,
       heatmap,
@@ -434,6 +440,7 @@ export class GlobeEngine implements GlobeController {
     m.cables.setSelected(selection?.feed === 'cables' ? selection.id : null);
     m.cctv.setSelected(selection?.feed === 'cctv' ? selection.id : null);
     m.airQuality.setSelected(selection?.feed === 'air-quality' ? selection.id : null);
+    m.gnss.setSelected(selection?.feed === 'gnss' ? selection.id : null);
     m.halo.set(this.#selection);
     this.#refreshHalo();
   }
@@ -609,6 +616,22 @@ export class GlobeEngine implements GlobeController {
     this.#mounted?.airQuality.clear();
   }
 
+  setGnssCells(cells: readonly GnssCell[]): void {
+    const m = this.#mounted;
+    if (!m) return;
+    m.gnss.setCells(cells);
+    if (this.#selection?.feed === 'gnss') this.#refreshHalo();
+    m.widget.scene.requestRender();
+  }
+
+  getGnssCell(id: string): GnssCell | undefined {
+    return this.#mounted?.gnss.getCell(id);
+  }
+
+  clearGnss(): void {
+    this.#mounted?.gnss.clear();
+  }
+
   startFollowing(target: EntityRef): void {
     const m = this.#mounted;
     if (!m) return;
@@ -629,6 +652,8 @@ export class GlobeEngine implements GlobeController {
       located = m.cctv.locate(target.id);
     } else if (target.feed === 'air-quality') {
       located = m.airQuality.locate(target.id);
+    } else if (target.feed === 'gnss') {
+      located = m.gnss.locate(target.id);
     } else {
       const renderer = m.renderers.get(target.feed);
       located = renderer?.locate?.(target.id);
@@ -861,6 +886,8 @@ export class GlobeEngine implements GlobeController {
       m.halo.follow(m.cctv.locate(selection.id));
     } else if (selection?.feed === 'air-quality') {
       m.halo.follow(m.airQuality.locate(selection.id));
+    } else if (selection?.feed === 'gnss') {
+      m.halo.follow(m.gnss.locate(selection.id));
     } else if (selection?.feed === 'directions-step') {
       m.halo.follow(m.directions.locateStep(Number(selection.id)) ?? undefined);
     } else if (selection?.feed === 'directions-waypoint') {

@@ -39,6 +39,10 @@ pub use alerting::{GeofenceAlertEngine, antimeridian_point_in_polygon, polygon_c
 pub use config::{AlertingConfig, CoreConfig, ResolutionConfig};
 pub use error::CoreError;
 pub use hub::{FeedSubscription, RegionBudget, SubscriptionEvent};
+pub use providers::alpr::{
+    AlprEngine, build_alpr_overpass_query, is_alpr_surveillance_type, normalize_alpr_node,
+    normalize_direction_deg, parse_alpr_overpass_json, snap_alpr_box,
+};
 pub use providers::boundaries::{BOUNDARIES_ATTRIBUTION, BoundaryStore};
 pub use providers::cables::{CableStore, LandingPoint, SubmarineCable};
 pub use providers::cctv::{CctvCatalog, build_synthetic_cctv_svg};
@@ -53,9 +57,17 @@ pub use providers::installations::{
     InstallationKind, InstallationStore, MilitaryInstallation, military_installation_cache_key,
     quantize_military_installation_box,
 };
+pub use providers::local_receivers::{
+    LocalReceiverEngine, LocalReceiverFeedConfig, is_local_receiver_host, normalize_dump1090_json,
+    parse_local_receiver_feeds,
+};
 pub use providers::overpass::{
     OverpassClient, OverpassError, OverpassPayload, SanitizedQuery, is_overpass_boundary_query,
     overpass_payload_is_data, parse_overpass_upstreams, sanitize_overpass_body,
+};
+pub use providers::radio::{
+    RadioCatalogEngine, classify_radio_category, normalize_radio_browser_station,
+    normalize_radio_tag, public_radio_https_url,
 };
 pub use providers::regions::{RegionIndex, RegionRecord};
 pub use providers::weather::{

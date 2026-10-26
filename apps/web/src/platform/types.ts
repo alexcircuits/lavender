@@ -8,6 +8,7 @@
 import type {
   AircraftTrack,
   AirQualitySnapshot,
+  AlprSnapshot,
   ApiError,
   BBox,
   BoundaryClass,
@@ -20,6 +21,14 @@ import type {
   FeedQuery,
   FeedSnapshot,
   GeoPoint,
+  GnssProvenance,
+  GnssSnapshot,
+  LocalReceiverSnapshot,
+  QueryPackDefinition,
+  QueryPackExecution,
+  QueryPackRequest,
+  RadioCatalogSnapshot,
+  RadioCategory,
   Route,
   SatellitePasses,
   SatellitePassRequest,
@@ -213,6 +222,29 @@ export interface LavenderPlatform {
   ): Promise<{ readonly elements: readonly MilitaryInstallationItem[] }>;
   /** Real-time air quality observation station readings. */
   airQuality?(options?: CallOptions): Promise<AirQualitySnapshot>;
+  /** Evaluates the current GNSS navigation integrity snapshot across 0.5° cells. */
+  gnssCells?(bbox?: BBox, options?: CallOptions): Promise<GnssSnapshot>;
+  /** Returns the static DO-260A/B provenance metadata for the GNSS integrity classifier. */
+  gnssProvenance?(options?: CallOptions): Promise<GnssProvenance>;
+  /** Returns the current local ADS-B (1090 MHz) and UAT (978 MHz) receiver snapshot. */
+  localReceivers?(options?: CallOptions): Promise<LocalReceiverSnapshot>;
+  /** Queries georeferenced tactical & broadcast radio stations. */
+  radioStations?(
+    bbox?: BBox,
+    category?: RadioCategory,
+    limit?: number,
+    options?: CallOptions,
+  ): Promise<RadioCatalogSnapshot>;
+  /** Queries automated license plate reader (ALPR) surveillance cameras inside `bbox`. */
+  alprCameras?(bbox?: BBox, limit?: number, options?: CallOptions): Promise<AlprSnapshot>;
+  /** Lists all registered multi-domain analyst query packs (`LB-121`). */
+  queryPacks?(options?: CallOptions): Promise<readonly QueryPackDefinition[]>;
+  /** Executes a named analyst query pack (`LB-121`). */
+  executeQueryPack?(
+    packId: string,
+    request: QueryPackRequest,
+    options?: CallOptions,
+  ): Promise<QueryPackExecution>;
   /** Resolves a canonical entity by scheme and identifier value across feeds. */
   resolveEntity?(scheme: string, value: string, options?: CallOptions): Promise<CanonicalEntity>;
   /** Retrieves a canonical entity record by canonical ID. */

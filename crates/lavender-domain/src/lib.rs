@@ -31,6 +31,12 @@ pub use entities::{
     SatelliteElements, SpatialFilter, SpatialHit, SpatialSearchRequest, SpatialSearchResponse,
     Vessel, VesselDimensions, VesselEta, VesselTrackResponse, VesselTrackSample, VesselVoyage,
 };
+pub use entities::{
+    AlprCamera, AlprSnapshot, LocalAdsbAircraft, LocalReceiverBand, LocalReceiverFeedStatus,
+    LocalReceiverSnapshot, QueryPackBreakdownBucket, QueryPackDefinition, QueryPackDomain,
+    QueryPackExecution, QueryPackNumericStats, QueryPackRequest, QueryPackRow,
+    RadioCatalogSnapshot, RadioCategory, RadioStation,
+};
 pub use entities::{AscentEvent, AscentEventKind, AscentSample, AscentTrajectory};
 pub use entities::{BikeshareStation, BikeshareSystem};
 pub use entities::{BoundaryClass, BoundaryFeature, BoundaryResponse};

@@ -9,6 +9,7 @@ use crate::{BBox, GeoPoint};
 /// Navigation integrity anomaly level for a geographic cell.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
+#[ts(export)]
 pub enum GnssLevel {
     /// Nominal navigation accuracy: fewer than 2% degraded aircraft.
     Low,
@@ -21,6 +22,7 @@ pub enum GnssLevel {
 /// A binned geographic cell reporting aircraft navigation accuracy.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub struct GnssCell {
     /// Cell identifier in "row:col" format (0.5 degree grid).
     pub id: String,
@@ -40,12 +42,14 @@ pub struct GnssCell {
     pub state: String,
     /// Secondary unvalidated interpretation (Some("suspected-gnss-interference") when level != Low).
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub interpretation: Option<String>,
 }
 
 /// Current GNSS integrity snapshot aggregated across all active cells.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub struct GnssSnapshot {
     /// Timestamp when this snapshot was evaluated.
     pub as_of: Timestamp,
@@ -66,6 +70,7 @@ pub struct GnssSnapshot {
 /// Machine-readable provenance and classifier specifications for GNSS integrity analysis.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub struct GnssProvenance {
     /// Identifier of the per-aircraft classifier rule.
     pub classifier_id: String,

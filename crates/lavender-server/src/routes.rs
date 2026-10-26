@@ -17,12 +17,14 @@ use lavender_core::{
 use lavender_domain::text::clean;
 use lavender_domain::{
     AirQualitySnapshot, AircraftRouteEnrichment, AircraftTrack, AircraftTypeEnrichment, AlertEvent,
-    ApiError, BBox, BoundaryClass, BoundaryFeature, BoundaryResponse, CameraHealth, CameraSource,
-    CanonicalEntity, Catalog, CctvStreamInfo, EntityIdentifier, ErrorCode, FeedFilters, FeedId,
-    FeedItems, FeedQuery, FeedSnapshot, GeoPoint, Geofence, GeofenceRule, GnssProvenance,
-    GnssSnapshot, SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest,
-    SavedSearch, SavedSearchMatch, SearchQuery, SearchResults, SpatialSearchRequest,
-    SpatialSearchResponse, SystemStatus, Timestamp, VesselTrackResponse, WeatherOverlay, WindModel,
+    AlprSnapshot, ApiError, BBox, BoundaryClass, BoundaryFeature, BoundaryResponse, CameraHealth,
+    CameraSource, CanonicalEntity, Catalog, CctvStreamInfo, EntityIdentifier, ErrorCode,
+    FeedFilters, FeedId, FeedItems, FeedQuery, FeedSnapshot, GeoPoint, Geofence, GeofenceRule,
+    GnssProvenance, GnssSnapshot, LocalReceiverBand, LocalReceiverSnapshot, QueryPackDefinition,
+    QueryPackExecution, QueryPackRequest, RadioCatalogSnapshot, RadioCategory,
+    SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SavedSearch,
+    SavedSearchMatch, SearchQuery, SearchResults, SpatialSearchRequest, SpatialSearchResponse,
+    SystemStatus, Timestamp, VesselTrackResponse, WeatherOverlay, WindModel,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -2165,6 +2167,111 @@ pub async fn get_saved_search_matches(
 ) -> Result<Json<Vec<SavedSearchMatch>>, HttpError> {
     let matches = state.core.get_saved_search_matches(&id, params.limit)?;
     Ok(Json(matches))
+}
+
+/// `GET /api/v1/local-receivers/aircraft` — returns the current local ADS-B (1090 MHz) and UAT (978 MHz) receiver snapshot.
+pub async fn local_receivers_aircraft(
+    State(state): State<AppState>,
+) -> Json<LocalReceiverSnapshot> {
+    Json(state.core.local_receivers_snapshot())
+}
+
+/// Query parameters for `POST /api/v1/local-receivers/ingest`.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalReceiverIngestParams {
+    pub feed_id: String,
+    pub band: Option<String>,
+}
+
+/// `POST /api/v1/local-receivers/ingest` — ingests a `dump1090`/`readsb`/`dump978` `aircraft.json` payload.
+///
+/// # Errors
+/// Returns 400 Bad Request if the band or JSON payload is malformed.
+pub async fn local_receivers_ingest(
+    State(state): State<AppState>,
+    ApiQuery(params): ApiQuery<LocalReceiverIngestParams>,
+    body: Bytes,
+) -> Result<Json<serde_json::Value>, HttpError> {
+    let band_str = params.band.as_deref().unwrap_or("1090");
+    let band =
+        LocalReceiverBand::parse(band_str).ok_or_else(|| bad("band must be '1090' or '978'"))?;
+    let count = state.core.ingest_local_receiver_payload(&params.feed_id, band, &body)?;
+    Ok(Json(serde_json::json!({ "ingested": count })))
+}
+
+/// Query parameters for `GET /api/v1/radio/stations`.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RadioStationsParams {
+    pub bbox: Option<String>,
+    pub category: Option<String>,
+    pub limit: Option<usize>,
+}
+
+/// `GET /api/v1/radio/stations` — queries georeferenced tactical & broadcast radio stations.
+///
+/// # Errors
+/// Returns 400 Bad Request if `bbox` or `category` is malformed.
+pub async fn radio_stations(
+    State(state): State<AppState>,
+    ApiQuery(params): ApiQuery<RadioStationsParams>,
+) -> Result<Json<RadioCatalogSnapshot>, HttpError> {
+    let bbox =
+        params.bbox.as_deref().map(BBox::parse).transpose().map_err(|e| bad(e.to_string()))?;
+    let category = match params.category.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        None => None,
+        Some(raw) => {
+            let parsed: RadioCategory =
+                serde_json::from_value(serde_json::Value::String(raw.to_ascii_lowercase()))
+                    .map_err(|_| bad(format!("invalid radio category '{raw}'")))?;
+            Some(parsed)
+        }
+    };
+    let limit = params.limit.unwrap_or(500).clamp(1, 2000);
+    Ok(Json(state.core.radio_stations(bbox.as_ref(), category, limit)))
+}
+
+/// Query parameters for `GET /api/v1/alpr`.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlprParams {
+    pub bbox: Option<String>,
+    pub limit: Option<usize>,
+}
+
+/// `GET /api/v1/alpr` — queries automated license plate reader (ALPR) surveillance cameras inside `bbox`.
+///
+/// # Errors
+/// Returns 400 Bad Request if `bbox` is missing, malformed, or spans more than 3 degrees on a side.
+pub async fn alpr_cameras(
+    State(state): State<AppState>,
+    ApiQuery(params): ApiQuery<AlprParams>,
+) -> Result<Json<AlprSnapshot>, HttpError> {
+    let bbox = match params.bbox.as_deref() {
+        Some(raw) => BBox::parse(raw).map_err(|e| bad(e.to_string()))?,
+        None => BBox::new(-180.0, -90.0, 180.0, 90.0).map_err(|e| bad(e.to_string()))?,
+    };
+    let limit = params.limit.unwrap_or(500).clamp(1, 2000);
+    Ok(Json(state.core.alpr_cameras(bbox, limit)))
+}
+
+/// `GET /api/v1/analytics/query-packs` — lists all registered analyst query packs (`LB-121`).
+pub async fn list_query_packs(State(state): State<AppState>) -> Json<Vec<QueryPackDefinition>> {
+    Json(state.core.query_packs())
+}
+
+/// `POST /api/v1/analytics/query-packs/{id}/execute` — executes a named analyst query pack (`LB-121`).
+///
+/// # Errors
+/// Returns 404 Not Found for an unknown query pack ID, or 400 Bad Request for invalid parameters.
+pub async fn execute_query_pack(
+    State(state): State<AppState>,
+    ApiPath(id): ApiPath<String>,
+    Json(request): Json<QueryPackRequest>,
+) -> Result<Json<QueryPackExecution>, HttpError> {
+    let result = state.core.execute_query_pack(&id, &request)?;
+    Ok(Json(result))
 }
 
 #[cfg(test)]

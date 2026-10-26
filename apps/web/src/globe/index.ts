@@ -17,6 +17,7 @@ import type {
   FeedId,
   FeedSnapshot,
   GeoPoint,
+  GnssCell,
   ImageryDescriptor,
   Route,
   SatelliteTrack,
@@ -49,7 +50,8 @@ export type EntitySource =
   | 'installations'
   | 'directions-step'
   | 'directions-waypoint'
-  | 'air-quality';
+  | 'air-quality'
+  | 'gnss';
 
 /** A selectable thing on the globe. */
 export interface EntityRef {
@@ -158,6 +160,12 @@ export interface GlobeController {
   getAirQualityReading(id: string): AirQualityReading | undefined;
   /** Clears air quality readings from the globe. */
   clearAirQuality(): void;
+  /** Sets GNSS navigation integrity cells on the globe. */
+  setGnssCells(cells: readonly GnssCell[]): void;
+  /** Retrieves a GNSS integrity cell by id. */
+  getGnssCell(id: string): GnssCell | undefined;
+  /** Clears GNSS integrity cells from the globe. */
+  clearGnss(): void;
   /** Centroid location and symbol size for framing a selected boundary. */
   locateBoundary(id: string): Located | undefined;
   /** Retrieves a boundary feature by id, if currently loaded. */

@@ -12,6 +12,7 @@ pub const labels = @import("labels.zig");
 pub const geometry = @import("geometry.zig");
 pub const cctv = @import("cctv.zig");
 pub const heatmap = @import("heatmap.zig");
+pub const gnss = @import("gnss.zig");
 
 // Re-export core types
 pub const GeoPoint = cpr.GeoPoint;
@@ -251,6 +252,166 @@ export fn lavender_heatmap_bin(
     );
 }
 
+/// GNSS DO-260A/B navigation integrity observation classifier.
+export fn lavender_gnss_classify_observation(
+    nic: i32,
+    nac_p: i32,
+    gps_lost: bool,
+) bool {
+    return gnss.classifyObservation(nic, nac_p, gps_lost);
+}
+
+/// GNSS 1-aircraft false-positive discount percentage calculator (gpsjam.org formula).
+export fn lavender_gnss_discount_percent(
+    aircraft: u32,
+    degraded: u32,
+) f64 {
+    return gnss.discountDegradedPercent(aircraft, degraded);
+}
+
+/// GNSS severity band classifier (`0` = Low, `1` = Medium, `2` = High).
+export fn lavender_gnss_classify_level(
+    percent_degraded: f64,
+) u8 {
+    return gnss.classifyLevel(percent_degraded);
+}
+
+/// GNSS spatial cell binning kernel.
+/// Bins `num_obs` aircraft observations into a world grid of `cell_deg` resolution
+/// and writes all active cells (`aircraft >= min_aircraft`) into the output arrays.
+export fn lavender_gnss_bin_cells(
+    lons_ptr: [*]const f64,
+    lats_ptr: [*]const f64,
+    degraded_flags_ptr: [*]const u8,
+    num_obs: usize,
+    cell_deg: f64,
+    min_aircraft: u32,
+    cell_aircraft_ptr: [*]u32,
+    cell_degraded_ptr: [*]u32,
+    scratch_len: usize,
+    out_row_ptr: [*]u16,
+    out_col_ptr: [*]u16,
+    out_aircraft_ptr: [*]u32,
+    out_degraded_ptr: [*]u32,
+    out_percent_ptr: [*]f32,
+    out_level_ptr: [*]u8,
+    max_out_cells: usize,
+) usize {
+    if (num_obs == 0 or scratch_len == 0 or max_out_cells == 0) return 0;
+    return gnss.binCells(
+        lons_ptr[0..num_obs],
+        lats_ptr[0..num_obs],
+        degraded_flags_ptr[0..num_obs],
+        num_obs,
+        cell_deg,
+        min_aircraft,
+        cell_aircraft_ptr[0..scratch_len],
+        cell_degraded_ptr[0..scratch_len],
+        out_row_ptr[0..max_out_cells],
+        out_col_ptr[0..max_out_cells],
+        out_aircraft_ptr[0..max_out_cells],
+        out_degraded_ptr[0..max_out_cells],
+        out_percent_ptr[0..max_out_cells],
+        out_level_ptr[0..max_out_cells],
+    );
+}
+
+/// SDR 2 Msps I/Q demodulator: extracts valid 112-bit (14-byte) Mode-S frames
+/// from unsigned 8-bit interleaved I/Q samples.
+export fn lavender_iq_extract_adsb_frames(
+    iq_ptr: [*]const u8,
+    iq_len: usize,
+    power_scratch_ptr: [*]f32,
+    power_scratch_len: usize,
+    out_frames_ptr: [*][14]u8,
+    max_frames: usize,
+) usize {
+    if (iq_len == 0 or power_scratch_len == 0 or max_frames == 0) return 0;
+    return iq.extractAdsbFrames(
+        iq_ptr[0..iq_len],
+        power_scratch_ptr[0..power_scratch_len],
+        out_frames_ptr[0..max_frames],
+    );
+}
+
+/// Mode-S Extended Squitter (DF17/DF18) frame decoder C-ABI export.
+/// `out_msg_type`: 0 = callsign, 1 = surface_position, 2 = airborne_position, 3 = velocity, 4 = other.
+export fn lavender_adsb_decode_frame(
+    frame_ptr: *const [14]u8,
+    out_icao: *[6]u8,
+    out_type_code: *u8,
+    out_msg_type: *u8,
+    out_callsign: *[8]u8,
+    out_altitude_ft: *i32,
+    out_has_altitude: *u8,
+    out_on_ground: *u8,
+    out_speed_kt: *f64,
+    out_heading_deg: *f64,
+    out_vr_fpm: *i32,
+    out_has_velocity: *u8,
+    out_cpr_odd: *u8,
+    out_cpr_surface: *u8,
+    out_cpr_lat: *u32,
+    out_cpr_lon: *u32,
+    out_has_cpr: *u8,
+) bool {
+    const msg = adsb.decodeAdsbFrame(frame_ptr) orelse return false;
+
+    out_icao.* = msg.icao;
+    out_type_code.* = msg.type_code;
+    out_msg_type.* = switch (msg.msg_type) {
+        .callsign => 0,
+        .surface_position => 1,
+        .airborne_position => 2,
+        .velocity => 3,
+        .other => 4,
+    };
+
+    if (msg.callsign) |cs| {
+        out_callsign.* = cs;
+    } else {
+        out_callsign.* = [_]u8{' '} ** 8;
+    }
+
+    if (msg.altitude_ft) |alt| {
+        out_altitude_ft.* = alt;
+        out_has_altitude.* = 1;
+    } else {
+        out_altitude_ft.* = 0;
+        out_has_altitude.* = 0;
+    }
+
+    out_on_ground.* = if (msg.on_ground) 1 else 0;
+
+    if (msg.velocity) |vel| {
+        out_speed_kt.* = vel.speed_kt;
+        out_heading_deg.* = vel.heading_deg;
+        out_vr_fpm.* = vel.vertical_rate_fpm orelse 0;
+        out_has_velocity.* = 1;
+    } else {
+        out_speed_kt.* = 0.0;
+        out_heading_deg.* = 0.0;
+        out_vr_fpm.* = 0;
+        out_has_velocity.* = 0;
+    }
+
+    if (msg.cpr) |cpr_payload| {
+        out_cpr_odd.* = if (cpr_payload.odd) 1 else 0;
+        out_cpr_surface.* = if (cpr_payload.surface) 1 else 0;
+        out_cpr_lat.* = cpr_payload.latitude_raw;
+        out_cpr_lon.* = cpr_payload.longitude_raw;
+        out_has_cpr.* = 1;
+    } else {
+        out_cpr_odd.* = 0;
+        out_cpr_surface.* = 0;
+        out_cpr_lat.* = 0;
+        out_cpr_lon.* = 0;
+        out_has_cpr.* = 0;
+    }
+
+    return true;
+}
+
 // Force analysis of exported functions in submodules
 comptime {
     _ = wind.lavender_wind_sample;
@@ -264,6 +425,12 @@ comptime {
     _ = lavender_point_in_polygon_batch;
     _ = lavender_point_in_polygons;
     _ = lavender_heatmap_bin;
+    _ = lavender_gnss_classify_observation;
+    _ = lavender_gnss_discount_percent;
+    _ = lavender_gnss_classify_level;
+    _ = lavender_gnss_bin_cells;
+    _ = lavender_iq_extract_adsb_frames;
+    _ = lavender_adsb_decode_frame;
 }
 
 test {
@@ -274,4 +441,5 @@ test {
     _ = @import("geometry_test.zig");
     _ = @import("cctv_test.zig");
     _ = @import("heatmap_test.zig");
+    _ = @import("gnss_test.zig");
 }

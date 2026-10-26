@@ -623,6 +623,9 @@ export function fakeGlobe(): FakeGlobe {
     setAirQualityReadings: vi.fn(),
     getAirQualityReading: vi.fn(() => undefined),
     clearAirQuality: vi.fn(),
+    setGnssCells: vi.fn(),
+    getGnssCell: vi.fn(() => undefined),
+    clearGnss: vi.fn(),
     destroy: vi.fn(),
   } satisfies GlobeController;
   return {

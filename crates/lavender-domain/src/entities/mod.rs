@@ -4,6 +4,7 @@
 mod air_quality;
 mod aircraft;
 mod alert;
+mod alpr;
 mod ascent;
 mod bikeshare;
 mod boundary;
@@ -13,7 +14,10 @@ mod earthquake;
 mod fire;
 mod gnss;
 mod launch;
+mod local_receiver;
 mod perimeter;
+mod query_pack;
+mod radio;
 mod resolution;
 mod route;
 mod satellite;
@@ -27,6 +31,7 @@ mod vessel;
 pub use air_quality::{AirQualityBand, AirQualityReading, AirQualitySnapshot};
 pub use aircraft::{Aircraft, AircraftRouteEnrichment, AircraftTypeEnrichment, AirportInfo};
 pub use alert::{AlertEvent, AlertKind, Geofence, GeofenceRule};
+pub use alpr::{AlprCamera, AlprSnapshot};
 pub use ascent::{AscentEvent, AscentEventKind, AscentSample, AscentTrajectory};
 pub use bikeshare::{BikeshareStation, BikeshareSystem};
 pub use boundary::{BoundaryClass, BoundaryFeature, BoundaryResponse};
@@ -39,7 +44,15 @@ pub use earthquake::Earthquake;
 pub use fire::{FireCell, FireCluster, FireDetection};
 pub use gnss::{GnssCell, GnssLevel, GnssProvenance, GnssSnapshot};
 pub use launch::{Launch, LaunchPad};
+pub use local_receiver::{
+    LocalAdsbAircraft, LocalReceiverBand, LocalReceiverFeedStatus, LocalReceiverSnapshot,
+};
 pub use perimeter::{FirePerimeter, PerimeterDetail};
+pub use query_pack::{
+    QueryPackBreakdownBucket, QueryPackDefinition, QueryPackDomain, QueryPackExecution,
+    QueryPackNumericStats, QueryPackRequest, QueryPackRow,
+};
+pub use radio::{RadioCatalogSnapshot, RadioCategory, RadioStation};
 pub use resolution::{CanonicalEntity, EntityIdentifier, EntityKind, EntityLink};
 pub use route::{Route, RouteStep};
 pub use satellite::SatelliteElements;

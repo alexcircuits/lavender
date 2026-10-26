@@ -57,6 +57,7 @@ import {
   satelliteGroupLabel,
   vesselFacts,
 } from './facts';
+import { GnssCard } from './GnssCard';
 import styles from './inspector.module.css';
 import { LaunchDetails, LaunchNotices, PadLaunches, useLaunchPadView } from './LaunchDetails';
 import { launchFacts, padFacts } from './launchFacts';
@@ -491,6 +492,19 @@ function AirQualityInspector({ selection, className }: InspectorBodyProps) {
   );
 }
 
+function GnssInspector({ selection, className }: InspectorBodyProps) {
+  const globe = useGlobe();
+  const cell = globe?.getGnssCell(selection.id);
+  if (cell) {
+    return <GnssCard cell={cell} className={className} />;
+  }
+  return (
+    <InspectorFrame title={selection.id} layer={undefined} className={className}>
+      <EmptyState icon={InfoIcon}>GNSS integrity cell {selection.id} is not loaded.</EmptyState>
+    </InspectorFrame>
+  );
+}
+
 function InspectorBody({ selection, className }: InspectorBodyProps) {
   const globe = useGlobe();
   const feed = selection.feed as FeedId;
@@ -772,6 +786,15 @@ export function Inspector({ className }: InspectorProps) {
   if (selection.feed === 'air-quality') {
     return (
       <AirQualityInspector
+        key={`${selection.feed}:${selection.id}`}
+        selection={selection}
+        className={className}
+      />
+    );
+  }
+  if (selection.feed === 'gnss') {
+    return (
+      <GnssInspector
         key={`${selection.feed}:${selection.id}`}
         selection={selection}
         className={className}

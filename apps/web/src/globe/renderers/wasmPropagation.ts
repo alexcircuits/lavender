@@ -125,6 +125,58 @@ export interface LavenderWasmExports extends WebAssembly.Exports {
     out_wireframe_ptr: number,
     max_cameras: number,
   ) => number;
+  readonly lavender_gnss_classify_observation?: (
+    nic: number,
+    nac_p: number,
+    gps_lost: boolean,
+  ) => boolean;
+  readonly lavender_gnss_discount_percent?: (aircraft: number, degraded: number) => number;
+  readonly lavender_gnss_classify_level?: (percent_degraded: number) => number;
+  readonly lavender_gnss_bin_cells?: (
+    lons_ptr: number,
+    lats_ptr: number,
+    degraded_flags_ptr: number,
+    num_obs: number,
+    cell_deg: number,
+    min_aircraft: number,
+    scratch_aircraft_ptr: number,
+    scratch_degraded_ptr: number,
+    scratch_cells_len: number,
+    out_row_ptr: number,
+    out_col_ptr: number,
+    out_aircraft_ptr: number,
+    out_degraded_ptr: number,
+    out_percent_ptr: number,
+    out_level_ptr: number,
+    max_out_cells: number,
+  ) => number;
+  readonly lavender_iq_extract_adsb_frames?: (
+    iq_ptr: number,
+    iq_len: number,
+    power_scratch_ptr: number,
+    power_scratch_len: number,
+    out_frames_ptr: number,
+    max_frames: number,
+  ) => number;
+  readonly lavender_adsb_decode_frame?: (
+    frame_ptr: number,
+    out_icao: number,
+    out_type_code: number,
+    out_msg_type: number,
+    out_callsign: number,
+    out_altitude_ft: number,
+    out_has_altitude: number,
+    out_on_ground: number,
+    out_speed_kt: number,
+    out_heading_deg: number,
+    out_vr_fpm: number,
+    out_has_velocity: number,
+    out_cpr_odd: number,
+    out_cpr_surface: number,
+    out_cpr_lat: number,
+    out_cpr_lon: number,
+    out_has_cpr: number,
+  ) => boolean;
 }
 
 export interface LavenderWasmContext {

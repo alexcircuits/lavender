@@ -24,6 +24,7 @@ export {
   provenanceFacts,
   satelliteFacts,
 } from './facts';
+export { GnssCard, type GnssCardProps, gnssFacts } from './GnssCard';
 export { copyCoordinates, Inspector, type InspectorProps } from './Inspector';
 export {
   installationFacts,

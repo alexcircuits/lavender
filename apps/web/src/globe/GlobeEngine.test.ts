@@ -114,6 +114,17 @@ vi.mock('@cesium/engine', () => ({
       return false;
     }
   },
+  BillboardCollection: class {
+    add(options: unknown) {
+      return { ...(typeof options === 'object' && options !== null ? options : {}), show: true };
+    }
+    remove() {}
+    removeAll() {}
+    destroy() {}
+    isDestroyed() {
+      return false;
+    }
+  },
   LabelStyle: {
     FILL: 0,
     OUTLINE: 1,

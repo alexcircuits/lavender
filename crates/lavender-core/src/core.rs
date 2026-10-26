@@ -6,9 +6,11 @@ use std::time::Duration;
 
 use jiff::{SignedDuration, Timestamp};
 use lavender_domain::{
-    AirQualitySnapshot, AircraftTrack, Availability, BBox, BoundaryClass, BoundaryFeature,
-    CanonicalEntity, Catalog, Coverage, EntityIdentifier, EntityLink, FeedId, FeedItems, FeedQuery,
-    FeedSnapshot, FeedStatus, Freshness, GnssProvenance, GnssSnapshot, Route, SatellitePassRequest,
+    AirQualitySnapshot, AircraftTrack, AlprSnapshot, Availability, BBox, BoundaryClass,
+    BoundaryFeature, CanonicalEntity, Catalog, Coverage, EntityIdentifier, EntityLink, FeedId,
+    FeedItems, FeedQuery, FeedSnapshot, FeedStatus, Freshness, GnssProvenance, GnssSnapshot,
+    LocalReceiverBand, LocalReceiverSnapshot, QueryPackDefinition, QueryPackExecution,
+    QueryPackRequest, RadioCatalogSnapshot, RadioCategory, Route, SatellitePassRequest,
     SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SavedSearch, SavedSearchMatch,
     SearchQuery, SearchResults, SpatialFilter, SpatialSearchRequest, SpatialSearchResponse,
     SystemStatus, VesselTrackResponse, WeatherOverlay, WindManifest, WindModel, WindStatus,
@@ -90,6 +92,9 @@ struct CoreInner {
     opensky: Option<Arc<crate::providers::opensky::OpenSkyProvider>>,
     gnss: Arc<crate::gnss::GnssEngine>,
     air_quality: Arc<crate::providers::air_quality::EcccAirQualityProvider>,
+    local_receivers: Arc<crate::providers::local_receivers::LocalReceiverEngine>,
+    radio: Arc<crate::providers::radio::RadioCatalogEngine>,
+    alpr: Arc<crate::providers::alpr::AlprEngine>,
     resolution: Arc<crate::resolution::ResolutionEngine>,
     saved_search_engine: Arc<crate::search::saved::SavedSearchEngine>,
 }
@@ -410,6 +415,12 @@ impl LavenderCoreBuilder {
         let air_quality = self.air_quality.unwrap_or_else(|| {
             Arc::new(crate::providers::air_quality::EcccAirQualityProvider::new(fetcher.clone()))
         });
+        let local_receivers_raw = std::env::var("LOCAL_RECEIVER_FEEDS").unwrap_or_default();
+        let local_receivers = Arc::new(
+            crate::providers::local_receivers::LocalReceiverEngine::new(&local_receivers_raw),
+        );
+        let radio = Arc::new(crate::providers::radio::RadioCatalogEngine::new());
+        let alpr = Arc::new(crate::providers::alpr::AlprEngine::new());
         let resolution =
             Arc::new(crate::resolution::ResolutionEngine::new(self.config.resolution.clone()));
         let saved_search_engine = self.saved_search_engine.unwrap_or_else(|| {
@@ -458,6 +469,9 @@ impl LavenderCoreBuilder {
                 opensky: opensky_provider,
                 gnss: Arc::new(crate::gnss::GnssEngine::new()),
                 air_quality,
+                local_receivers,
+                radio,
+                alpr,
                 resolution,
                 saved_search_engine,
             }),
@@ -1948,6 +1962,158 @@ impl LavenderCore {
     #[must_use]
     pub fn ingest_feed_snapshot(&self, snapshot: &FeedSnapshot) -> usize {
         self.inner.resolution.ingest_feed_snapshot(snapshot)
+    }
+
+    /// Returns the current local ADS-B / UAT receivers snapshot.
+    #[must_use]
+    pub fn local_receivers_snapshot(&self) -> LocalReceiverSnapshot {
+        self.inner.local_receivers.snapshot(Timestamp::now())
+    }
+
+    /// Ingests a `dump1090` / `readsb` / `dump978` `aircraft.json` payload into a local receiver slot.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::BadRequest`] if the payload is malformed or `feed_id` is unknown.
+    pub fn ingest_local_receiver_payload(
+        &self,
+        feed_id: &str,
+        band: LocalReceiverBand,
+        payload: &[u8],
+    ) -> Result<usize, CoreError> {
+        self.inner.local_receivers.ingest_feed_payload(feed_id, band, payload, Timestamp::now())
+    }
+
+    /// Queries the tactical & broadcast radio catalog, optionally filtered by bounding box and category.
+    #[must_use]
+    pub fn radio_stations(
+        &self,
+        bbox: Option<&BBox>,
+        category: Option<RadioCategory>,
+        limit: usize,
+    ) -> RadioCatalogSnapshot {
+        self.inner.radio.snapshot(bbox, category, limit)
+    }
+
+    /// Ingests a Radio-Browser station list JSON array into the radio catalog.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::BadRequest`] if the payload is not a valid JSON array.
+    pub fn ingest_radio_browser_json(&self, payload: &[u8]) -> Result<usize, CoreError> {
+        self.inner.radio.ingest_radio_browser_json(payload, Timestamp::now())
+    }
+
+    /// Queries automated license plate reader (ALPR) surveillance cameras inside `bbox`.
+    #[must_use]
+    pub fn alpr_cameras(&self, bbox: BBox, limit: usize) -> AlprSnapshot {
+        self.inner.alpr.query(bbox, limit)
+    }
+
+    /// Ingests an Overpass JSON response of ALPR surveillance nodes into the ALPR engine.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::BadRequest`] if the payload is not a valid Overpass JSON document.
+    pub fn ingest_alpr_overpass_json(
+        &self,
+        payload: &[u8],
+        bbox: BBox,
+    ) -> Result<AlprSnapshot, CoreError> {
+        self.inner.alpr.ingest_overpass_json(payload, bbox, Timestamp::now())
+    }
+
+    /// Returns the registered catalog of multi-domain analyst query packs (`LB-121`).
+    #[must_use]
+    pub fn query_packs(&self) -> Vec<QueryPackDefinition> {
+        crate::analytics::query_pack_catalog()
+    }
+
+    /// Executes a named analyst query pack (`LB-121`) over the current live feed state and spatial stores.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::NotFound`] for an unknown `pack_id`, or [`CoreError::BadRequest`] for invalid limits.
+    pub fn execute_query_pack(
+        &self,
+        pack_id: &str,
+        request: &QueryPackRequest,
+    ) -> Result<QueryPackExecution, CoreError> {
+        let now = Timestamp::now();
+        let aircraft: Vec<lavender_domain::Aircraft> = self
+            .inner
+            .hub
+            .current_items(FeedId::Aircraft)
+            .into_iter()
+            .flat_map(|items| match items.as_ref() {
+                FeedItems::Aircraft(v) => v.clone(),
+                _ => Vec::new(),
+            })
+            .collect();
+        let vessels: Vec<lavender_domain::Vessel> = self
+            .inner
+            .hub
+            .current_items(FeedId::Vessels)
+            .into_iter()
+            .flat_map(|items| match items.as_ref() {
+                FeedItems::Vessels(v) => v.clone(),
+                _ => Vec::new(),
+            })
+            .collect();
+        let satellites: Vec<lavender_domain::SatelliteElements> = self
+            .inner
+            .hub
+            .current_items(FeedId::Satellites)
+            .into_iter()
+            .flat_map(|items| match items.as_ref() {
+                FeedItems::Satellites(v) => v.clone(),
+                _ => Vec::new(),
+            })
+            .collect();
+        let earthquakes: Vec<lavender_domain::Earthquake> = self
+            .inner
+            .hub
+            .current_items(FeedId::Earthquakes)
+            .into_iter()
+            .flat_map(|items| match items.as_ref() {
+                FeedItems::Earthquakes(v) => v.clone(),
+                _ => Vec::new(),
+            })
+            .collect();
+        let cyclones: Vec<lavender_domain::Cyclone> = self
+            .inner
+            .hub
+            .current_items(FeedId::Cyclones)
+            .into_iter()
+            .flat_map(|items| match items.as_ref() {
+                FeedItems::Cyclones(v) => v.clone(),
+                _ => Vec::new(),
+            })
+            .collect();
+        let fires: Vec<lavender_domain::FireCell> = self
+            .inner
+            .hub
+            .current_items(FeedId::Fires)
+            .into_iter()
+            .flat_map(|items| match items.as_ref() {
+                FeedItems::Fires(v) => v.clone(),
+                _ => Vec::new(),
+            })
+            .collect();
+        let gnss = self.inner.gnss.snapshot(request.bbox.as_ref());
+        let world_bbox =
+            request.bbox.unwrap_or(BBox { west: -180.0, south: -90.0, east: 180.0, north: 90.0 });
+        let alpr = self.inner.alpr.query(world_bbox, 500);
+        let cables = self.inner.cables.query_cables(&world_bbox, 4, 500);
+
+        let world = crate::analytics::QueryPackWorld {
+            aircraft: &aircraft,
+            vessels: &vessels,
+            satellites: &satellites,
+            earthquakes: &earthquakes,
+            cyclones: &cyclones,
+            fires: &fires,
+            gnss_cells: &gnss.cells,
+            alpr_cameras: &alpr.records,
+            cables: &cables,
+        };
+        crate::analytics::execute_query_pack(pack_id, request, &world, now)
     }
 
     pub fn shutdown(&self) {

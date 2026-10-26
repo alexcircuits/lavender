@@ -6,6 +6,7 @@
 import type {
   AircraftTrack,
   AirQualitySnapshot,
+  AlprSnapshot,
   BBox,
   BoundaryClass,
   BoundaryResponse,
@@ -17,6 +18,14 @@ import type {
   EntityIdentifier,
   FeedQuery,
   FeedSnapshot,
+  GnssProvenance,
+  GnssSnapshot,
+  LocalReceiverSnapshot,
+  QueryPackDefinition,
+  QueryPackExecution,
+  QueryPackRequest,
+  RadioCatalogSnapshot,
+  RadioCategory,
   Route,
   SatellitePasses,
   SatellitePassRequest,
@@ -424,6 +433,65 @@ export class WebPlatform implements LavenderPlatform {
 
   airQuality(options?: CallOptions): Promise<AirQualitySnapshot> {
     return this.#get('/air-quality', options);
+  }
+
+  gnssCells(bbox?: BBox, options?: CallOptions): Promise<GnssSnapshot> {
+    const qs = new URLSearchParams();
+    if (bbox) {
+      qs.set('bbox', `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`);
+    }
+    const query = qs.toString();
+    return this.#get(`/gnss/cells${query ? `?${query}` : ''}`, options);
+  }
+
+  gnssProvenance(options?: CallOptions): Promise<GnssProvenance> {
+    return this.#get('/gnss/provenance', options);
+  }
+
+  localReceivers(options?: CallOptions): Promise<LocalReceiverSnapshot> {
+    return this.#get('/local-receivers/aircraft', options);
+  }
+
+  radioStations(
+    bbox?: BBox,
+    category?: RadioCategory,
+    limit?: number,
+    options?: CallOptions,
+  ): Promise<RadioCatalogSnapshot> {
+    const qs = new URLSearchParams();
+    if (bbox) {
+      qs.set('bbox', `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`);
+    }
+    if (category) qs.set('category', category);
+    if (limit !== undefined) qs.set('limit', String(limit));
+    const query = qs.toString();
+    return this.#get(`/radio/stations${query ? `?${query}` : ''}`, options);
+  }
+
+  alprCameras(bbox?: BBox, limit?: number, options?: CallOptions): Promise<AlprSnapshot> {
+    const qs = new URLSearchParams();
+    if (bbox) {
+      qs.set('bbox', `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`);
+    }
+    if (limit !== undefined) qs.set('limit', String(limit));
+    const query = qs.toString();
+    return this.#get(`/alpr${query ? `?${query}` : ''}`, options);
+  }
+
+  queryPacks(options?: CallOptions): Promise<readonly QueryPackDefinition[]> {
+    return this.#get('/analytics/query-packs', options);
+  }
+
+  executeQueryPack(
+    packId: string,
+    request: QueryPackRequest,
+    options?: CallOptions,
+  ): Promise<QueryPackExecution> {
+    return this.#post(
+      `/analytics/query-packs/${encodeURIComponent(packId)}/execute`,
+      request,
+      options,
+    );
   }
 
   resolveEntity(scheme: string, value: string, options?: CallOptions): Promise<CanonicalEntity> {
