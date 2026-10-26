@@ -15,6 +15,7 @@ export interface UserPreferences {
   readonly hudEnabled: boolean;
   readonly scopeMaskEnabled: boolean;
   readonly sonarEnabled: boolean;
+  readonly celestialRingEnabled: boolean;
 }
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
@@ -27,6 +28,8 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   hudEnabled: false,
   scopeMaskEnabled: false,
   sonarEnabled: false,
+  // Upstream mounts the ring disabled (applicationShell.js `enabled: false`).
+  celestialRingEnabled: false,
 };
 
 export interface PreferencesState extends UserPreferences {
@@ -39,6 +42,7 @@ export interface PreferencesState extends UserPreferences {
   setHudEnabled(hudEnabled: boolean): void;
   setScopeMaskEnabled(scopeMaskEnabled: boolean): void;
   setSonarEnabled(sonarEnabled: boolean): void;
+  setCelestialRingEnabled(celestialRingEnabled: boolean): void;
   hydrate(prefs: Partial<UserPreferences>): void;
 }
 
@@ -54,6 +58,7 @@ export const createPreferencesStore = () =>
     setHudEnabled: (hudEnabled) => set({ hudEnabled }),
     setScopeMaskEnabled: (scopeMaskEnabled) => set({ scopeMaskEnabled }),
     setSonarEnabled: (sonarEnabled) => set({ sonarEnabled }),
+    setCelestialRingEnabled: (celestialRingEnabled) => set({ celestialRingEnabled }),
     hydrate: (prefs) => set((s) => ({ ...s, ...prefs })),
   }));
 

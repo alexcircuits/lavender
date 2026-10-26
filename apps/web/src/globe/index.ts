@@ -159,6 +159,8 @@ export interface GlobeController {
   setHeatmapOpacity(opacity: number): void;
   /** Clears dense contact heatmap points. */
   clearHeatmap(): void;
+  /** Shows or hides the screen-space celestial reference ring (full-globe view). */
+  setCelestialRing(enabled: boolean): void;
   /** Sets real-time air quality readings on the globe. */
   setAirQualityReadings(readings: readonly AirQualityReading[]): void;
   /** Retrieves an air quality station reading by id. */

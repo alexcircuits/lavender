@@ -80,7 +80,14 @@ export function isFullGlobeInsideKeyhole(
   if (!geometry) return false;
   const { earthCenterX, earthCenterY, earthRadius, keyholeCenterX, keyholeCenterY, keyholeRadius } =
     geometry;
-  const values = [earthCenterX, earthCenterY, earthRadius, keyholeCenterX, keyholeCenterY, keyholeRadius];
+  const values = [
+    earthCenterX,
+    earthCenterY,
+    earthRadius,
+    keyholeCenterX,
+    keyholeCenterY,
+    keyholeRadius,
+  ];
   if (!values.every(Number.isFinite) || (earthRadius ?? 0) <= 0 || (keyholeRadius ?? 0) <= 0) {
     return false;
   }

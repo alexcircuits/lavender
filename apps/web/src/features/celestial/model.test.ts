@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   CELESTIAL_PLANE_EPSILON,
-  GLOBE_ENTER_CLEARANCE_PX,
-  GLOBE_EXIT_CLEARANCE_PX,
   celestialScreenAngle,
   circularAngleDistance,
   earthDiscScreenRadius,
+  GLOBE_ENTER_CLEARANCE_PX,
+  GLOBE_EXIT_CLEARANCE_PX,
   isFullGlobeInsideKeyhole,
   normalizeAngle,
 } from './model';
@@ -56,7 +56,14 @@ describe('celestial ring model (legacy port)', () => {
     expect(isFullGlobeInsideKeyhole(null, false)).toBe(false);
     expect(
       isFullGlobeInsideKeyhole(
-        { earthCenterX: Number.NaN, earthCenterY: 0, earthRadius: 1, keyholeCenterX: 0, keyholeCenterY: 0, keyholeRadius: 500 },
+        {
+          earthCenterX: Number.NaN,
+          earthCenterY: 0,
+          earthRadius: 1,
+          keyholeCenterX: 0,
+          keyholeCenterY: 0,
+          keyholeRadius: 500,
+        },
         false,
       ),
     ).toBe(false);

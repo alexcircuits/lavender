@@ -71,6 +71,7 @@ import {
 } from './renderers/boundaries';
 import { CableRenderer, type SubmarineCableItem } from './renderers/cables';
 import { CctvRenderer } from './renderers/cctv';
+import { CelestialRingRenderer } from './renderers/celestialRing';
 import { CycloneRenderer } from './renderers/cyclones';
 import { DirectionsRenderer } from './renderers/directions';
 import { EarthquakeRenderer } from './renderers/earthquakes';
@@ -124,6 +125,7 @@ interface Mounted {
   readonly directions: DirectionsRenderer;
   readonly recentImagery: RecentImageryRenderer;
   readonly heatmap: HeatmapRenderer;
+  readonly celestialRing: CelestialRingRenderer;
   readonly tracking: EntityTrackingService;
   readonly annotations: AnnotationRenderer;
   readonly halo: SelectionHalo;
@@ -293,6 +295,12 @@ export class GlobeEngine implements GlobeController {
     const directions = new DirectionsRenderer(primitives, ctx);
     const recentImagery = new RecentImageryRenderer(scene.imageryLayers, primitives, scene, ctx);
     const heatmap = new HeatmapRenderer(scene.imageryLayers, ctx);
+    // Screen-space celestial reference ring (LB-160): a DOM canvas overlay above the
+    // globe canvas, drawn from postRender and fully guarded against throwing.
+    const celestialRing = new CelestialRingRenderer(scene, {
+      requestRender: () => scene.requestRender(),
+      readToken: cssTokenReader(),
+    });
     const renderers = new Map<FeedId, FeedRenderer>([
       ['earthquakes', new EarthquakeRenderer(primitives, ctx)],
       ['cyclones', new CycloneRenderer(primitives, ctx)],
@@ -328,6 +336,7 @@ export class GlobeEngine implements GlobeController {
     cleanup.push(() => directions.destroy());
     cleanup.push(() => recentImagery.destroy());
     cleanup.push(() => heatmap.destroy());
+    cleanup.push(() => celestialRing.destroy());
     if (scene.preUpdate?.addEventListener) {
       cleanup.push(
         scene.preUpdate.addEventListener(() => {
@@ -398,6 +407,7 @@ export class GlobeEngine implements GlobeController {
       directions,
       recentImagery,
       heatmap,
+      celestialRing,
       tracking,
       annotations: new AnnotationRenderer(primitives, ctx, scene),
       halo: new SelectionHalo(primitives, colors),
@@ -612,6 +622,14 @@ export class GlobeEngine implements GlobeController {
 
   clearHeatmap(): void {
     this.#mounted?.heatmap.clear();
+  }
+
+  /** Shows or hides the celestial reference ring overlay (settings -> Display & Imagery). */
+  setCelestialRing(enabled: boolean): void {
+    const m = this.#mounted;
+    if (!m) return;
+    m.celestialRing.setEnabled(enabled);
+    m.widget.scene.requestRender();
   }
 
   setAirQualityReadings(readings: readonly AirQualityReading[]): void {

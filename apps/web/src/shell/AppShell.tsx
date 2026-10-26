@@ -66,6 +66,7 @@ export function AppShell({ mountGlobe }: AppShellProps) {
   const hudEnabled = usePreferences((s) => s.hudEnabled);
   const scopeMaskEnabled = usePreferences((s) => s.scopeMaskEnabled);
   const sonarEnabled = usePreferences((s) => s.sonarEnabled);
+  const celestialRingEnabled = usePreferences((s) => s.celestialRingEnabled);
   const selectionKey = useWorkspace((s) =>
     s.selection ? `${s.selection.feed}:${s.selection.id}` : 'none',
   );
@@ -82,6 +83,12 @@ export function AppShell({ mountGlobe }: AppShellProps) {
       setFollowState(state.status === 'released' ? null : state);
     });
   }, [globe]);
+
+  // The celestial ring lives inside the globe engine (canvas overlay above the Cesium
+  // canvas); the preference just drives it when the globe attaches or the setting flips.
+  useEffect(() => {
+    globe?.setCelestialRing(celestialRingEnabled);
+  }, [globe, celestialRingEnabled]);
 
   const selectedEntity = useFeeds((s) => s.selectedEntity);
   const isCockpit = followState?.mode === 'cockpit' && followState.status !== 'released';

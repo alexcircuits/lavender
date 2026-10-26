@@ -186,6 +186,22 @@ export function SettingsPanel({ className }: SettingsPanelProps) {
         <div className={styles.settingRow}>
           <div className={styles.settingHeader}>
             <div>
+              <div className={styles.settingLabel}>Celestial Reference Ring</div>
+              <div className={styles.settingSubtext}>
+                Ecliptic horizon, Sun and Moon bearings on the full-globe view
+              </div>
+            </div>
+          </div>
+          <Toggle
+            aria-label="Enable celestial reference ring"
+            checked={preferences.celestialRingEnabled}
+            onCheckedChange={(checked) => preferences.setCelestialRingEnabled(checked)}
+          />
+        </div>
+
+        <div className={styles.settingRow}>
+          <div className={styles.settingHeader}>
+            <div>
               <div className={styles.settingLabel}>Cyber Sonar Acoustic Sweep</div>
               <div className={styles.settingSubtext}>
                 Animated radial sweep beam, distance rings, and contact gain enhancement

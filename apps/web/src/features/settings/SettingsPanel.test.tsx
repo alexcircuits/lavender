@@ -71,6 +71,18 @@ describe('SettingsPanel', () => {
     expect(harness.runtime.stores.preferences.getState().visualPreset).toBe('nvg');
   });
 
+  it('toggles the celestial reference ring from its default-off state', async () => {
+    harness = await startHarness();
+    renderWithRuntime(harness.runtime, <SettingsPanel />);
+
+    const toggle = screen.getByRole('switch', { name: /enable celestial reference ring/i });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(harness.runtime.stores.preferences.getState().celestialRingEnabled).toBe(true);
+    fireEvent.click(toggle);
+    expect(harness.runtime.stores.preferences.getState().celestialRingEnabled).toBe(false);
+  });
+
   it('safely handles desktop provider keys without ever exposing values in the DOM', async () => {
     harness = await startHarness();
     const setSecretSpy = vi.spyOn(harness.platform, 'setSecret');

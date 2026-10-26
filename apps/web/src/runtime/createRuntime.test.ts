@@ -7,7 +7,7 @@ import {
   layer,
   memoryPreferences,
 } from '../test/fakes';
-import { createRuntime } from './createRuntime';
+import { createRuntime, USER_PREFERENCES_PREF_KEY } from './createRuntime';
 import { readWorkspace, WORKSPACE_PREF_KEY } from './workspacePrefs';
 
 const catalog = catalogOf([
@@ -80,6 +80,29 @@ describe('createRuntime', () => {
       enabled: true,
       filters: { militaryOnly: true },
     });
+  });
+
+  it('persists the celestial ring toggle after a quiet period', async () => {
+    const runtime = createRuntime(platform, { persistDelayMs: 200 });
+    runtime.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(runtime.stores.preferences.getState().celestialRingEnabled).toBe(false);
+    runtime.stores.preferences.getState().setCelestialRingEnabled(true);
+    await vi.advanceTimersByTimeAsync(200);
+    const saved = platform.preferences.data.get(USER_PREFERENCES_PREF_KEY) as
+      | { celestialRingEnabled?: boolean }
+      | undefined;
+    expect(saved?.celestialRingEnabled).toBe(true);
+  });
+
+  it('restores a persisted celestial ring preference on boot', async () => {
+    platform.preferences = memoryPreferences({
+      [USER_PREFERENCES_PREF_KEY]: { celestialRingEnabled: true },
+    });
+    const runtime = createRuntime(platform);
+    runtime.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(runtime.stores.preferences.getState().celestialRingEnabled).toBe(true);
   });
 
   it('gives an attached globe the imagery and follows imagery changes', async () => {

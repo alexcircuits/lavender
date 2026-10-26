@@ -218,6 +218,7 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
             motion: prefs.motion,
             labelArbitration: prefs.labelArbitration,
             defaultImagery: prefs.defaultImagery,
+            celestialRingEnabled: prefs.celestialRingEnabled,
           });
         }, persistDelayMs);
       }),
