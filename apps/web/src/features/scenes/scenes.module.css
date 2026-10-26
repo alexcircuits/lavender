@@ -1,0 +1,72 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  color: var(--ink);
+}
+
+.card {
+  composes: sq from global;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-2_5) var(--s-3);
+  background-color: var(--well);
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  text-align: start;
+  width: 100%;
+}
+
+.cardSelected {
+  color: var(--ink);
+  background-color: var(--accent-soft, var(--well));
+}
+
+.title {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.kicker {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--accent-ink);
+}
+
+.controls {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.shots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1_5, var(--s-2));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shotActive {
+  color: var(--ink);
+  background-color: var(--accent-soft, var(--well));
+}
+
+.meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.warn {
+  font-size: 12px;
+  color: var(--ink-2);
+}

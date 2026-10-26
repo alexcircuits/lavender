@@ -3,6 +3,7 @@
 //! Provides high-throughput historical trajectory retrieval, dark target detection,
 //! partitioned Parquet track ingestion sink, and Nim CEP tactical alerting rules.
 
+pub mod awareness;
 pub mod cep;
 pub mod queries;
 pub mod query_packs;

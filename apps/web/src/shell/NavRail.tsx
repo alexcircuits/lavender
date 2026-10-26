@@ -3,6 +3,7 @@ import { PencilSimpleIcon } from '@phosphor-icons/react/dist/csr/PencilSimple';
 import {
   CircleHalfIcon,
   ClockCounterClockwiseIcon,
+  CompassIcon,
   cx,
   GearSixIcon,
   type Icon,
@@ -34,6 +35,7 @@ const ITEMS: ReadonlyArray<{
   { panel: 'geofences', label: 'Geofences', icon: PathIcon },
   { panel: 'alerts', label: 'Alert inbox', icon: WarningCircleIcon },
   { panel: 'missions', label: 'Missions', icon: SquareIcon },
+  { panel: 'scenes', label: 'Evidence tours', icon: CompassIcon },
 ];
 
 export interface NavRailProps {

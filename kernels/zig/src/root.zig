@@ -13,6 +13,8 @@ pub const geometry = @import("geometry.zig");
 pub const cctv = @import("cctv.zig");
 pub const heatmap = @import("heatmap.zig");
 pub const gnss = @import("gnss.zig");
+pub const sky = @import("sky.zig");
+pub const kinematics = @import("kinematics.zig");
 
 // Re-export core types
 pub const GeoPoint = cpr.GeoPoint;
@@ -413,6 +415,57 @@ export fn lavender_adsb_decode_frame(
 }
 
 // Force analysis of exported functions in submodules
+
+/// Sky: decodes `star_count` catalogue stars (`[ra, dec, vmag, bv]` f32 each) into
+/// `out_vertices` (8 f32 per star: xyz, sigma_px, rgb, alpha). Returns stars written.
+export fn lavender_sky_build_star_vertices(
+    stars_ptr: [*]const f32,
+    star_count: usize,
+    out_vertices: [*]f32,
+) usize {
+    return sky.buildStarVertices(stars_ptr[0 .. star_count * 4], out_vertices[0 .. star_count * sky.STAR_VERTEX_FLOATS]);
+}
+
+/// Kinematics: advances a heading (deg) toward target along the shortest arc.
+export fn lavender_kinematics_slew_heading(current_deg: f64, target_deg: f64, max_step_deg: f64) f64 {
+    return kinematics.slewHeading(current_deg, target_deg, max_step_deg);
+}
+
+/// Kinematics: bounded cockpit anchor correction (metres) for one render step.
+export fn lavender_kinematics_anchor_correction(distance_m: f64, speed_mps: f64, dt_sec: f64) f64 {
+    return kinematics.cockpitAnchorCorrectionStep(distance_m, speed_mps, dt_sec);
+}
+
+/// Director: samples a camera move. `from_ptr`/`to_ptr`/`out_pose` are 6 f64
+/// `[lat, lon, alt, heading, pitch, roll]`. `linear` selects linear easing.
+export fn lavender_director_sample_camera_move(
+    from_ptr: [*]const f64,
+    to_ptr: [*]const f64,
+    linear: bool,
+    progress: f64,
+    out_pose: [*]f64,
+) void {
+    const pose = kinematics.sampleCameraMove(from_ptr[0..6].*, to_ptr[0..6].*, linear, progress);
+    for (pose, 0..) |v, i| out_pose[i] = v;
+}
+
+/// Weather: derives effect strengths into `out_profile` (9 f32: cloud, rain, snow,
+/// fog, haze, droplets, storm, wind, windDirDeg). NaN `weather_code` means missing
+/// weather; returns false (profile zeroed) when unavailable.
+export fn lavender_weather_derive_effects(
+    weather_code: f64,
+    cloud_cover_pct: f64,
+    precipitation_mm: f64,
+    wind_kph: f64,
+    visibility_m: f64,
+    wind_direction_deg: f64,
+    out_profile: [*]f32,
+) bool {
+    const p = kinematics.deriveWeatherEffectProfile(weather_code, cloud_cover_pct, precipitation_mm, wind_kph, visibility_m, wind_direction_deg);
+    kinematics.writeProfile(p, out_profile[0..kinematics.WEATHER_PROFILE_FLOATS]);
+    return p.available;
+}
+
 comptime {
     _ = wind.lavender_wind_sample;
     _ = wind.lavender_wind_bake_streamline;
@@ -429,6 +482,11 @@ comptime {
     _ = lavender_gnss_discount_percent;
     _ = lavender_gnss_classify_level;
     _ = lavender_gnss_bin_cells;
+    _ = lavender_sky_build_star_vertices;
+    _ = lavender_kinematics_slew_heading;
+    _ = lavender_kinematics_anchor_correction;
+    _ = lavender_director_sample_camera_move;
+    _ = lavender_weather_derive_effects;
     _ = lavender_iq_extract_adsb_frames;
     _ = lavender_adsb_decode_frame;
 }
@@ -442,4 +500,6 @@ test {
     _ = @import("cctv_test.zig");
     _ = @import("heatmap_test.zig");
     _ = @import("gnss_test.zig");
+    _ = @import("sky_test.zig");
+    _ = @import("kinematics_test.zig");
 }

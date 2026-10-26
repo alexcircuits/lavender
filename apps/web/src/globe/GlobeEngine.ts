@@ -26,6 +26,7 @@ import {
 import type {
   AircraftTrack,
   AirQualityReading,
+  AlprCamera,
   BBox,
   BoundaryFeature,
   CameraSource,
@@ -35,6 +36,7 @@ import type {
   GeoPoint,
   GnssCell,
   ImageryDescriptor,
+  RadioStation,
   Route,
   SatelliteTrack,
   TransitTrail,
@@ -59,6 +61,7 @@ import { geoPointAt, Interaction } from './interaction';
 import { Listeners } from './listeners';
 import { AircraftRenderer } from './renderers/aircraft';
 import { AirQualityRenderer } from './renderers/airQuality';
+import { AlprRenderer } from './renderers/alpr';
 import { AnnotationRenderer } from './renderers/annotations';
 import { BikeshareRenderer } from './renderers/bikeshare';
 import {
@@ -76,6 +79,7 @@ import { GnssRenderer } from './renderers/gnss';
 import { type HeatmapContact, HeatmapRenderer } from './renderers/heatmap';
 import { LaunchPadRenderer } from './renderers/launches';
 import { PerimeterRenderer } from './renderers/perimeters';
+import { RadioRenderer } from './renderers/radio';
 import {
   type ImagerySlotConfig,
   RecentImageryRenderer,
@@ -115,6 +119,8 @@ interface Mounted {
   readonly cctv: CctvRenderer;
   readonly airQuality: AirQualityRenderer;
   readonly gnss: GnssRenderer;
+  readonly radio: RadioRenderer;
+  readonly alpr: AlprRenderer;
   readonly directions: DirectionsRenderer;
   readonly recentImagery: RecentImageryRenderer;
   readonly heatmap: HeatmapRenderer;
@@ -282,6 +288,8 @@ export class GlobeEngine implements GlobeController {
     const cctv = new CctvRenderer(primitives, ctx);
     const airQuality = new AirQualityRenderer(primitives, ctx);
     const gnss = new GnssRenderer(primitives, ctx);
+    const radio = new RadioRenderer(primitives, ctx);
+    const alpr = new AlprRenderer(primitives, ctx);
     const directions = new DirectionsRenderer(primitives, ctx);
     const recentImagery = new RecentImageryRenderer(scene.imageryLayers, primitives, scene, ctx);
     const heatmap = new HeatmapRenderer(scene.imageryLayers, ctx);
@@ -315,6 +323,8 @@ export class GlobeEngine implements GlobeController {
     cleanup.push(() => cctv.destroy());
     cleanup.push(() => airQuality.destroy());
     cleanup.push(() => gnss.destroy());
+    cleanup.push(() => radio.destroy());
+    cleanup.push(() => alpr.destroy());
     cleanup.push(() => directions.destroy());
     cleanup.push(() => recentImagery.destroy());
     cleanup.push(() => heatmap.destroy());
@@ -383,6 +393,8 @@ export class GlobeEngine implements GlobeController {
       cctv,
       airQuality,
       gnss,
+      radio,
+      alpr,
       directions,
       recentImagery,
       heatmap,
@@ -441,6 +453,8 @@ export class GlobeEngine implements GlobeController {
     m.cctv.setSelected(selection?.feed === 'cctv' ? selection.id : null);
     m.airQuality.setSelected(selection?.feed === 'air-quality' ? selection.id : null);
     m.gnss.setSelected(selection?.feed === 'gnss' ? selection.id : null);
+    m.radio.setSelected(selection?.feed === 'radio' ? selection.id : null);
+    m.alpr.setSelected(selection?.feed === 'alpr' ? selection.id : null);
     m.halo.set(this.#selection);
     this.#refreshHalo();
   }
@@ -632,6 +646,38 @@ export class GlobeEngine implements GlobeController {
     this.#mounted?.gnss.clear();
   }
 
+  setRadioStations(stations: readonly RadioStation[]): void {
+    const m = this.#mounted;
+    if (!m) return;
+    m.radio.setStations(stations);
+    if (this.#selection?.feed === 'radio') this.#refreshHalo();
+    m.widget.scene.requestRender();
+  }
+
+  getRadioStation(id: string): RadioStation | undefined {
+    return this.#mounted?.radio.getStation(id);
+  }
+
+  clearRadio(): void {
+    this.#mounted?.radio.clear();
+  }
+
+  setAlprCameras(cameras: readonly AlprCamera[]): void {
+    const m = this.#mounted;
+    if (!m) return;
+    m.alpr.setCameras(cameras);
+    if (this.#selection?.feed === 'alpr') this.#refreshHalo();
+    m.widget.scene.requestRender();
+  }
+
+  getAlprCamera(id: string): AlprCamera | undefined {
+    return this.#mounted?.alpr.getCamera(id);
+  }
+
+  clearAlpr(): void {
+    this.#mounted?.alpr.clear();
+  }
+
   startFollowing(target: EntityRef): void {
     const m = this.#mounted;
     if (!m) return;
@@ -654,6 +700,10 @@ export class GlobeEngine implements GlobeController {
       located = m.airQuality.locate(target.id);
     } else if (target.feed === 'gnss') {
       located = m.gnss.locate(target.id);
+    } else if (target.feed === 'radio') {
+      located = m.radio.locate(target.id);
+    } else if (target.feed === 'alpr') {
+      located = m.alpr.locate(target.id);
     } else {
       const renderer = m.renderers.get(target.feed);
       located = renderer?.locate?.(target.id);
@@ -888,6 +938,10 @@ export class GlobeEngine implements GlobeController {
       m.halo.follow(m.airQuality.locate(selection.id));
     } else if (selection?.feed === 'gnss') {
       m.halo.follow(m.gnss.locate(selection.id));
+    } else if (selection?.feed === 'radio') {
+      m.halo.follow(m.radio.locate(selection.id));
+    } else if (selection?.feed === 'alpr') {
+      m.halo.follow(m.alpr.locate(selection.id));
     } else if (selection?.feed === 'directions-step') {
       m.halo.follow(m.directions.locateStep(Number(selection.id)) ?? undefined);
     } else if (selection?.feed === 'directions-waypoint') {

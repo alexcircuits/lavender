@@ -9,6 +9,22 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Done
 
+- **LB-116 Street Level Remainder, LB-118 Evidence Tours & Director Moves, LB-119 Map Stacks Catalog, LB-123 Awareness Navigation, Zig Sky & Kinematics Kernels, Radio & ALPR Globe Renderers & Scenes Panel**:
+  - **Zig Freestanding Kernels (`kernels/zig/src/sky.zig` & `kernels/zig/src/kinematics.zig`)**: Implemented starfield photometry with Ballesteros B-V effective temperature conversion, Helland piecewise sRGB approximation, peak normalization, and Yale Bright Star Catalogue vertex buffer generation (`lavender_sky_build_star_vertices`). Implemented kinematics and camera director with shortest-arc heading slewing (`lavender_kinematics_slew_heading`), bounded cockpit anchor correction (`lavender_kinematics_anchor_correction`), 6-DOF camera trajectory interpolation with antimeridian wrapping and cubic easing (`lavender_director_sample_camera_move`), and WMO weather code effect profile derivation (`lavender_weather_derive_effects`). All `64/64` Zig tests passing; rebuilt `lavender_kernels.wasm`.
+  - **Rust Domain & Providers (`crates/lavender-domain` & `crates/lavender-core`)**:
+    - `street_level.rs` & `providers/street_level.rs` (`LB-116`): KartaView segment chaining + Panoramax Ramer-Douglas-Peucker line simplification, plus capture timestamp sanitization (upstream #1341).
+    - `scene_pack.rs` & `providers/scene_packs.rs` (`LB-118`): 17-beat Nepal Landslide & Flood tour, Maritime Chokepoints tour, Launch Corridors tour, and camera-move sampler with short-arc antimeridian interpolation.
+    - `map_catalog.rs` & `providers/map_catalog.rs` (`LB-119`): 5 canonical map stacks (OSM Carto, OpenTopoMap, Satellite Composite, Dark Monochrome, Stamen Watercolor) with credential-aware availability diagnostics.
+    - `awareness.rs` & `analytics/awareness.rs` (`LB-123`): focus, history, and navigation context model, hysteresis refresh decisions, and bounded proximity window contacts.
+    - Added routes `GET /api/v1/scenes/packs` and `GET /api/v1/maps/catalog` in `crates/lavender-server/src/routes.rs`.
+  - **Web Bridges, Cesium Renderers & NoirSystems Panels (`apps/web/src/`)**:
+    - Added `wasmSkyKinematics.ts` (WASM micro-kernel bridges + pure-TS reference fallbacks with 8-byte aligned memory management).
+    - Added `RadioRenderer` (`globe/renderers/radio.ts`) and `AlprRenderer` (`globe/renderers/alpr.ts`) with primitive collections, nearest-to-center capping, halo tracking, and click picking.
+    - Added NoirSystems inspector sheets `RadioCard.tsx` and `AlprCard.tsx`.
+    - Added `ScenesPanel` (`features/scenes/`) with multi-beat evidence tour playback, fly-to trajectory triggering, layer activation checks, and ADR 0005 platform integration.
+    - Added `MapCatalogCard.tsx` (`features/imagery/`) for map stack inspection with availability indicators.
+    - 977/977 web tests passing; startup bundle size 248.8 KiB gzip <= 250 KiB limit.
+
 - **LB-115 GNSS Integrity, LB-117 Local Receivers & SDR Mode-S/IQ Kernels, Radio Catalog, ALPR Layer & LB-121 Analyst Query Packs**:
   - **Zig Freestanding Kernels (`LB-115` + `LB-117` — `kernels/zig/src/gnss.zig` & `kernels/zig/src/sdr.zig`)**: Implemented DO-260A/B navigation integrity anomaly classification (`lavender_gnss_classify_observation`), `gpsjam.org` 1-aircraft false-positive discount (`lavender_gnss_discount_percent`), severity banding (`lavender_gnss_classify_level`), zero-allocation equirectangular cell binning (`lavender_gnss_bin_cells`), 2 Msps I/Q Manchester envelope demodulation (`lavender_iq_extract_adsb_frames`), and Mode-S DF17/DF18 extended squitter decoding (`lavender_adsb_decode_frame`). Rebuilt `apps/web/public/wasm/lavender_kernels.wasm` (`51/51` Zig tests passing).
   - **Rust Domain Contracts & Backend Providers (`crates/lavender-domain` & `crates/lavender-core/src/providers/`)**:
@@ -129,14 +145,7 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Backlog (ranked)
 
-- **LB-114** airQuality provider · **LB-115** GNSS integrity · **LB-116**
-  streetLevel remainder (Mapillary/KartaView) · **LB-117** SDR/local receivers
-  via Zig native artifact · **LB-118** scenes/evidence tours · **LB-119** maps
-  catalog/credits · **LB-120** i18n decision · **LB-121** query packs over
-  DuckDB · **LB-122** AI enrichment (owner gate) · **LB-123** awareness layer.
-- **LB-130** Zig WASM rebuild-provenance script + CI · **LB-131** vision
-  sidecar lifecycle in lavender-server · **LB-132** Nim CEP retire-or-wire
-  decision.
+- **LB-120** i18n decision · **LB-122** AI enrichment (owner gate) · **LB-130** Zig WASM rebuild-provenance script + CI · **LB-131** vision sidecar lifecycle in lavender-server · **LB-132** Nim CEP retire-or-wire decision.
 - Release track (Flokzy-owned): ENG-996–999 desktop, ENG-1000–1004
   measurement/CI, ENG-1005–1009 guides/deploy/licence/legacy-retirement.
 

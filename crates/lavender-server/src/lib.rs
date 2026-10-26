@@ -221,6 +221,8 @@ pub fn app(core: LavenderCore, settings: &ServerSettings) -> Router {
         .route("/alpr", get(routes::alpr_cameras))
         .route("/analytics/query-packs", get(routes::list_query_packs))
         .route("/analytics/query-packs/{id}/execute", post(routes::execute_query_pack))
+        .route("/scenes/packs", get(routes::list_evidence_packs))
+        .route("/maps/catalog", get(routes::map_catalog))
         .route("/entities/resolve", get(routes::resolve_entity))
         .route("/entities/{id}", get(routes::get_canonical_entity))
         .route("/entities/{id}/aliases", get(routes::get_entity_aliases))

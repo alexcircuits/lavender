@@ -19,12 +19,13 @@ use lavender_domain::{
     AirQualitySnapshot, AircraftRouteEnrichment, AircraftTrack, AircraftTypeEnrichment, AlertEvent,
     AlprSnapshot, ApiError, BBox, BoundaryClass, BoundaryFeature, BoundaryResponse, CameraHealth,
     CameraSource, CanonicalEntity, Catalog, CctvStreamInfo, EntityIdentifier, ErrorCode,
-    FeedFilters, FeedId, FeedItems, FeedQuery, FeedSnapshot, GeoPoint, Geofence, GeofenceRule,
-    GnssProvenance, GnssSnapshot, LocalReceiverBand, LocalReceiverSnapshot, QueryPackDefinition,
-    QueryPackExecution, QueryPackRequest, RadioCatalogSnapshot, RadioCategory,
-    SatellitePassRequest, SatellitePasses, SatelliteTrack, SatelliteTrackRequest, SavedSearch,
-    SavedSearchMatch, SearchQuery, SearchResults, SpatialSearchRequest, SpatialSearchResponse,
-    SystemStatus, Timestamp, VesselTrackResponse, WeatherOverlay, WindModel,
+    EvidencePack, FeedFilters, FeedId, FeedItems, FeedQuery, FeedSnapshot, GeoPoint, Geofence,
+    GeofenceRule, GnssProvenance, GnssSnapshot, LocalReceiverBand, LocalReceiverSnapshot,
+    MapCatalogSnapshot, QueryPackDefinition, QueryPackExecution, QueryPackRequest,
+    RadioCatalogSnapshot, RadioCategory, SatellitePassRequest, SatellitePasses, SatelliteTrack,
+    SatelliteTrackRequest, SavedSearch, SavedSearchMatch, SearchQuery, SearchResults,
+    SpatialSearchRequest, SpatialSearchResponse, SystemStatus, Timestamp, VesselTrackResponse,
+    WeatherOverlay, WindModel,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -2254,6 +2255,16 @@ pub async fn alpr_cameras(
     };
     let limit = params.limit.unwrap_or(500).clamp(1, 2000);
     Ok(Json(state.core.alpr_cameras(bbox, limit)))
+}
+
+/// `GET /api/v1/scenes/packs` — lists the curated scene evidence packs (`LB-118`).
+pub async fn list_evidence_packs(State(state): State<AppState>) -> Json<Vec<EvidencePack>> {
+    Json(state.core.evidence_packs())
+}
+
+/// `GET /api/v1/maps/catalog` — lists base map stacks with credential-aware availability (`LB-119`).
+pub async fn map_catalog(State(state): State<AppState>) -> Json<MapCatalogSnapshot> {
+    Json(state.core.map_catalog())
 }
 
 /// `GET /api/v1/analytics/query-packs` — lists all registered analyst query packs (`LB-121`).

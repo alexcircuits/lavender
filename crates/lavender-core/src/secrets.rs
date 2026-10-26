@@ -17,10 +17,12 @@ pub enum SecretKey {
     Ll2ApiToken,
     MapillaryClientToken,
     TomTomApiKey,
+    GoogleMapsApiKey,
+    CesiumIonToken,
 }
 
 impl SecretKey {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 9] = [
         Self::FirmsMapKey,
         Self::AisStreamApiKey,
         Self::OpenSkyClientId,
@@ -28,6 +30,8 @@ impl SecretKey {
         Self::Ll2ApiToken,
         Self::MapillaryClientToken,
         Self::TomTomApiKey,
+        Self::GoogleMapsApiKey,
+        Self::CesiumIonToken,
     ];
 
     /// The environment variable a server operator sets.
@@ -41,6 +45,8 @@ impl SecretKey {
             Self::Ll2ApiToken => "LAVENDER_LL2_API_TOKEN",
             Self::MapillaryClientToken => "LAVENDER_MAPILLARY_CLIENT_TOKEN",
             Self::TomTomApiKey => "LAVENDER_TOMTOM_API_KEY",
+            Self::GoogleMapsApiKey => "LAVENDER_GOOGLE_MAPS_API_KEY",
+            Self::CesiumIonToken => "LAVENDER_CESIUM_ION_TOKEN",
         }
     }
 
@@ -55,6 +61,8 @@ impl SecretKey {
             Self::Ll2ApiToken => "Launch Library 2 API token",
             Self::MapillaryClientToken => "Mapillary client token",
             Self::TomTomApiKey => "TomTom API key",
+            Self::GoogleMapsApiKey => "Google Maps API key",
+            Self::CesiumIonToken => "Cesium ion token",
         }
     }
 
@@ -69,6 +77,8 @@ impl SecretKey {
             Self::Ll2ApiToken => "ll2",
             Self::MapillaryClientToken => "mapillary",
             Self::TomTomApiKey => "tomtom",
+            Self::GoogleMapsApiKey => "google_maps",
+            Self::CesiumIonToken => "cesium_ion",
         }
     }
 

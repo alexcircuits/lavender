@@ -6,6 +6,7 @@ mod aircraft;
 mod alert;
 mod alpr;
 mod ascent;
+mod awareness;
 mod bikeshare;
 mod boundary;
 mod cctv;
@@ -36,6 +37,10 @@ pub use aircraft::{Aircraft, AircraftRouteEnrichment, AircraftTypeEnrichment, Ai
 pub use alert::{AlertEvent, AlertKind, Geofence, GeofenceRule};
 pub use alpr::{AlprCamera, AlprSnapshot};
 pub use ascent::{AscentEvent, AscentEventKind, AscentSample, AscentTrajectory};
+pub use awareness::{
+    AwarenessCohort, AwarenessContextSnapshot, AwarenessNavigation, AwarenessRefreshDecision,
+    AwarenessResults, AwarenessSubject, ContactsWindow,
+};
 pub use bikeshare::{BikeshareStation, BikeshareSystem};
 pub use boundary::{BoundaryClass, BoundaryFeature, BoundaryResponse};
 pub use cctv::{CameraHealth, CameraSource, CctvDetection, CctvDetectionsResponse, CctvStreamInfo};

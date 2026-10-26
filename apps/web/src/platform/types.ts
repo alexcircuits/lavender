@@ -18,12 +18,14 @@ import type {
   Catalog,
   CctvDetectionsResponse,
   EntityIdentifier,
+  EvidencePack,
   FeedQuery,
   FeedSnapshot,
   GeoPoint,
   GnssProvenance,
   GnssSnapshot,
   LocalReceiverSnapshot,
+  MapCatalogSnapshot,
   QueryPackDefinition,
   QueryPackExecution,
   QueryPackRequest,
@@ -237,6 +239,10 @@ export interface LavenderPlatform {
   ): Promise<RadioCatalogSnapshot>;
   /** Queries automated license plate reader (ALPR) surveillance cameras inside `bbox`. */
   alprCameras?(bbox?: BBox, limit?: number, options?: CallOptions): Promise<AlprSnapshot>;
+  /** Lists registered evidence and historical scene packs (`LB-118`). */
+  scenePacks?(options?: CallOptions): Promise<readonly EvidencePack[]>;
+  /** Retrieves map and layer catalog configuration with availability reasons (`LB-119`). */
+  mapCatalog?(options?: CallOptions): Promise<MapCatalogSnapshot>;
   /** Lists all registered multi-domain analyst query packs (`LB-121`). */
   queryPacks?(options?: CallOptions): Promise<readonly QueryPackDefinition[]>;
   /** Executes a named analyst query pack (`LB-121`). */

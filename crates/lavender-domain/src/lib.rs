@@ -38,6 +38,10 @@ pub use entities::{
     RadioCatalogSnapshot, RadioCategory, RadioStation,
 };
 pub use entities::{AscentEvent, AscentEventKind, AscentSample, AscentTrajectory};
+pub use entities::{
+    AwarenessCohort, AwarenessContextSnapshot, AwarenessNavigation, AwarenessRefreshDecision,
+    AwarenessResults, AwarenessSubject, ContactsWindow,
+};
 pub use entities::{BikeshareStation, BikeshareSystem};
 pub use entities::{BoundaryClass, BoundaryFeature, BoundaryResponse};
 pub use entities::{CanonicalEntity, EntityIdentifier, EntityKind, EntityLink};

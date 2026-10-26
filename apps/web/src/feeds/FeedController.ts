@@ -205,7 +205,9 @@ export class FeedController {
       selection.feed === 'directions-step' ||
       selection.feed === 'directions-waypoint' ||
       selection.feed === 'air-quality' ||
-      selection.feed === 'gnss'
+      selection.feed === 'gnss' ||
+      selection.feed === 'radio' ||
+      selection.feed === 'alpr'
     ) {
       this.#heldKey = null;
       feeds.setSelectedEntity(null, null, false);

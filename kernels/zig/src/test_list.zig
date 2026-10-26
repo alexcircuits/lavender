@@ -2,6 +2,8 @@ const std = @import("std");
 
 test {
     _ = @import("gnss_test.zig");
+    _ = @import("sky_test.zig");
+    _ = @import("kinematics_test.zig");
 }
 
 test "arraylist" {

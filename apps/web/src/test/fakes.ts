@@ -465,6 +465,16 @@ export class FakePlatform implements LavenderPlatform {
     ): Promise<readonly import('../contracts').SavedSearchMatch[]> => [],
   );
 
+  scenePacks = vi.fn(
+    async (_options?: CallOptions): Promise<readonly import('../contracts').EvidencePack[]> => [],
+  );
+
+  mapCatalog = vi.fn(
+    async (_options?: CallOptions): Promise<import('../contracts').MapCatalogSnapshot> => ({
+      stacks: [],
+    }),
+  );
+
   secretStatus = vi.fn(
     async (_options?: CallOptions): Promise<SecretStatusResponse> => ({
       managedBy: 'memory',
@@ -626,6 +636,12 @@ export function fakeGlobe(): FakeGlobe {
     setGnssCells: vi.fn(),
     getGnssCell: vi.fn(() => undefined),
     clearGnss: vi.fn(),
+    setRadioStations: vi.fn(),
+    getRadioStation: vi.fn(() => undefined),
+    clearRadio: vi.fn(),
+    setAlprCameras: vi.fn(),
+    getAlprCamera: vi.fn(() => undefined),
+    clearAlpr: vi.fn(),
     destroy: vi.fn(),
   } satisfies GlobeController;
   return {

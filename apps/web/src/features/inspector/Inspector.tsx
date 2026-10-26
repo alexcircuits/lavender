@@ -36,6 +36,7 @@ import { GLOBE_REGION_ID } from '../commands';
 import { FamilySwatch, feedGlyph } from '../layers';
 import { AircraftHistory } from './AircraftHistory';
 import { AirQualityCard } from './AirQualityCard';
+import { AlprCard } from './AlprCard';
 import { bikeshareFacts } from './BikeshareCard';
 import { BoundaryCard } from './BoundaryCard';
 import { CableCard } from './CableCard';
@@ -61,6 +62,7 @@ import { GnssCard } from './GnssCard';
 import styles from './inspector.module.css';
 import { LaunchDetails, LaunchNotices, PadLaunches, useLaunchPadView } from './LaunchDetails';
 import { launchFacts, padFacts } from './launchFacts';
+import { RadioCard } from './RadioCard';
 import { SatellitePasses } from './SatellitePasses';
 import { SearchAroundCard } from './SearchAroundCard';
 import { transitFacts } from './TransitCard';
@@ -505,6 +507,32 @@ function GnssInspector({ selection, className }: InspectorBodyProps) {
   );
 }
 
+function RadioInspector({ selection, className }: InspectorBodyProps) {
+  const globe = useGlobe();
+  const station = globe?.getRadioStation(selection.id);
+  if (station) {
+    return <RadioCard station={station} className={className} />;
+  }
+  return (
+    <InspectorFrame title={selection.id} layer={undefined} className={className}>
+      <EmptyState icon={InfoIcon}>Radio station {selection.id} is not loaded.</EmptyState>
+    </InspectorFrame>
+  );
+}
+
+function AlprInspector({ selection, className }: InspectorBodyProps) {
+  const globe = useGlobe();
+  const camera = globe?.getAlprCamera(selection.id);
+  if (camera) {
+    return <AlprCard camera={camera} className={className} />;
+  }
+  return (
+    <InspectorFrame title={selection.id} layer={undefined} className={className}>
+      <EmptyState icon={InfoIcon}>ALPR camera {selection.id} is not loaded.</EmptyState>
+    </InspectorFrame>
+  );
+}
+
 function InspectorBody({ selection, className }: InspectorBodyProps) {
   const globe = useGlobe();
   const feed = selection.feed as FeedId;
@@ -795,6 +823,24 @@ export function Inspector({ className }: InspectorProps) {
   if (selection.feed === 'gnss') {
     return (
       <GnssInspector
+        key={`${selection.feed}:${selection.id}`}
+        selection={selection}
+        className={className}
+      />
+    );
+  }
+  if (selection.feed === 'radio') {
+    return (
+      <RadioInspector
+        key={`${selection.feed}:${selection.id}`}
+        selection={selection}
+        className={className}
+      />
+    );
+  }
+  if (selection.feed === 'alpr') {
+    return (
+      <AlprInspector
         key={`${selection.feed}:${selection.id}`}
         selection={selection}
         className={className}

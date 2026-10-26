@@ -265,6 +265,7 @@ export type SidePanel =
   | 'geofences'
   | 'alerts'
   | 'missions'
+  | 'scenes'
   | 'launches'
   | 'directions'
   | 'imagery'

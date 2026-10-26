@@ -10,6 +10,7 @@
 import type {
   AircraftTrack,
   AirQualityReading,
+  AlprCamera,
   BBox,
   BoundaryFeature,
   CameraSource,
@@ -19,6 +20,7 @@ import type {
   GeoPoint,
   GnssCell,
   ImageryDescriptor,
+  RadioStation,
   Route,
   SatelliteTrack,
   TransitTrail,
@@ -51,7 +53,9 @@ export type EntitySource =
   | 'directions-step'
   | 'directions-waypoint'
   | 'air-quality'
-  | 'gnss';
+  | 'gnss'
+  | 'radio'
+  | 'alpr';
 
 /** A selectable thing on the globe. */
 export interface EntityRef {
@@ -166,6 +170,18 @@ export interface GlobeController {
   getGnssCell(id: string): GnssCell | undefined;
   /** Clears GNSS integrity cells from the globe. */
   clearGnss(): void;
+  /** Sets Radio Browser stations on the globe. */
+  setRadioStations(stations: readonly RadioStation[]): void;
+  /** Retrieves a Radio station by id. */
+  getRadioStation(id: string): RadioStation | undefined;
+  /** Clears Radio stations from the globe. */
+  clearRadio(): void;
+  /** Sets ALPR surveillance cameras on the globe. */
+  setAlprCameras(cameras: readonly AlprCamera[]): void;
+  /** Retrieves an ALPR camera by id. */
+  getAlprCamera(id: string): AlprCamera | undefined;
+  /** Clears ALPR cameras from the globe. */
+  clearAlpr(): void;
   /** Centroid location and symbol size for framing a selected boundary. */
   locateBoundary(id: string): Located | undefined;
   /** Retrieves a boundary feature by id, if currently loaded. */

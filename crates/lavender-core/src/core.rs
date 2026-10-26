@@ -2020,6 +2020,23 @@ impl LavenderCore {
         self.inner.alpr.ingest_overpass_json(payload, bbox, Timestamp::now())
     }
 
+    /// Returns the curated scene evidence packs (`LB-118`).
+    #[must_use]
+    pub fn evidence_packs(&self) -> Vec<lavender_domain::EvidencePack> {
+        crate::providers::scene_packs::evidence_pack_catalog()
+    }
+
+    /// Returns the base map stack catalog with availability resolved from the configured
+    /// Google Maps and Cesium ion credentials (`LB-119`). Only key presence is consulted.
+    #[must_use]
+    pub fn map_catalog(&self) -> lavender_domain::MapCatalogSnapshot {
+        use crate::secrets::SecretKey;
+        crate::providers::map_catalog::map_catalog(crate::providers::map_catalog::MapCredentials {
+            google_maps: self.inner.secrets.is_set(SecretKey::GoogleMapsApiKey),
+            cesium_ion: self.inner.secrets.is_set(SecretKey::CesiumIonToken),
+        })
+    }
+
     /// Returns the registered catalog of multi-domain analyst query packs (`LB-121`).
     #[must_use]
     pub fn query_packs(&self) -> Vec<QueryPackDefinition> {

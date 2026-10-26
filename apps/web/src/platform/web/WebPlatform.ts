@@ -16,11 +16,13 @@ import type {
   CctvDetectionsResponse,
   ClientFrame,
   EntityIdentifier,
+  EvidencePack,
   FeedQuery,
   FeedSnapshot,
   GnssProvenance,
   GnssSnapshot,
   LocalReceiverSnapshot,
+  MapCatalogSnapshot,
   QueryPackDefinition,
   QueryPackExecution,
   QueryPackRequest,
@@ -476,6 +478,14 @@ export class WebPlatform implements LavenderPlatform {
     if (limit !== undefined) qs.set('limit', String(limit));
     const query = qs.toString();
     return this.#get(`/alpr${query ? `?${query}` : ''}`, options);
+  }
+
+  scenePacks(options?: CallOptions): Promise<readonly EvidencePack[]> {
+    return this.#get('/scenes/packs', options);
+  }
+
+  mapCatalog(options?: CallOptions): Promise<MapCatalogSnapshot> {
+    return this.#get('/maps/catalog', options);
   }
 
   queryPacks(options?: CallOptions): Promise<readonly QueryPackDefinition[]> {

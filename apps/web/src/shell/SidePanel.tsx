@@ -20,6 +20,9 @@ const GeofencesPanel = lazy(() =>
 const MissionsPanel = lazy(() =>
   import('../features/missions/MissionsPanel').then((m) => ({ default: m.MissionsPanel })),
 );
+const ScenesPanel = lazy(() =>
+  import('../features/scenes').then((m) => ({ default: m.ScenesPanel })),
+);
 const RecentImageryPanel = lazy(() =>
   import('../features/imagery/RecentImageryPanel').then((m) => ({
     default: m.RecentImageryPanel,
@@ -122,6 +125,18 @@ export function SidePanel({ className }: SidePanelProps) {
         }
       >
         <MissionsPanel className={className} />
+      </Suspense>
+    );
+  if (panel === 'scenes')
+    return (
+      <Suspense
+        fallback={
+          <Panel title="Evidence tours" dense className={className}>
+            <SkeletonRows />
+          </Panel>
+        }
+      >
+        <ScenesPanel className={className} />
       </Suspense>
     );
   if (panel === 'replay')
