@@ -61,6 +61,7 @@ import styles from './inspector.module.css';
 import { LaunchDetails, LaunchNotices, PadLaunches, useLaunchPadView } from './LaunchDetails';
 import { launchFacts, padFacts } from './launchFacts';
 import { SatellitePasses } from './SatellitePasses';
+import { SearchAroundCard } from './SearchAroundCard';
 import { transitFacts } from './TransitCard';
 import { useSatellitePosition } from './useSatellitePosition';
 import { VesselTrack, vesselReportedAtSec } from './VesselTrack';
@@ -695,6 +696,9 @@ function InspectorBody({ selection, className }: InspectorBodyProps) {
         ) : null}
         {view.kind === 'satellites' ? (
           <EntityResolutionCard feed="satellites" entityId={String(view.item.noradId)} />
+        ) : null}
+        {position ? (
+          <SearchAroundCard feed={feed} entityId={selection.id} position={position} />
         ) : null}
       </div>
 

@@ -601,4 +601,38 @@ describe('Inspector', () => {
       bbox: mockBoundary.bbox,
     });
   });
+
+  it('computes the Search-Around co-location graph and pivots to a nearby entity', async () => {
+    const h = await setup('aircraft');
+    h.platform.live('aircraft')?.onEvent({
+      kind: 'snapshot',
+      snapshot: aircraftSnapshot([
+        aircraft('4aca2d', {
+          callsign: 'SAS1462',
+          position: { lat: 60.1699, lon: 24.9384 },
+        }),
+        aircraft('4ca1b2', {
+          callsign: 'FIN99X',
+          position: { lat: 60.25, lon: 25.05 },
+        }),
+      ]),
+    });
+    select(h, 'aircraft', '4aca2d');
+
+    const graphRegion = screen.getByRole('region', {
+      name: 'Search-Around & Co-Location Graph',
+    });
+    expect(within(graphRegion).getByText('1 nearby')).toBeVisible();
+    expect(within(graphRegion).getByText(/FIN99X · aircraft/)).toBeVisible();
+
+    await h.user.click(within(graphRegion).getByRole('button', { name: 'Pivot to FIN99X' }));
+    expect(h.runtime.stores.workspace.getState().selection).toEqual({
+      feed: 'aircraft',
+      id: '4ca1b2',
+    });
+    expect(h.globe?.globe.flyTo).toHaveBeenCalledWith({
+      kind: 'point',
+      position: { lat: 60.25, lon: 25.05 },
+    });
+  });
 });

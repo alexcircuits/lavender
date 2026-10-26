@@ -244,3 +244,125 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+
+.graphLayout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.radarRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.radarSvg {
+  composes: sq from global;
+  flex: 0 0 112px;
+  width: 112px;
+  height: 112px;
+  background: var(--control);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
+}
+
+.radarRing {
+  fill: none;
+  stroke: var(--hairline);
+  stroke-width: 1;
+}
+
+.radarAxis {
+  stroke: var(--hairline);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.radarEdge {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+  opacity: 0.55;
+}
+
+.radarHub {
+  fill: var(--accent-ink);
+  stroke: var(--ground);
+  stroke-width: 1.5;
+}
+
+.radarNode {
+  stroke: var(--ground);
+  stroke-width: 1.25;
+}
+
+.radarNode[data-family='air'] {
+  fill: var(--map-air);
+}
+
+.radarNode[data-family='maritime'] {
+  fill: var(--map-maritime);
+}
+
+.radarNode[data-family='hazard'] {
+  fill: var(--map-hazard);
+}
+
+.radarNode[data-family='context'] {
+  fill: var(--map-context);
+}
+
+.cohortSummary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1_5);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.cohortChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.neighborList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.neighborItem {
+  composes: sq from global;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-1_5) var(--s-2);
+  background: var(--control);
+  border-radius: calc(var(--r-sm) * var(--corner-k-sm));
+}
+
+.neighborInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.neighborLabel {
+  color: var(--ink);
+  font: var(--type-body-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.neighborMeta {
+  color: var(--ink-2);
+  font: var(--type-micro);
+  font-family: var(--font-mono);
+}

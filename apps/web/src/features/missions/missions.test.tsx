@@ -74,6 +74,37 @@ describe('mission board', () => {
       within(screen.getByLabelText('Detected')).getByRole('button', { name: 'Add card' }),
     );
     expect(screen.getByText(/Entity: aircraft:abc123/)).toBeTruthy();
+
+    h.runtime.stores.workspace.getState().select(null);
+    await user.click(screen.getByRole('button', { name: 'Focus entity' }));
+    expect(h.runtime.stores.workspace.getState().selection).toEqual({
+      feed: 'aircraft',
+      id: 'abc123',
+    });
+  });
+
+  it('saves and loads composite workspace scene snapshots', async () => {
+    const { h, user } = await setup();
+    const ws = h.runtime.stores.workspace;
+    ws.getState().setLayerEnabled('aircraft', true);
+    ws.getState().setImagery('night');
+    ws.getState().select({ feed: 'aircraft', id: '4aca2d' });
+
+    await user.type(screen.getByLabelText('Scene snapshot name'), 'Baltic Patrol');
+    await user.click(screen.getByRole('button', { name: 'Save current scene' }));
+    expect(screen.getByRole('heading', { name: 'Baltic Patrol' })).toBeVisible();
+
+    ws.getState().setLayerEnabled('aircraft', false);
+    ws.getState().setImagery('default');
+    ws.getState().select(null);
+
+    await user.click(screen.getByRole('button', { name: 'Load Baltic Patrol' }));
+    expect(ws.getState().layers.aircraft?.enabled).toBe(true);
+    expect(ws.getState().imageryId).toBe('night');
+    expect(ws.getState().selection).toEqual({ feed: 'aircraft', id: '4aca2d' });
+
+    await user.click(screen.getByRole('button', { name: 'Remove Baltic Patrol' }));
+    expect(screen.queryByRole('heading', { name: 'Baltic Patrol' })).not.toBeInTheDocument();
   });
 });
 

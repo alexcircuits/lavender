@@ -1,11 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { Button, ErrorState, Panel, Skeleton } from '../design';
 import { AnnotationsPanel } from '../features/annotations/AnnotationsPanel';
-import { GeofencesPanel } from '../features/geofences/GeofencesPanel';
-import { RecentImageryPanel } from '../features/imagery';
 import { LaunchesPanel } from '../features/launches';
 import { LayerExplorer } from '../features/layers';
-import { MissionsPanel } from '../features/missions/MissionsPanel';
 import { SettingsPanel } from '../features/settings';
 import { SourcesPanel } from '../features/sources';
 
@@ -16,6 +13,17 @@ const AlertsPanel = lazy(() =>
 );
 const DirectionsPanel = lazy(() =>
   import('../features/directions').then((m) => ({ default: m.DirectionsPanel })),
+);
+const GeofencesPanel = lazy(() =>
+  import('../features/geofences/GeofencesPanel').then((m) => ({ default: m.GeofencesPanel })),
+);
+const MissionsPanel = lazy(() =>
+  import('../features/missions/MissionsPanel').then((m) => ({ default: m.MissionsPanel })),
+);
+const RecentImageryPanel = lazy(() =>
+  import('../features/imagery/RecentImageryPanel').then((m) => ({
+    default: m.RecentImageryPanel,
+  })),
 );
 const ReplayPanel = lazy(() =>
   import('../features/replay').then((m) => ({ default: m.ReplayPanel })),
@@ -80,9 +88,42 @@ export function SidePanel({ className }: SidePanelProps) {
         <DirectionsPanel className={className} />
       </Suspense>
     );
-  if (panel === 'imagery') return <RecentImageryPanel className={className} />;
-  if (panel === 'geofences') return <GeofencesPanel className={className} />;
-  if (panel === 'missions') return <MissionsPanel className={className} />;
+  if (panel === 'imagery')
+    return (
+      <Suspense
+        fallback={
+          <Panel title="Recent imagery" dense className={className}>
+            <SkeletonRows />
+          </Panel>
+        }
+      >
+        <RecentImageryPanel className={className} />
+      </Suspense>
+    );
+  if (panel === 'geofences')
+    return (
+      <Suspense
+        fallback={
+          <Panel title="Geofences" dense className={className}>
+            <SkeletonRows />
+          </Panel>
+        }
+      >
+        <GeofencesPanel className={className} />
+      </Suspense>
+    );
+  if (panel === 'missions')
+    return (
+      <Suspense
+        fallback={
+          <Panel title="Missions" dense className={className}>
+            <SkeletonRows />
+          </Panel>
+        }
+      >
+        <MissionsPanel className={className} />
+      </Suspense>
+    );
   if (panel === 'replay')
     return (
       <Suspense

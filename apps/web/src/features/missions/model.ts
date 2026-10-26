@@ -26,11 +26,22 @@ export const COLUMN_LABELS: Record<MissionColumn, string> = {
 
 /** The preference key the board persists under. */
 export const MISSIONS_PREF_KEY = 'missions';
+export const MISSION_SCENES_PREF_KEY = 'missionScenes';
 
 export const MAX_CARDS = 100;
+export const MAX_SCENES = 24;
 export const MAX_TITLE_LENGTH = 80;
 export const MAX_NOTE_LENGTH = 500;
 const ID_PATTERN = /^[a-zA-Z0-9-]{1,64}$/;
+
+export interface MissionScene {
+  readonly id: string;
+  readonly name: string;
+  readonly createdAt: string;
+  readonly activeFeeds: readonly string[];
+  readonly imageryId: string | null;
+  readonly selection: { readonly feed: string; readonly id: string } | null;
+}
 
 export interface MissionCard {
   readonly id: string;
@@ -105,4 +116,49 @@ export function previousColumn(column: MissionColumn): MissionColumn | null {
 /** Where a new card lands: the first column, always. */
 export function firstColumn(): MissionColumn {
   return MISSION_COLUMNS[0];
+}
+
+export function validateMissionScenes(value: unknown): readonly MissionScene[] {
+  if (!Array.isArray(value)) throw new Error('Saved scenes must be a list.');
+  if (value.length > MAX_SCENES) throw new Error(`Keep at most ${MAX_SCENES} saved scenes.`);
+  const ids = new Set<string>();
+  return value.map((raw): MissionScene => {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+      throw new Error('Each scene must be an object.');
+    }
+    const s = raw as Record<string, unknown>;
+    if (typeof s.id !== 'string' || !ID_PATTERN.test(s.id) || ids.has(s.id)) {
+      throw new Error('Invalid scene identity.');
+    }
+    ids.add(s.id);
+    if (typeof s.name !== 'string' || s.name.length === 0 || s.name.length > MAX_TITLE_LENGTH) {
+      throw new Error('Invalid scene name.');
+    }
+    if (typeof s.createdAt !== 'string') {
+      throw new Error('Invalid scene timestamp.');
+    }
+    if (!Array.isArray(s.activeFeeds) || s.activeFeeds.some((f) => typeof f !== 'string')) {
+      throw new Error('Invalid scene feeds.');
+    }
+    const imageryId = typeof s.imageryId === 'string' ? s.imageryId : null;
+    let selection: MissionScene['selection'] = null;
+    if (s.selection !== null && s.selection !== undefined) {
+      if (
+        typeof s.selection !== 'object' ||
+        typeof (s.selection as { feed?: unknown }).feed !== 'string' ||
+        typeof (s.selection as { id?: unknown }).id !== 'string'
+      ) {
+        throw new Error('Invalid scene selection.');
+      }
+      selection = s.selection as MissionScene['selection'];
+    }
+    return {
+      id: s.id,
+      name: s.name,
+      createdAt: s.createdAt,
+      activeFeeds: s.activeFeeds as readonly string[],
+      imageryId,
+      selection,
+    };
+  });
 }

@@ -1,20 +1,25 @@
 import { useEffect, useState } from 'react';
+import type { FeedId } from '../../contracts';
 import { Button, IconButton, Panel, SegmentedControl, TextField, XIcon } from '../../design';
 import { usePlatform, useUi, useWorkspace } from '../../runtime';
 import styles from '../annotations/annotations.module.css';
 import {
   COLUMN_LABELS,
   MISSION_COLUMNS,
+  MISSION_SCENES_PREF_KEY,
   MISSIONS_PREF_KEY,
   type MissionCard,
   type MissionColumn,
+  type MissionScene,
   nextColumn,
   previousColumn,
+  validateMissionScenes,
   validateMissions,
 } from './model';
 
 /**
- * The analyst's mission board (LB-113): a kanban across the OSINT workflow.
+ * The analyst's mission board (LB-113 + LB-140 Item 9): a kanban across the OSINT workflow
+ * plus composite Workspace Scene Snapshots (active feeds, base imagery, and target selection).
  * Cards can carry a live entity link (added from the current selection) and a
  * geofence reference; the board persists on this device and survives reloads.
  * Malformed persisted data is reported, never rendered.
@@ -23,8 +28,15 @@ export function MissionsPanel({ className }: { readonly className?: string | und
   const platform = usePlatform();
   const close = useUi((s) => s.setSidePanel);
   const selection = useWorkspace((s) => s.selection);
+  const select = useWorkspace((s) => s.select);
+  const layers = useWorkspace((s) => s.layers);
+  const setLayerEnabled = useWorkspace((s) => s.setLayerEnabled);
+  const imageryId = useWorkspace((s) => s.imageryId);
+  const setImagery = useWorkspace((s) => s.setImagery);
   const annotations = useWorkspace((s) => s.annotations);
   const [cards, setCards] = useState<readonly MissionCard[] | null>(null);
+  const [scenes, setScenes] = useState<readonly MissionScene[]>([]);
+  const [sceneName, setSceneName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [activeStage, setActiveStage] = useState<'all' | MissionColumn>('all');
 
@@ -35,6 +47,8 @@ export function MissionsPanel({ className }: { readonly className?: string | und
       const stored = platform.preferences.get<unknown>(MISSIONS_PREF_KEY);
       if (alive && stored !== undefined) setCards(validateMissions(stored));
       else if (alive) setCards([]);
+      const storedScenes = platform.preferences.get<unknown>(MISSION_SCENES_PREF_KEY);
+      if (alive && storedScenes !== undefined) setScenes(validateMissionScenes(storedScenes));
     } catch (e) {
       if (alive) {
         setCards([]);
@@ -45,6 +59,52 @@ export function MissionsPanel({ className }: { readonly className?: string | und
       alive = false;
     };
   }, [platform]);
+
+  const updateScenes = (next: readonly MissionScene[]) => {
+    setScenes(next);
+    try {
+      platform.preferences.set(MISSION_SCENES_PREF_KEY, next);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Scene snapshot could not be saved.');
+    }
+  };
+
+  const saveCurrentScene = () => {
+    const trimmed = sceneName.trim();
+    if (!trimmed) return;
+    const activeFeeds = Object.entries(layers)
+      .filter(([, state]) => state?.enabled)
+      .map(([feed]) => feed);
+    const scene: MissionScene = {
+      id: crypto.randomUUID(),
+      name: trimmed,
+      createdAt: new Date().toISOString(),
+      activeFeeds,
+      imageryId,
+      selection: selection ? { feed: selection.feed, id: selection.id } : null,
+    };
+    updateScenes([...scenes, scene]);
+    setSceneName('');
+  };
+
+  const loadScene = (scene: MissionScene) => {
+    const activeSet = new Set(scene.activeFeeds);
+    for (const [feed, state] of Object.entries(layers)) {
+      if (state?.enabled && !activeSet.has(feed)) {
+        setLayerEnabled(feed as FeedId, false);
+      }
+    }
+    for (const feed of scene.activeFeeds) {
+      setLayerEnabled(feed as FeedId, true);
+    }
+    if (scene.imageryId) {
+      setImagery(scene.imageryId);
+    }
+    if (scene.selection) {
+      select({ feed: scene.selection.feed as FeedId, id: scene.selection.id });
+    }
+  };
 
   const update = (next: readonly MissionCard[]) => {
     setCards(next);
@@ -139,6 +199,18 @@ export function MissionsPanel({ className }: { readonly className?: string | und
                       <time dateTime={card.createdAt}>{card.createdAt}</time>
                     </p>
                     <div className={styles.actions}>
+                      {card.entity ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() =>
+                            card.entity &&
+                            select({ feed: card.entity.feed as FeedId, id: card.entity.id })
+                          }
+                        >
+                          Focus entity
+                        </Button>
+                      ) : null}
                       {previousColumn(column) ? (
                         <Button
                           variant="secondary"
@@ -168,6 +240,55 @@ export function MissionsPanel({ className }: { readonly className?: string | und
             </section>
           );
         })}
+        <section aria-label="Saved workspace scenes">
+          <h3>Saved workspace scenes · {scenes.length}</h3>
+          <form
+            className={styles.editor}
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveCurrentScene();
+            }}
+          >
+            <TextField
+              label="Scene snapshot name"
+              maxLength={80}
+              value={sceneName}
+              onChange={(e) => setSceneName(e.target.value)}
+            />
+            <Button type="submit" variant="secondary" disabled={!sceneName.trim()}>
+              Save current scene
+            </Button>
+          </form>
+          {scenes.length > 0 ? (
+            <ol className={styles.list}>
+              {scenes.map((scene) => (
+                <li key={scene.id} className={styles.mark}>
+                  <h4>{scene.name}</h4>
+                  <p className={styles.help}>
+                    {scene.activeFeeds.length} active feed
+                    {scene.activeFeeds.length === 1 ? '' : 's'}
+                    {scene.selection
+                      ? ` · Target ${scene.selection.feed}:${scene.selection.id}`
+                      : ''}
+                  </p>
+                  <div className={styles.actions}>
+                    <Button variant="secondary" size="sm" onClick={() => loadScene(scene)}>
+                      Load {scene.name}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => updateScenes(scenes.filter((s) => s.id !== scene.id))}
+                    >
+                      Remove {scene.name}
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : null}
+        </section>
+
         <p className={styles.help}>
           {cards?.length ?? 0} cards · geofences live in the Geofences panel (
           {annotations.filter((a) => a.kind === 'geofence').length} drawn)
