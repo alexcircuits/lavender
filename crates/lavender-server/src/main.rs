@@ -110,6 +110,8 @@ async fn run() -> ExitCode {
         }
     };
     tracing::info!(addr = %config.server.addr, licence_mode = ?config.core.licence_mode, "Lavender is listening");
+    let _local_receiver_daemon =
+        lavender_server::local_receiver_daemon::spawn_from_env(&core.local_receivers());
     let app = lavender_server::app(core.clone(), &config.server);
     let served = axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
         .with_graceful_shutdown(shutdown_signal())

@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { type Harness, renderWithRuntime, source, startHarness } from '../../app/testing';
 import type { Catalog, SystemStatus } from '../../contracts';
@@ -160,5 +160,13 @@ describe('SourcesPanel', () => {
     );
     expect(screen.getByText('Evaluation mode')).toBeInTheDocument();
     expect(screen.getByText(/not in a product or service you sell/)).toBeInTheDocument();
+  });
+
+  it('toggles the local SDR receiver section on button click', async () => {
+    await setup();
+    const btn = screen.getByRole('button', { name: 'Local SDR' });
+    expect(btn).toBeInTheDocument();
+    fireEvent.click(btn);
+    expect(screen.getByRole('button', { name: 'Hide Local SDR' })).toBeInTheDocument();
   });
 });

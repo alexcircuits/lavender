@@ -12,7 +12,8 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use futures::StreamExt;
 use lavender_core::{
-    CoreError, DivisionRecord, InfrastructureItem, LandingPoint, RegionRecord, SubmarineCable,
+    BeastMessageType, CoreError, DivisionRecord, InfrastructureItem, LandingPoint, RegionRecord,
+    SubmarineCable, parse_avr_stream, parse_beast_stream,
 };
 use lavender_domain::text::clean;
 use lavender_domain::{
@@ -2185,10 +2186,11 @@ pub struct LocalReceiverIngestParams {
     pub band: Option<String>,
 }
 
-/// `POST /api/v1/local-receivers/ingest` — ingests a `dump1090`/`readsb`/`dump978` `aircraft.json` payload.
+/// `POST /api/v1/local-receivers/ingest` — ingests a `dump1090`/`readsb`/`dump978` `aircraft.json` payload
+/// or raw Mode-S AVR / Beast binary stream frames.
 ///
 /// # Errors
-/// Returns 400 Bad Request if the band or JSON payload is malformed.
+/// Returns 400 Bad Request if the band or payload is malformed.
 pub async fn local_receivers_ingest(
     State(state): State<AppState>,
     ApiQuery(params): ApiQuery<LocalReceiverIngestParams>,
@@ -2197,6 +2199,34 @@ pub async fn local_receivers_ingest(
     let band_str = params.band.as_deref().unwrap_or("1090");
     let band =
         LocalReceiverBand::parse(band_str).ok_or_else(|| bad("band must be '1090' or '978'"))?;
+
+    if body.starts_with(b"*") || body.starts_with(b"@") {
+        let mut buf = body.to_vec();
+        let frames = parse_avr_stream(&mut buf);
+        let mut count = 0_usize;
+        for frame in frames {
+            if state.core.ingest_raw_mode_s_frame(&frame).is_ok() {
+                count += 1;
+            }
+        }
+        return Ok(Json(serde_json::json!({ "ingested": count })));
+    }
+
+    if body.starts_with(&[0x1a]) {
+        let mut buf = body.to_vec();
+        let packets = parse_beast_stream(&mut buf);
+        let mut count = 0_usize;
+        for packet in packets {
+            if (packet.msg_type == BeastMessageType::ModeSShort
+                || packet.msg_type == BeastMessageType::ModeSLong)
+                && state.core.ingest_raw_mode_s_frame(&packet.payload).is_ok()
+            {
+                count += 1;
+            }
+        }
+        return Ok(Json(serde_json::json!({ "ingested": count })));
+    }
+
     let count = state.core.ingest_local_receiver_payload(&params.feed_id, band, &body)?;
     Ok(Json(serde_json::json!({ "ingested": count })))
 }

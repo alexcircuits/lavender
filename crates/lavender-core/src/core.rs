@@ -1970,6 +1970,12 @@ impl LavenderCore {
         self.inner.local_receivers.snapshot(Timestamp::now())
     }
 
+    /// Returns a reference to the local receiver engine.
+    #[must_use]
+    pub fn local_receivers(&self) -> Arc<crate::providers::local_receivers::LocalReceiverEngine> {
+        self.inner.local_receivers.clone()
+    }
+
     /// Ingests a `dump1090` / `readsb` / `dump978` `aircraft.json` payload into a local receiver slot.
     ///
     /// # Errors
@@ -1981,6 +1987,14 @@ impl LavenderCore {
         payload: &[u8],
     ) -> Result<usize, CoreError> {
         self.inner.local_receivers.ingest_feed_payload(feed_id, band, payload, Timestamp::now())
+    }
+
+    /// Ingests a raw Mode-S frame (56-bit short frame or 112-bit extended squitter).
+    ///
+    /// # Errors
+    /// Returns [`CoreError::BadRequest`] if the frame length is not 7 or 14 bytes.
+    pub fn ingest_raw_mode_s_frame(&self, frame: &[u8]) -> Result<(), CoreError> {
+        self.inner.local_receivers.ingest_raw_mode_s_frame(frame, Timestamp::now())
     }
 
     /// Queries the tactical & broadcast radio catalog, optionally filtered by bounding box and category.

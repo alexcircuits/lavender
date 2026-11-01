@@ -1,0 +1,164 @@
+/* Local SDR Receiver panel. NoirSystems tokens only (§7). */
+
+.card {
+  composes: sq from global;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border-radius: calc(var(--r-md) * var(--corner-k));
+  background: var(--well);
+  border: 1px solid var(--hairline);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.title {
+  color: var(--ink);
+  font: var(--type-label);
+  font-weight: 600;
+  margin: 0;
+}
+
+.deviceInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0_5);
+}
+
+.deviceLabel {
+  color: var(--ink);
+  font: var(--type-caption);
+  font-weight: 500;
+}
+
+.statusMessage {
+  color: var(--ink-2);
+  font: var(--type-caption);
+  margin: 0;
+}
+
+.warningBox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-1_5);
+  padding: var(--s-2);
+  border-radius: calc(var(--r-sm) * var(--corner-k));
+  background: var(--island);
+  border: 1px solid var(--warning);
+  color: var(--ink-2);
+  font: var(--type-caption);
+}
+
+.warningIcon {
+  flex: none;
+  color: var(--warning);
+  margin-top: var(--s-0_5);
+}
+
+.errorBox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-1_5);
+  padding: var(--s-2);
+  border-radius: calc(var(--r-sm) * var(--corner-k));
+  background: var(--island);
+  border: 1px solid var(--alert);
+  color: var(--alert);
+  font: var(--type-caption);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2_5);
+}
+
+.controlGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.controlLabel {
+  color: var(--ink);
+  font: var(--type-caption);
+  font-weight: 500;
+}
+
+.select {
+  appearance: none;
+  width: 100%;
+  height: var(--ctl-md);
+  padding: 0 var(--s-2_5);
+  border-radius: calc(var(--r-sm) * var(--corner-k));
+  border: 1px solid var(--hairline);
+  background: var(--control);
+  color: var(--ink);
+  font: var(--type-body);
+  outline: none;
+  cursor: pointer;
+}
+
+.select:hover:not(:disabled) {
+  background: var(--control-hover);
+  border-color: var(--hairline-strong);
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 1px;
+}
+
+.select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.telemetryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s-2);
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-0_5);
+  padding: var(--s-2);
+  border-radius: calc(var(--r-sm) * var(--corner-k));
+  background: var(--island);
+  border: 1px solid var(--hairline);
+}
+
+.statLabel {
+  color: var(--ink-3);
+  font: var(--type-caption);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.statValue {
+  color: var(--ink);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}

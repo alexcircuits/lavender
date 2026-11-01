@@ -6,6 +6,7 @@
 //! thread-safe snapshot engine across configured feeds.
 
 use std::collections::HashMap;
+use std::net::IpAddr;
 use std::sync::{PoisonError, RwLock};
 
 use jiff::{SignedDuration, Timestamp};
@@ -94,6 +95,26 @@ fn is_local_ipv4(host: &str) -> bool {
     }
     let [a, b, _, _] = octets;
     a == 127 || a == 10 || (a == 172 && (16..=31).contains(&b)) || (a == 192 && b == 168)
+}
+
+/// Validates whether an [`IpAddr`] is loopback or `RFC1918` private IPv4 (SSRF safe).
+#[must_use]
+pub fn is_safe_local_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            let [a, b, _, _] = v4.octets();
+            a == 127 || a == 10 || (a == 172 && (16..=31).contains(&b)) || (a == 192 && b == 168)
+        }
+        IpAddr::V6(v6) => {
+            if v6.is_loopback() {
+                return true;
+            }
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return is_safe_local_ip(IpAddr::V4(v4));
+            }
+            false
+        }
+    }
 }
 
 /// Validates whether `host` is an allowed local receiver tap target:
@@ -430,10 +451,447 @@ pub fn normalize_dump1090_json(
     Ok((now_s, aircraft))
 }
 
+/// Message types defined by the Mode-S Beast binary protocol.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BeastMessageType {
+    /// Mode-AC (2 payload bytes).
+    ModeAc,
+    /// Mode-S Short (7 payload bytes / 56 bits).
+    ModeSShort,
+    /// Mode-S Long (14 payload bytes / 112 bits).
+    ModeSLong,
+}
+
+impl BeastMessageType {
+    /// Decodes a Beast message type byte (`'1'`, `'2'`, `'3'` or `0x31`, `0x32`, `0x33`).
+    #[must_use]
+    pub const fn from_byte(b: u8) -> Option<Self> {
+        match b {
+            0x31 => Some(Self::ModeAc),
+            0x32 => Some(Self::ModeSShort),
+            0x33 => Some(Self::ModeSLong),
+            _ => None,
+        }
+    }
+
+    /// Expected payload byte length for this message type.
+    #[must_use]
+    pub const fn payload_len(self) -> usize {
+        match self {
+            Self::ModeAc => 2,
+            Self::ModeSShort => 7,
+            Self::ModeSLong => 14,
+        }
+    }
+}
+
+/// Unpacked Beast binary packet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BeastPacket {
+    /// Decoded message type.
+    pub msg_type: BeastMessageType,
+    /// 6-byte 12MHz MLAT clock timestamp counter.
+    pub timestamp: [u8; 6],
+    /// 1-byte signal level (RSSI).
+    pub signal_level: u8,
+    /// Raw payload bytes.
+    pub payload: Vec<u8>,
+}
+
+fn hex_val(b: u8) -> Result<u8, CoreError> {
+    match b {
+        b'0'..=b'9' => Ok(b - b'0'),
+        b'a'..=b'f' => Ok(b - b'a' + 10),
+        b'A'..=b'F' => Ok(b - b'A' + 10),
+        _ => Err(CoreError::BadRequest(format!("invalid hex character: {b:02x}"))),
+    }
+}
+
+fn decode_hex_bytes(hex: &str) -> Result<Vec<u8>, CoreError> {
+    let bytes = hex.as_bytes();
+    if !bytes.len().is_multiple_of(2) {
+        return Err(CoreError::BadRequest("odd number of hex digits".to_owned()));
+    }
+    let mut out = Vec::with_capacity(bytes.len() / 2);
+    for chunk in bytes.as_chunks::<2>().0 {
+        let h = hex_val(chunk[0])?;
+        let l = hex_val(chunk[1])?;
+        out.push((h << 4) | l);
+    }
+    Ok(out)
+}
+
+/// Parses an AVR format string (`*<hex>;\n` or `@<timestamp><hex>;\n`) into a
+/// 7-byte (56-bit) or 14-byte (112-bit) Mode-S byte array.
+///
+/// # Errors
+/// Returns [`CoreError::BadRequest`] if the frame prefix is not `*` or `@`,
+/// contains non-hexadecimal characters, or has an invalid length.
+pub fn parse_avr_frame(raw: &str) -> Result<Vec<u8>, CoreError> {
+    let trimmed = raw.trim();
+    if let Some(rest) = trimmed.strip_prefix('*') {
+        let hex_part = rest.strip_suffix(';').unwrap_or(rest).trim();
+        if hex_part.len() != 14 && hex_part.len() != 28 {
+            return Err(CoreError::BadRequest(format!(
+                "invalid AVR frame length: {} hex chars (expected 14 or 28)",
+                hex_part.len()
+            )));
+        }
+        decode_hex_bytes(hex_part)
+    } else if let Some(rest) = trimmed.strip_prefix('@') {
+        let hex_part = rest.strip_suffix(';').unwrap_or(rest).trim();
+        if hex_part.len() != 26 && hex_part.len() != 40 {
+            return Err(CoreError::BadRequest(format!(
+                "invalid timestamped AVR frame length: {} hex chars (expected 26 or 40)",
+                hex_part.len()
+            )));
+        }
+        // Skip 12 hex chars of 12MHz timestamp counter
+        decode_hex_bytes(&hex_part[12..])
+    } else {
+        Err(CoreError::BadRequest("AVR frame must start with '*' or '@'".to_owned()))
+    }
+}
+
+/// Parses and consumes complete AVR frames from a streaming buffer.
+pub fn parse_avr_stream(buffer: &mut Vec<u8>) -> Vec<Vec<u8>> {
+    let mut frames = Vec::new();
+    while let Some(delim_idx) = buffer.iter().position(|&b| b == b';' || b == b'\n') {
+        let slice = &buffer[..=delim_idx];
+        if let Ok(text) = std::str::from_utf8(slice) {
+            let trimmed = text.trim();
+            if (trimmed.starts_with('*') || trimmed.starts_with('@'))
+                && let Ok(frame) = parse_avr_frame(trimmed)
+            {
+                frames.push(frame);
+            }
+        }
+        buffer.drain(..=delim_idx);
+    }
+    if buffer.len() > 65_536 {
+        buffer.clear();
+    }
+    frames
+}
+
+/// Extracts all complete Beast packets from a streaming buffer, unescaping `0x1A 0x1A`
+/// and removing consumed bytes from the buffer.
+pub fn parse_beast_stream(buffer: &mut Vec<u8>) -> Vec<BeastPacket> {
+    let mut packets = Vec::new();
+    'outer: while !buffer.is_empty() {
+        let Some(start_idx) = buffer.iter().position(|&b| b == 0x1A) else {
+            buffer.clear();
+            break;
+        };
+        if start_idx > 0 {
+            buffer.drain(0..start_idx);
+        }
+        if buffer.len() < 2 {
+            break;
+        }
+        let type_byte = buffer[1];
+        if type_byte == 0x1A {
+            buffer.drain(0..1);
+            continue 'outer;
+        }
+        let Some(msg_type) = BeastMessageType::from_byte(type_byte) else {
+            buffer.drain(0..1);
+            continue 'outer;
+        };
+        let expected_body_len = 6 + 1 + msg_type.payload_len();
+        let mut body = Vec::with_capacity(expected_body_len);
+        let mut idx = 2_usize;
+
+        while body.len() < expected_body_len {
+            if idx >= buffer.len() {
+                break 'outer;
+            }
+            if buffer[idx] == 0x1A {
+                if idx + 1 >= buffer.len() {
+                    break 'outer;
+                }
+                if buffer[idx + 1] == 0x1A {
+                    body.push(0x1A);
+                    idx += 2;
+                } else {
+                    buffer.drain(0..idx);
+                    continue 'outer;
+                }
+            } else {
+                body.push(buffer[idx]);
+                idx += 1;
+            }
+        }
+
+        if body.len() == expected_body_len {
+            let mut ts = [0_u8; 6];
+            ts.copy_from_slice(&body[0..6]);
+            let signal_level = body[6];
+            let payload = body[7..].to_vec();
+            packets.push(BeastPacket { msg_type, timestamp: ts, signal_level, payload });
+            buffer.drain(0..idx);
+        }
+    }
+    if buffer.len() > 65_536 {
+        buffer.clear();
+    }
+    packets
+}
+
+/// Unpacks a single Beast packet from a byte slice.
+///
+/// # Errors
+/// Returns [`CoreError::BadRequest`] if the slice is empty, does not start with `0x1A`,
+/// or cannot be decoded into a valid Beast packet.
+pub fn parse_beast_packet(data: &[u8]) -> Result<BeastPacket, CoreError> {
+    if data.is_empty() {
+        return Err(CoreError::BadRequest("empty Beast packet".to_owned()));
+    }
+    if data[0] != 0x1A {
+        return Err(CoreError::BadRequest(
+            "Beast packet must begin with escape byte 0x1A".to_owned(),
+        ));
+    }
+    let mut buf = data.to_vec();
+    let mut packets = parse_beast_stream(&mut buf);
+    match packets.pop() {
+        Some(pkt) => Ok(pkt),
+        None => Err(CoreError::BadRequest("invalid or incomplete Beast packet".to_owned())),
+    }
+}
+
+/// Extracted fields from a Mode-S frame.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DecodedModeSFrame {
+    /// Downlink format (bits 1..=5).
+    pub df: u8,
+    /// 24-bit ICAO address formatted as 6 lowercase hex characters (when extractable).
+    pub icao: Option<String>,
+    /// ADS-B Type Code (bits 33..=37) for extended squitters (DF 17/18).
+    pub tc: Option<u8>,
+    /// Aircraft callsign (for TC 1..=4).
+    pub callsign: Option<String>,
+    /// Barometric altitude in feet (for TC 9..=18, 20..=22).
+    pub altitude_baro_ft: Option<i32>,
+    /// Ground speed in knots (for TC 19).
+    pub ground_speed_kt: Option<f64>,
+    /// Track heading in degrees (for TC 19).
+    pub track_deg: Option<f64>,
+    /// Emitter category (for TC 1..=4).
+    pub category: Option<String>,
+    /// Compact Position Reporting (CPR) flag, lat, lon (for TC 9..=18, 20..=22).
+    pub cpr: Option<(bool, u32, u32)>,
+}
+
+/// Decodes Mode-S frame fields including Downlink Format, 24-bit ICAO address,
+/// Type Code, callsign, altitude, velocity, and CPR coordinates.
+///
+/// # Errors
+/// Returns [`CoreError::BadRequest`] if `frame` is not 7 bytes (56 bits) or 14 bytes (112 bits).
+#[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
+pub fn extract_mode_s_frame(frame: &[u8]) -> Result<DecodedModeSFrame, CoreError> {
+    if frame.len() != 7 && frame.len() != 14 {
+        return Err(CoreError::BadRequest(format!(
+            "invalid Mode-S frame length: {} bytes (expected 7 or 14)",
+            frame.len()
+        )));
+    }
+
+    let df = (frame[0] >> 3) & 0x1F;
+    let icao = if df == 17 || df == 18 || df == 11 || df == 19 {
+        Some(format!("{:02x}{:02x}{:02x}", frame[1], frame[2], frame[3]))
+    } else {
+        None
+    };
+
+    let mut tc = None;
+    let mut callsign = None;
+    let mut altitude_baro_ft = None;
+    let mut ground_speed_kt = None;
+    let mut track_deg = None;
+    let mut category = None;
+    let mut cpr = None;
+
+    if (df == 17 || df == 18) && frame.len() == 14 {
+        let tc_val = (frame[4] >> 3) & 0x1F;
+        tc = Some(tc_val);
+
+        match tc_val {
+            1..=4 => {
+                let chars = [
+                    (frame[5] >> 2) & 0x3F,
+                    ((frame[5] & 0x03) << 4) | ((frame[6] >> 4) & 0x0F),
+                    ((frame[6] & 0x0F) << 2) | ((frame[7] >> 6) & 0x03),
+                    frame[7] & 0x3F,
+                    (frame[8] >> 2) & 0x3F,
+                    ((frame[8] & 0x03) << 4) | ((frame[9] >> 4) & 0x0F),
+                    ((frame[9] & 0x0F) << 2) | ((frame[10] >> 6) & 0x03),
+                    frame[10] & 0x3F,
+                ];
+                let mut cs = String::with_capacity(8);
+                for c in chars {
+                    match c {
+                        1..=26 => cs.push(char::from(b'A' + c - 1)),
+                        48..=57 => cs.push(char::from(b'0' + c - 48)),
+                        _ => cs.push(' '),
+                    }
+                }
+                let trimmed = cs.trim();
+                if !trimmed.is_empty() {
+                    callsign = Some(trimmed.to_owned());
+                }
+                let sub_cat = frame[4] & 0x07;
+                let cat_prefix = match tc_val {
+                    1 => "B",
+                    2 => "D",
+                    3 => "C",
+                    _ => "A",
+                };
+                category = Some(format!("{cat_prefix}{sub_cat}"));
+            }
+            9..=18 | 20..=22 => {
+                let alt_field = (u16::from(frame[5]) << 4) | (u16::from(frame[6] >> 4));
+                if (alt_field & 0x0010) != 0 {
+                    let n = ((alt_field & 0x0FE0) >> 1) | (alt_field & 0x000F);
+                    let alt = (i32::from(n) * 25) - 1000;
+                    if (-1000..=100_000).contains(&alt) {
+                        altitude_baro_ft = Some(alt);
+                    }
+                }
+                let is_odd = ((frame[6] >> 3) & 0x01) == 1;
+                let cpr_lat = (u32::from(frame[6] & 0x03) << 15)
+                    | (u32::from(frame[7]) << 7)
+                    | (u32::from(frame[8]) >> 1);
+                let cpr_lon = (u32::from(frame[8] & 0x01) << 16)
+                    | (u32::from(frame[9]) << 8)
+                    | u32::from(frame[10]);
+                cpr = Some((is_odd, cpr_lat, cpr_lon));
+            }
+            19 => {
+                let subtype = frame[4] & 0x07;
+                if subtype == 1 || subtype == 2 {
+                    let mult = if subtype == 2 { 4.0 } else { 1.0 };
+                    let v_ew_sign = if (frame[5] & 0x04) != 0 { -1.0 } else { 1.0 };
+                    let v_ew_raw = (u16::from(frame[5] & 0x03) << 8) | u16::from(frame[6]);
+                    let v_ns_sign = if (frame[7] & 0x80) != 0 { -1.0 } else { 1.0 };
+                    let v_ns_raw = (u16::from(frame[7] & 0x7F) << 3) | u16::from(frame[8] >> 5);
+                    if v_ew_raw > 0 && v_ns_raw > 0 {
+                        let v_ew = f64::from(v_ew_raw - 1) * mult * v_ew_sign;
+                        let v_ns = f64::from(v_ns_raw - 1) * mult * v_ns_sign;
+                        let speed = (v_ew * v_ew + v_ns * v_ns).sqrt();
+                        let mut track = v_ew.atan2(v_ns).to_degrees();
+                        if track < 0.0 {
+                            track += 360.0;
+                        }
+                        ground_speed_kt = Some(speed);
+                        track_deg = Some(track);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(DecodedModeSFrame {
+        df,
+        icao,
+        tc,
+        callsign,
+        altitude_baro_ft,
+        ground_speed_kt,
+        track_deg,
+        category,
+        cpr,
+    })
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CprFrame {
+    is_odd: bool,
+    lat: u32,
+    lon: u32,
+    time: Timestamp,
+}
+
+#[allow(clippy::cast_possible_truncation)]
+fn cpr_nl(lat: f64) -> i32 {
+    if lat.abs() >= 87.0 {
+        return 1;
+    }
+    let rad = lat.to_radians();
+    let cos_lat = rad.cos();
+    let num = 1.0 - (1.0 - (std::f64::consts::PI / 30.0).cos()) / (cos_lat * cos_lat);
+    if num <= 0.0 {
+        return 1;
+    }
+    let angle = num.sqrt().acos();
+    let nl = (2.0 * std::f64::consts::PI / angle).floor() as i32;
+    nl.max(1)
+}
+
+#[allow(clippy::many_single_char_names, clippy::similar_names, clippy::cast_precision_loss)]
+fn decode_cpr_pair(even: &CprFrame, odd: &CprFrame) -> Option<GeoPoint> {
+    const TWO_17: f64 = 131_072.0;
+    let lat_even = f64::from(even.lat) / TWO_17;
+    let lat_odd = f64::from(odd.lat) / TWO_17;
+
+    let dlat_even = 360.0 / 60.0;
+    let dlat_odd = 360.0 / 59.0;
+
+    let j = (59.0 * lat_even - 60.0 * lat_odd + 0.5).floor();
+    let mut lat_e = dlat_even * (j.rem_euclid(60.0) + lat_even);
+    let mut lat_o = dlat_odd * (j.rem_euclid(59.0) + lat_odd);
+
+    if lat_e >= 270.0 {
+        lat_e -= 360.0;
+    }
+    if lat_o >= 270.0 {
+        lat_o -= 360.0;
+    }
+
+    if !(-90.0..=90.0).contains(&lat_e) || !(-90.0..=90.0).contains(&lat_o) {
+        return None;
+    }
+
+    let nl_e = cpr_nl(lat_e);
+    let nl_o = cpr_nl(lat_o);
+    if nl_e != nl_o || nl_e < 1 {
+        return None;
+    }
+
+    let (use_odd, lat) = if odd.time >= even.time { (true, lat_o) } else { (false, lat_e) };
+
+    let nl = nl_e;
+    let lon_even = f64::from(even.lon) / TWO_17;
+    let lon_odd = f64::from(odd.lon) / TWO_17;
+
+    let lon = if use_odd {
+        let nl_mod = (nl - 1).max(1);
+        let dlon = 360.0 / f64::from(nl_mod);
+        let m = (lon_even * f64::from(nl - 1) - lon_odd * f64::from(nl) + 0.5).floor();
+        let mut l = dlon * (m.rem_euclid(f64::from(nl_mod)) + lon_odd);
+        if l >= 180.0 {
+            l -= 360.0;
+        }
+        l
+    } else {
+        let dlon = 360.0 / f64::from(nl);
+        let m = (lon_even * f64::from(nl - 1) - lon_odd * f64::from(nl) + 0.5).floor();
+        let mut l = dlon * (m.rem_euclid(f64::from(nl)) + lon_even);
+        if l >= 180.0 {
+            l -= 360.0;
+        }
+        l
+    };
+
+    GeoPoint::new(lat, lon).ok()
+}
+
 #[derive(Debug, Clone)]
 struct IngestedFeedState {
     effective_at: Timestamp,
     aircraft: Vec<LocalAdsbAircraft>,
+    cpr_frames: HashMap<String, CprFrame>,
 }
 
 #[derive(Debug)]
@@ -516,9 +974,121 @@ impl LocalReceiverEngine {
             });
         }
 
-        guard.ingested.insert(feed_id.to_owned(), IngestedFeedState { effective_at, aircraft });
+        guard.ingested.insert(
+            feed_id.to_owned(),
+            IngestedFeedState { effective_at, aircraft, cpr_frames: HashMap::new() },
+        );
 
         Ok(count)
+    }
+
+    /// Ingests a raw Mode-S frame (56-bit or 112-bit) and updates the receiver aircraft state.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::BadRequest`] if the frame length is not 7 or 14 bytes.
+    #[allow(clippy::too_many_lines)]
+    pub fn ingest_raw_mode_s_frame(
+        &self,
+        frame: &[u8],
+        timestamp: Timestamp,
+    ) -> Result<(), CoreError> {
+        let decoded = extract_mode_s_frame(frame)?;
+        let Some(icao) = decoded.icao else {
+            return Ok(());
+        };
+
+        let mut guard = self.state.write().unwrap_or_else(PoisonError::into_inner);
+
+        let feed_id = if let Some(feed) =
+            guard.feeds.iter().find(|f| f.band == Some(LocalReceiverBand::Band1090) && f.is_valid())
+        {
+            feed.id.clone()
+        } else {
+            let id = "raw-1090".to_owned();
+            if !guard.feeds.iter().any(|f| f.id == id) {
+                guard.feeds.push(LocalReceiverFeedConfig {
+                    id: id.clone(),
+                    band: Some(LocalReceiverBand::Band1090),
+                    label: "1090 MHz Raw".to_owned(),
+                    url: Some("tcp://127.0.0.1:30005".to_owned()),
+                    reason: None,
+                });
+            }
+            id
+        };
+
+        let entry = guard.ingested.entry(feed_id.clone()).or_insert_with(|| IngestedFeedState {
+            effective_at: timestamp,
+            aircraft: Vec::new(),
+            cpr_frames: HashMap::new(),
+        });
+        entry.effective_at = timestamp;
+
+        if let Some((is_odd, lat, lon)) = decoded.cpr {
+            let curr = CprFrame { is_odd, lat, lon, time: timestamp };
+            if let Some(prev) = entry.cpr_frames.get(&icao)
+                && prev.is_odd != is_odd
+            {
+                let dt = timestamp.duration_since(prev.time).as_secs_f64().abs();
+                if dt <= 10.0 {
+                    let (even, odd) = if is_odd { (prev, &curr) } else { (&curr, prev) };
+                    if let Some(pos) = decode_cpr_pair(even, odd)
+                        && let Some(ac) = entry.aircraft.iter_mut().find(|a| a.hex == icao)
+                    {
+                        ac.position = Some(pos);
+                        ac.seen_pos_s = Some(0.0);
+                    }
+                }
+            }
+            entry.cpr_frames.insert(icao.clone(), curr);
+        }
+
+        if let Some(ac) = entry.aircraft.iter_mut().find(|a| a.hex == icao) {
+            ac.messages = Some(ac.messages.unwrap_or(0) + 1);
+            ac.seen_s = 0.0;
+            if let Some(cs) = decoded.callsign {
+                ac.callsign = Some(cs);
+            }
+            if let Some(alt) = decoded.altitude_baro_ft {
+                ac.altitude_baro_ft = Some(alt);
+            }
+            if let Some(gs) = decoded.ground_speed_kt {
+                ac.ground_speed_kt = Some(gs);
+            }
+            if let Some(tr) = decoded.track_deg {
+                ac.track_deg = Some(tr);
+            }
+            if let Some(cat) = decoded.category {
+                ac.category = Some(cat);
+            }
+        } else {
+            entry.aircraft.push(LocalAdsbAircraft {
+                hex: icao,
+                band: LocalReceiverBand::Band1090,
+                feed_id,
+                callsign: decoded.callsign,
+                position: None,
+                altitude_baro_ft: decoded.altitude_baro_ft,
+                altitude_geom_ft: None,
+                ground_speed_kt: decoded.ground_speed_kt,
+                track_deg: decoded.track_deg,
+                vertical_rate_fpm: None,
+                squawk: None,
+                emergency: None,
+                category: decoded.category,
+                nic: None,
+                nac_p: None,
+                rssi_dbfs: None,
+                messages: Some(1),
+                seen_s: 0.0,
+                seen_pos_s: None,
+                on_ground: false,
+                mlat: false,
+                tisb: false,
+            });
+        }
+
+        Ok(())
     }
 
     /// Computes a merged point-in-time [`LocalReceiverSnapshot`] across all feeds at `now`.
@@ -835,5 +1405,242 @@ mod tests {
         assert!(snap.feeds[1].stale);
         assert_eq!(snap.aircraft.len(), 1);
         assert_eq!(snap.aircraft[0].hex, "a00001");
+    }
+
+    #[test]
+    fn parses_avr_raw_frames_both_variants() {
+        // Mode-S long frame (112-bit / 14-byte) without timestamp
+        let long_raw = "*8d4840d6202cc371c32ce0576098;\n";
+        let parsed_long = parse_avr_frame(long_raw).unwrap();
+        assert_eq!(parsed_long.len(), 14);
+        assert_eq!(
+            parsed_long,
+            vec![
+                0x8d, 0x48, 0x40, 0xd6, 0x20, 0x2c, 0xc3, 0x71, 0xc3, 0x2c, 0xe0, 0x57, 0x60, 0x98
+            ]
+        );
+
+        // Mode-S short frame (56-bit / 7-byte) without timestamp
+        let short_raw = "*5d4840d6202cc3;\n";
+        let parsed_short = parse_avr_frame(short_raw).unwrap();
+        assert_eq!(parsed_short.len(), 7);
+        assert_eq!(parsed_short, vec![0x5d, 0x48, 0x40, 0xd6, 0x20, 0x2c, 0xc3]);
+
+        // Mode-S long frame with 12-hex MLAT timestamp (starts with '@')
+        let ts_long_raw = "@00000000234a8d4840d6202cc371c32ce0576098;\r\n";
+        let parsed_ts_long = parse_avr_frame(ts_long_raw).unwrap();
+        assert_eq!(parsed_ts_long, parsed_long);
+
+        // Mode-S short frame with 12-hex MLAT timestamp
+        let ts_short_raw = "@00000000234a5d4840d6202cc3;\n";
+        let parsed_ts_short = parse_avr_frame(ts_short_raw).unwrap();
+        assert_eq!(parsed_ts_short, parsed_short);
+
+        // Without trailing semicolon
+        let no_semi = "*8d4840d6202cc371c32ce0576098";
+        assert_eq!(parse_avr_frame(no_semi).unwrap(), parsed_long);
+    }
+
+    #[test]
+    fn rejects_corrupted_avr_frames() {
+        // Invalid hex characters
+        assert!(parse_avr_frame("*8d4840d6202cc371c32ce05760ZZ;\n").is_err());
+        // Missing prefix
+        assert!(parse_avr_frame("8d4840d6202cc371c32ce0576098;\n").is_err());
+        // Odd number of hex characters
+        assert!(parse_avr_frame("*8d4840d6202cc371c32ce057609;\n").is_err());
+        // Invalid length (neither 7 nor 14 bytes)
+        assert!(parse_avr_frame("*8d4840d620;\n").is_err());
+        // Empty
+        assert!(parse_avr_frame("").is_err());
+        assert!(parse_avr_frame("   ").is_err());
+    }
+
+    #[test]
+    fn parses_avr_stream_with_resync() {
+        let mut stream_buf =
+            b"some junk before\n*8d4840d6202cc371c32ce0576098;\n*5d4840d6202cc3;\npartial*frame"
+                .to_vec();
+        let frames = parse_avr_stream(&mut stream_buf);
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0].len(), 14);
+        assert_eq!(frames[1].len(), 7);
+        // Trailing partial frame remains in buffer for next read
+        assert_eq!(stream_buf, b"partial*frame");
+    }
+
+    #[test]
+    fn parses_beast_binary_frames() {
+        // Mode-S Long (type 3 / 0x33): 6-byte ts, 1-byte signal, 14-byte payload
+        let mut raw = vec![0x1a, 0x33, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xee];
+        let payload = vec![
+            0x8d, 0x48, 0x40, 0xd6, 0x20, 0x2c, 0xc3, 0x71, 0xc3, 0x2c, 0xe0, 0x57, 0x60, 0x98,
+        ];
+        raw.extend_from_slice(&payload);
+
+        let packet = parse_beast_packet(&raw).unwrap();
+        assert_eq!(packet.msg_type, BeastMessageType::ModeSLong);
+        assert_eq!(packet.timestamp, [0x01, 0x02, 0x03, 0x04, 0x05, 0x06]);
+        assert_eq!(packet.signal_level, 0xee);
+        assert_eq!(packet.payload, payload);
+
+        // Mode-S Short (type 2 / 0x32): 7-byte payload
+        let mut short_raw = vec![0x1a, 0x32, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0xcc];
+        let short_payload = vec![0x5d, 0x48, 0x40, 0xd6, 0x20, 0x2c, 0xc3];
+        short_raw.extend_from_slice(&short_payload);
+
+        let short_pkt = parse_beast_packet(&short_raw).unwrap();
+        assert_eq!(short_pkt.msg_type, BeastMessageType::ModeSShort);
+        assert_eq!(short_pkt.timestamp, [0x10, 0x20, 0x30, 0x40, 0x50, 0x60]);
+        assert_eq!(short_pkt.signal_level, 0xcc);
+        assert_eq!(short_pkt.payload, short_payload);
+
+        // Mode-AC (type 1 / 0x31): 2-byte payload
+        let ac_raw = vec![0x1a, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x88, 0x12, 0x34];
+        let ac_pkt = parse_beast_packet(&ac_raw).unwrap();
+        assert_eq!(ac_pkt.msg_type, BeastMessageType::ModeAc);
+        assert_eq!(ac_pkt.payload, vec![0x12, 0x34]);
+    }
+
+    #[test]
+    fn handles_beast_escaped_0x1a_bytes() {
+        // Packet where timestamp has 0x1a (escaped as 0x1a 0x1a),
+        // signal level has 0x1a (escaped as 0x1a 0x1a),
+        // and payload has 0x1a (escaped as 0x1a 0x1a).
+        let raw = vec![
+            0x1a, 0x32, // start + type
+            0x00, 0x1a, 0x1a, 0x00, 0x00, 0x01,
+            0x02, // 6 ts bytes: [0x00, 0x1a, 0x00, 0x00, 0x01, 0x02]
+            0x1a, 0x1a, // signal level 0x1a
+            0x5d, 0x1a, 0x1a, 0x40, 0xd6, 0x20, 0x2c, 0xc3, // payload with 0x1a escaped
+        ];
+
+        let pkt = parse_beast_packet(&raw).unwrap();
+        assert_eq!(pkt.msg_type, BeastMessageType::ModeSShort);
+        assert_eq!(pkt.timestamp, [0x00, 0x1a, 0x00, 0x00, 0x01, 0x02]);
+        assert_eq!(pkt.signal_level, 0x1a);
+        assert_eq!(pkt.payload, vec![0x5d, 0x1a, 0x40, 0xd6, 0x20, 0x2c, 0xc3]);
+        assert_eq!(pkt.payload.len(), 7);
+    }
+
+    #[test]
+    fn handles_beast_corrupted_packets_and_resynchronization() {
+        // 1. Incomplete packet: should not parse
+        let incomplete = vec![0x1a, 0x33, 0x01, 0x02];
+        assert!(parse_beast_packet(&incomplete).is_err());
+
+        // 2. Corrupted packet mid-stream: unescaped 0x1a followed by a valid new packet start
+        let mut buf = vec![
+            0xff, 0xfe, // junk before
+            0x1a, 0x33, 0x01, 0x02, 0x03, // corrupted start
+            0x1a, 0x32, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x99, 0x5d, 0x48, 0x40, 0xd6, 0x20,
+            0x2c, 0xc3, // valid second packet
+        ];
+        let packets = parse_beast_stream(&mut buf);
+        assert_eq!(packets.len(), 1);
+        assert_eq!(packets[0].msg_type, BeastMessageType::ModeSShort);
+        assert_eq!(packets[0].payload.len(), 7);
+
+        // 3. Unknown packet type (e.g. 0x99)
+        let invalid_type = vec![0x1a, 0x99, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+        assert!(parse_beast_packet(&invalid_type).is_err());
+    }
+
+    #[test]
+    fn extracts_mode_s_basic_frame_fields() {
+        // Real-world DF 17 ADS-B message for KLM1023 (TC 4, callsign)
+        let klm_frame = vec![
+            0x8d, 0x48, 0x40, 0xd6, 0x20, 0x2c, 0xc3, 0x71, 0xc3, 0x2c, 0xe0, 0x57, 0x60, 0x98,
+        ];
+        let decoded = extract_mode_s_frame(&klm_frame).unwrap();
+        assert_eq!(decoded.df, 17);
+        assert_eq!(decoded.icao.as_deref(), Some("4840d6"));
+        assert_eq!(decoded.tc, Some(4));
+        assert_eq!(decoded.callsign.as_deref(), Some("KLM1023"));
+        assert_eq!(decoded.category.as_deref(), Some("A0"));
+
+        // DF 11 All-Call acquisition squitter (56-bit / 7-byte)
+        let df11_frame = vec![0x5d, 0x48, 0x40, 0xd6, 0x20, 0x2c, 0xc3];
+        let decoded_11 = extract_mode_s_frame(&df11_frame).unwrap();
+        assert_eq!(decoded_11.df, 11);
+        assert_eq!(decoded_11.icao.as_deref(), Some("4840d6"));
+        assert_eq!(decoded_11.tc, None);
+
+        // DF 17 Airborne Position with altitude (TC 11)
+        // 8d40621258c382d690c8ac2863a7 (TC 11, baro alt)
+        let alt_frame = vec![
+            0x8d, 0x40, 0x62, 0x12, 0x58, 0xc3, 0x82, 0xd6, 0x90, 0xc8, 0xac, 0x28, 0x63, 0xa7,
+        ];
+        let decoded_alt = extract_mode_s_frame(&alt_frame).unwrap();
+        assert_eq!(decoded_alt.df, 17);
+        assert_eq!(decoded_alt.icao.as_deref(), Some("406212"));
+        assert_eq!(decoded_alt.tc, Some(11));
+        assert!(decoded_alt.altitude_baro_ft.is_some());
+        assert!(decoded_alt.cpr.is_some());
+
+        // Rejects invalid frame lengths
+        assert!(extract_mode_s_frame(&[0x8d; 6]).is_err());
+        assert!(extract_mode_s_frame(&[0x8d; 8]).is_err());
+        assert!(extract_mode_s_frame(&[0x8d; 15]).is_err());
+    }
+
+    #[test]
+    fn snapshot_generation_from_raw_ingest() {
+        let engine = LocalReceiverEngine::new("");
+        let now: Timestamp = "2026-10-26T10:00:00Z".parse().unwrap();
+
+        // Initially no configured feeds
+        let initial_snap = engine.snapshot(now);
+        assert!(!initial_snap.configured);
+        assert!(initial_snap.stale);
+        assert_eq!(initial_snap.aircraft.len(), 0);
+
+        // Ingest raw Mode-S extended squitter for KLM1023
+        let raw_frame = vec![
+            0x8d, 0x48, 0x40, 0xd6, 0x20, 0x2c, 0xc3, 0x71, 0xc3, 0x2c, 0xe0, 0x57, 0x60, 0x98,
+        ];
+        engine.ingest_raw_mode_s_frame(&raw_frame, now).unwrap();
+
+        // Snapshot generated from raw ingest
+        let snap = engine.snapshot(now);
+        assert!(snap.configured);
+        assert!(!snap.stale);
+        assert_eq!(snap.aircraft.len(), 1);
+        let ac = &snap.aircraft[0];
+        assert_eq!(ac.hex, "4840d6");
+        assert_eq!(ac.callsign.as_deref(), Some("KLM1023"));
+        assert_eq!(ac.band, LocalReceiverBand::Band1090);
+        assert_eq!(ac.messages, Some(1));
+        assert_eq!(ac.seen_s, 0.0);
+
+        // Feed status reflects live feed
+        assert_eq!(snap.feeds.len(), 1);
+        assert_eq!(snap.feeds[0].id, "raw-1090");
+        assert_eq!(snap.feeds[0].aircraft_count, 1);
+        assert!(!snap.feeds[0].stale);
+    }
+
+    #[test]
+    fn validates_safe_local_ips() {
+        use std::net::{Ipv4Addr, Ipv6Addr};
+
+        // Safe loopback
+        assert!(is_safe_local_ip(IpAddr::V4(Ipv4Addr::LOCALHOST)));
+        assert!(is_safe_local_ip(IpAddr::V4(Ipv4Addr::new(127, 255, 255, 254))));
+        assert!(is_safe_local_ip(IpAddr::V6(Ipv6Addr::LOCALHOST)));
+
+        // Safe RFC1918 private IPv4
+        assert!(is_safe_local_ip(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))));
+        assert!(is_safe_local_ip(IpAddr::V4(Ipv4Addr::new(172, 16, 0, 1))));
+        assert!(is_safe_local_ip(IpAddr::V4(Ipv4Addr::new(172, 31, 255, 254))));
+        assert!(is_safe_local_ip(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 10))));
+
+        // Rejected public and metadata IPs
+        assert!(!is_safe_local_ip(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8))));
+        assert!(!is_safe_local_ip(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1))));
+        assert!(!is_safe_local_ip(IpAddr::V4(Ipv4Addr::new(169, 254, 169, 254))));
+        assert!(!is_safe_local_ip(IpAddr::V4(Ipv4Addr::new(172, 32, 0, 1))));
+        assert!(!is_safe_local_ip(IpAddr::V4(Ipv4Addr::new(192, 169, 0, 1))));
+        assert!(!is_safe_local_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED)));
     }
 }

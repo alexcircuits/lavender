@@ -9,6 +9,10 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Done
 
+- **LB-164 Local Receiver & SDR Ingest Daemon (WebUSB, AVR/Beast TCP Streaming, Mode-S Decoder)**:
+  - **WebUSB RTL-SDR Controller & UI (`apps/web/src/features/sdr/`)**: Ported `legacy/src/sdr/` into strict TypeScript module (`usbDevices.ts`, `gain.ts`, `spectrum.ts`, `sdrController.ts`, `LocalSdrPanel.tsx`). Supports WebUSB device selection for RTL2832U devices (`0x0bda:0x2832`, `0x0bda:0x2838`), 29 R820T gain steps (0.0 to 49.6 dB) with persistent storage, FFT power spectrum analysis (`analyzeSpectrum`), and connects to Zig WASM `AdsbStreamDecoder` (`wasmSdr.ts`). Code-split with `SourcesPanel.tsx` integration; workspace JS bundle **249.5 KiB gzip <= 250.0 KiB budget**; 33 unit tests in `src/features/sdr/` passing.
+  - **Backend Mode-S AVR & Beast Sockets (`crates/lavender-core` & `crates/lavender-server`)**: Mode-S ASCII AVR frame parser (`parse_avr_stream`), binary Beast frame parser (`parse_beast_stream`) handling 0x1A byte stuffing and resynchronization, DF 11/17/18/19 ICAO extraction, ADS-B extended squitter callsign, velocity, altitude, and CPR position decoding in `local_receivers.rs`. Background TCP stream client daemon (`local_receiver_daemon.rs`) connecting to `dump1090`/`readsb` ports 30002/30005 with SSRF safe IP validation, exponential reconnect backoff, and transparent stream decoding in `POST /api/v1/local-receivers/ingest`.
+
 - **LB-162 Cesium Bloom & HDR Post-Process Normalization**:
   - **Bloom Normalization & Mapping (`apps/web/src/globe/bloom.ts`)**: Ported `legacy/src/bloom.js` and `legacy/src/ui/visualEffects.js` into strict TypeScript module. Versioned scale migration (`v1` 0–100 inverted to `v2` 0–200, unversioned tolerance), Hermite cubic smoothstep easing ($3t^2 - 2t^3$) mapped to Cesium bloom uniforms (`contrast`, `brightness`, `sigma`, `delta`, `stepSize`, `glowOnly`). Gated by perceptual threshold ($> 0.06$).
   - **Globe Engine Integration (`apps/web/src/globe/index.ts`, `GlobeEngine.ts`, `test/fakes.ts`)**: Added `setBloom(enabled, intensity)` to `GlobeController` and `GlobeEngine`.

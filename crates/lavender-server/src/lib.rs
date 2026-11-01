@@ -5,6 +5,7 @@
 pub mod clients;
 pub mod config;
 pub mod error;
+pub mod local_receiver_daemon;
 pub mod routes;
 pub mod security;
 pub mod ws;

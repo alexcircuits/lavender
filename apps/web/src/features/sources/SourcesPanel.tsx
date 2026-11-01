@@ -1,7 +1,8 @@
-import { useId, useMemo } from 'react';
+import { lazy, Suspense, useId, useMemo, useState } from 'react';
 import type { Catalog, ProviderHealth, SourceInfo } from '../../contracts';
 import {
   ArrowSquareOutIcon,
+  Button,
   CircleIcon,
   formatAge,
   type Icon,
@@ -10,6 +11,7 @@ import {
   KeyIcon,
   LockSimpleIcon,
   Panel,
+  Skeleton,
   SquareIcon,
   TriangleIcon,
   WarningIcon,
@@ -29,6 +31,10 @@ import {
   UNKNOWN_HEALTH,
 } from './describe';
 import styles from './sources.module.css';
+
+const LocalSdrPanel = lazy(() =>
+  import('../sdr/LocalSdrPanel').then((m) => ({ default: m.LocalSdrPanel })),
+);
 
 const TONE_GLYPH: Readonly<Record<HealthTone, { icon: Icon; weight: 'fill' | 'bold' }>> = {
   good: { icon: CircleIcon, weight: 'fill' },
@@ -195,6 +201,7 @@ export interface SourcesPanelProps {
  * attribution verbatim, licence, commercial terms, key and privacy, and its live health.
  */
 export function SourcesPanel({ catalog, className }: SourcesPanelProps) {
+  const [showLocalSdr, setShowLocalSdr] = useState(false);
   const status = useSystem((s) => s.status);
   const setSidePanel = useUi((s) => s.setSidePanel);
   const mode = status?.licenceMode ?? catalog.licenceMode;
@@ -218,6 +225,34 @@ export function SourcesPanel({ catalog, className }: SourcesPanelProps) {
           <p className={styles.modeBody}>{notice.body}</p>
         </div>
       </section>
+
+      <section className={styles.localSdrSection} aria-label="Local SDR Receiver">
+        <div className={styles.localSdrHeader}>
+          <div className={styles.localSdrTitleGroup}>
+            <span className={styles.localSdrTitle}>Local SDR Receiver</span>
+            <span className={styles.localSdrDesc}>WebUSB RTL2832U hardware tuner</span>
+          </div>
+          <Button
+            variant={showLocalSdr ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={() => setShowLocalSdr((prev) => !prev)}
+          >
+            {showLocalSdr ? 'Hide Local SDR' : 'Local SDR'}
+          </Button>
+        </div>
+        {showLocalSdr && (
+          <Suspense
+            fallback={
+              <div className={styles.sdrLoading}>
+                <Skeleton width="100%" height="160px" shape="block" />
+              </div>
+            }
+          >
+            <LocalSdrPanel />
+          </Suspense>
+        )}
+      </section>
+
       {catalog.sources.length === 0 ? (
         <p className={styles.empty}>This server has no registered sources.</p>
       ) : (
