@@ -245,6 +245,22 @@ export function SettingsPanel({ className }: SettingsPanelProps) {
         <div className={styles.settingRow}>
           <div className={styles.settingHeader}>
             <div>
+              <div className={styles.settingLabel}>Starry Sky & Milky Way</div>
+              <div className={styles.settingSubtext}>
+                Yale Bright Star Catalogue point sprites and Milky Way background
+              </div>
+            </div>
+          </div>
+          <Toggle
+            aria-label="Enable starry sky and milky way"
+            checked={preferences.starrySky}
+            onCheckedChange={(checked) => preferences.setStarrySky(checked)}
+          />
+        </div>
+
+        <div className={styles.settingRow}>
+          <div className={styles.settingHeader}>
+            <div>
               <div className={styles.settingLabel}>Cockpit Weather Clouds</div>
               <div className={styles.settingSubtext}>
                 Weather-backed cloud deck over the cockpit view, 12–15 fps frame budget

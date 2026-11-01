@@ -23,6 +23,7 @@ import {
   Ion,
   PointPrimitiveCollection,
   PolylineCollection,
+  type SkyBox,
 } from '@cesium/engine';
 import type {
   AircraftTrack,
@@ -91,6 +92,7 @@ import {
 } from './renderers/recentImagery';
 import { SatelliteRenderer } from './renderers/satellites';
 import { SelectionHalo } from './renderers/selection';
+import { StarrySky } from './renderers/starrySky';
 import { aircraftAltitudeM, hasValidPosition } from './renderers/symbology';
 import { TransitRenderer } from './renderers/transit';
 import {
@@ -100,6 +102,14 @@ import {
   toMapColors,
 } from './renderers/types';
 import { VesselRenderer } from './renderers/vessels';
+import {
+  advanceRouteFlight,
+  createRouteFlight,
+  levelCameraRoll,
+  parseRouteCoordinates,
+  probeMeshFloorM,
+  type RouteFlightState,
+} from './routeCinematics';
 import { cssTokenReader, readPalette } from './tokens';
 import { EntityTrackingService, type TrackingState } from './tracking';
 import { sameView, toViewState, viewEdgeSamples } from './view';
@@ -161,9 +171,16 @@ export class GlobeEngine implements GlobeController {
   #lastRenderErrorAt = 0;
   #bloomEnabled = false;
   #bloomIntensity = BLOOM_INTENSITY_DEFAULT;
+  #starrySky: StarrySky | null = null;
+  #starrySkyEnabled = true;
   #pendingArrivalGuard: GeoPoint | null = null;
   #guardCancel: (() => void) | null = null;
   #arrivalGeneration = 0;
+  #activeRouteFlight: {
+    state: RouteFlightState;
+    onFinish?: (() => void) | undefined;
+  } | null = null;
+  #lastRouteFlightTime: number | null = null;
 
   constructor(options: GlobeMountOptions) {
     this.#options = options;
@@ -214,6 +231,16 @@ export class GlobeEngine implements GlobeController {
     scene.backgroundColor = groundColor();
     scene.highDynamicRange = false;
     applyBloomToScene(scene, this.#bloomEnabled, this.#bloomIntensity);
+
+    const starrySky = new StarrySky({
+      requestRender: () => {
+        if (!widget.isDestroyed()) widget.scene.requestRender();
+      },
+    });
+    this.#starrySky = starrySky;
+    if (this.#starrySkyEnabled) {
+      scene.skyBox = starrySky as unknown as SkyBox;
+    }
 
     const globe = scene.globe;
     if (globe) {
@@ -346,18 +373,22 @@ export class GlobeEngine implements GlobeController {
     cleanup.push(() => recentImagery.destroy());
     cleanup.push(() => heatmap.destroy());
     cleanup.push(() => celestialRing.destroy());
+    cleanup.push(() => starrySky.destroy());
     if (scene.preUpdate?.addEventListener) {
       cleanup.push(
         scene.preUpdate.addEventListener(() => {
           if (this.isFollowing() && !scene.isDestroyed()) {
             tracking.tick(performance.now());
           }
+          if (this.isRouteFlightActive() && !scene.isDestroyed()) {
+            this.#tickRouteFlight();
+          }
         }),
       );
     }
     cleanup.push(
       scene.postRender.addEventListener(() => {
-        if (this.isFollowing() && !scene.isDestroyed()) {
+        if ((this.isFollowing() || this.isRouteFlightActive()) && !scene.isDestroyed()) {
           scene.requestRender();
         }
       }),
@@ -371,6 +402,9 @@ export class GlobeEngine implements GlobeController {
       this.#arrivalGeneration += 1;
       if (this.isFollowing()) {
         this.stopFollowing();
+      }
+      if (this.isRouteFlightActive()) {
+        this.stopRouteFlight();
       }
       this.#cameraIntentListeners.emit(undefined);
     };
@@ -592,6 +626,88 @@ export class GlobeEngine implements GlobeController {
     return this.#mounted?.directions.getRoute() ?? null;
   }
 
+  flyRoute(
+    route: Route,
+    options?: { speed?: 'slow' | 'normal' | 'fast'; onFinish?: () => void },
+  ): void {
+    this.stopRouteFlight();
+    if (this.isFollowing()) {
+      this.stopFollowing();
+    }
+    const m = this.#mounted;
+    if (!m) return;
+
+    const { pts, cumM } = parseRouteCoordinates(route);
+    const totalDist = cumM[cumM.length - 1];
+    if (pts.length < 2 || totalDist === undefined || totalDist <= 0) {
+      options?.onFinish?.();
+      return;
+    }
+
+    const scene = m.widget.scene;
+    const cameraHeightM = scene.camera.positionCartographic?.height;
+    const state = createRouteFlight({
+      pts,
+      cumM,
+      speed: options?.speed ?? 'normal',
+      probeFn: (cells) => probeMeshFloorM(scene, cells),
+      cameraHeightM,
+      reducedMotion: prefersReducedMotion(),
+    });
+
+    this.#activeRouteFlight = {
+      state,
+      onFinish: options?.onFinish,
+    };
+    this.#lastRouteFlightTime = null;
+
+    scene.requestRender();
+  }
+
+  stopRouteFlight(): void {
+    if (!this.#activeRouteFlight) return;
+    this.#activeRouteFlight = null;
+    this.#lastRouteFlightTime = null;
+    const m = this.#mounted;
+    if (m) {
+      levelCameraRoll(m.widget.scene.camera);
+      m.widget.scene.requestRender();
+    }
+  }
+
+  isRouteFlightActive(): boolean {
+    return this.#activeRouteFlight !== null;
+  }
+
+  #tickRouteFlight(): void {
+    if (!this.#activeRouteFlight || !this.#mounted) return;
+    const now = performance.now();
+    const dt = this.#lastRouteFlightTime === null ? 0 : (now - this.#lastRouteFlightTime) / 1000;
+    this.#lastRouteFlightTime = now;
+
+    const { state, onFinish } = this.#activeRouteFlight;
+    const frame = advanceRouteFlight(state, dt);
+
+    if (!frame.arming && frame.eye && frame.direction && frame.up) {
+      const scene = this.#mounted.widget.scene;
+      scene.camera.setView({
+        destination: frame.eye,
+        orientation: {
+          direction: frame.direction,
+          up: frame.up,
+        },
+      });
+    }
+
+    if (frame.finished) {
+      this.#activeRouteFlight = null;
+      this.#lastRouteFlightTime = null;
+      levelCameraRoll(this.#mounted.widget.scene.camera);
+      this.#mounted.widget.scene.requestRender();
+      onFinish?.();
+    }
+  }
+
   setRecentImageryBox(box: BBox | null): void {
     this.#mounted?.recentImagery.setBox(box);
   }
@@ -646,6 +762,20 @@ export class GlobeEngine implements GlobeController {
     if (!m) return;
     m.celestialRing.setEnabled(enabled);
     m.widget.scene.requestRender();
+  }
+
+  /** Shows or hides the starry sky background (catalogue stars and Milky Way). */
+  setStarrySky(enabled: boolean): void {
+    this.#starrySkyEnabled = enabled;
+    if (this.#starrySky) {
+      this.#starrySky.show = enabled;
+    }
+    const m = this.#mounted;
+    if (m && !m.widget.isDestroyed()) {
+      m.widget.scene.skyBox =
+        enabled && this.#starrySky ? (this.#starrySky as unknown as SkyBox) : undefined;
+      m.widget.scene.requestRender();
+    }
   }
 
   /** Controls bloom post-processing and intensity (0–200). */
@@ -846,6 +976,7 @@ export class GlobeEngine implements GlobeController {
   }
 
   flyTo(target: FlyTarget): void {
+    if (this.isRouteFlightActive()) this.stopRouteFlight();
     this.#pendingArrivalGuard = null;
     this.#guardCancel?.();
     this.#guardCancel = null;
@@ -901,6 +1032,7 @@ export class GlobeEngine implements GlobeController {
   }
 
   home(): void {
+    if (this.isRouteFlightActive()) this.stopRouteFlight();
     this.#pendingArrivalGuard = null;
     this.#guardCancel?.();
     this.#guardCancel = null;
@@ -910,6 +1042,7 @@ export class GlobeEngine implements GlobeController {
   }
 
   zoomIn(): void {
+    if (this.isRouteFlightActive()) this.stopRouteFlight();
     this.#pendingArrivalGuard = null;
     this.#guardCancel?.();
     this.#guardCancel = null;
@@ -919,6 +1052,7 @@ export class GlobeEngine implements GlobeController {
   }
 
   zoomOut(): void {
+    if (this.isRouteFlightActive()) this.stopRouteFlight();
     this.#pendingArrivalGuard = null;
     this.#guardCancel?.();
     this.#guardCancel = null;
@@ -928,6 +1062,7 @@ export class GlobeEngine implements GlobeController {
   }
 
   resetNorth(): void {
+    if (this.isRouteFlightActive()) this.stopRouteFlight();
     this.#pendingArrivalGuard = null;
     this.#guardCancel?.();
     this.#guardCancel = null;
@@ -951,6 +1086,7 @@ export class GlobeEngine implements GlobeController {
   }
 
   restoreCamera(pose: CameraPose): void {
+    if (this.isRouteFlightActive()) this.stopRouteFlight();
     const scene = this.#mounted?.widget.scene;
     if (!scene) return;
     this.#pendingArrivalGuard = null;
@@ -1020,10 +1156,14 @@ export class GlobeEngine implements GlobeController {
   }
 
   destroy(): void {
+    if (this.isRouteFlightActive()) this.stopRouteFlight();
     this.#pendingArrivalGuard = null;
     this.#guardCancel?.();
     this.#guardCancel = null;
     this.#arrivalGeneration += 1;
+    this.#activeRouteFlight = null;
+    this.#lastRouteFlightTime = null;
+    this.#starrySky = null;
     const m = this.#mounted;
     this.#mounted = null;
     this.#following = null;

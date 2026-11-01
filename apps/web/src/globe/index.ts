@@ -123,6 +123,15 @@ export interface GlobeController {
   selectRouteStep(index: number | null): void;
   /** Returns the active route, if any. */
   getRoute(): Route | null;
+  /** Flies a cinematic camera along the active route or provided route. */
+  flyRoute(
+    route: Route,
+    options?: { speed?: 'slow' | 'normal' | 'fast'; onFinish?: () => void },
+  ): void;
+  /** Stops any active route flight and levels the horizon. */
+  stopRouteFlight(): void;
+  /** Whether a route flight is currently active. */
+  isRouteFlightActive(): boolean;
   /** Replaces what the globe shows for boundaries (Natural Earth vector lines). */
   setBoundaries(features: readonly BoundaryFeature[]): void;
   /** Sets boundary visibility per class (international land, disputed, breakaway, maritime). */
@@ -162,6 +171,8 @@ export interface GlobeController {
   clearHeatmap(): void;
   /** Shows or hides the screen-space celestial reference ring (full-globe view). */
   setCelestialRing(enabled: boolean): void;
+  /** Shows or hides the starry sky background (catalogue stars and Milky Way). */
+  setStarrySky(enabled: boolean): void;
   /** Controls bloom post-processing and intensity (0–200). */
   setBloom(enabled: boolean, intensity?: number): void;
   /** Sets real-time air quality readings on the globe. */

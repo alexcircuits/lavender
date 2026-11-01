@@ -228,6 +228,9 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
         ) {
           ui.getState().globe?.setBloom(prefs.bloomEnabled, prefs.bloomIntensity);
         }
+        if (prefs.starrySky !== prev.starrySky) {
+          ui.getState().globe?.setStarrySky(prefs.starrySky);
+        }
         if (userPrefsTimer) clearTimeout(userPrefsTimer);
         userPrefsTimer = setTimeout(() => {
           userPrefsTimer = null;
@@ -240,6 +243,7 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
             defaultImagery: prefs.defaultImagery,
             celestialRingEnabled: prefs.celestialRingEnabled,
             cockpitCloudsEnabled: prefs.cockpitCloudsEnabled,
+            starrySky: prefs.starrySky,
             bloomEnabled: prefs.bloomEnabled,
             bloomIntensity: prefs.bloomIntensity,
           });
@@ -299,6 +303,7 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
       syncAnnotations();
       const prefs = stores.preferences.getState();
       globe.setBloom(prefs.bloomEnabled, prefs.bloomIntensity);
+      globe.setStarrySky(prefs.starrySky);
     },
     detachGlobe() {
       offCameraIntent?.();

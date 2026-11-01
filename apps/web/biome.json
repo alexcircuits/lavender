@@ -12,6 +12,7 @@
       "!**/node_modules",
       "!**/dist",
       "!**/public/cesium",
+      "!**/public/assets",
       "!**/test-results",
       "!**/playwright-report",
       "!src/contracts/generated"

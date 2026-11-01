@@ -138,4 +138,48 @@ describe('DirectionsPanel', () => {
       expect(screen.getByText('route leg too long')).toBeInTheDocument();
     });
   });
+
+  it('controls route flight cinematics and reacts to camera intent', async () => {
+    const { h, user } = await setup();
+    const findRouteBtn = screen.getByRole('button', { name: 'Find Route' });
+    await user.click(findRouteBtn);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Fly Route' })).toBeInTheDocument();
+      expect(screen.getByRole('radiogroup', { name: 'Flight speed' })).toBeInTheDocument();
+    });
+
+    const flyBtn = screen.getByRole('button', { name: 'Fly Route' });
+    await user.click(flyBtn);
+
+    expect(h.globe?.globe.flyRoute).toHaveBeenCalledWith(
+      expect.objectContaining({ ok: true, distanceM: 1000 }),
+      expect.objectContaining({ speed: 'normal' }),
+    );
+
+    // Button should now show "Stop Flight"
+    expect(screen.getByRole('button', { name: 'Stop Flight' })).toBeInTheDocument();
+
+    // Clicking "Stop Flight" stops flight
+    const stopBtn = screen.getByRole('button', { name: 'Stop Flight' });
+    await user.click(stopBtn);
+    expect(h.globe?.globe.stopRouteFlight).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Fly Route' })).toBeInTheDocument();
+
+    // Selecting another speed and flying
+    const fastRadio = screen.getByRole('radio', { name: 'Fast' });
+    await user.click(fastRadio);
+    await user.click(screen.getByRole('button', { name: 'Fly Route' }));
+    expect(h.globe?.globe.flyRoute).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ speed: 'fast' }),
+    );
+
+    // User camera intent cancels flight in UI
+    expect(screen.getByRole('button', { name: 'Stop Flight' })).toBeInTheDocument();
+    h.globe?.cameraIntent();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Fly Route' })).toBeInTheDocument();
+    });
+  });
 });

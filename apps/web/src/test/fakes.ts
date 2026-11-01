@@ -548,7 +548,11 @@ export function fakeGlobe(): FakeGlobe {
     rollRad: 0,
   };
   let centre: GeoPoint | null = { lat: pose.lat, lon: pose.lon };
+  let routeFlightActive = false;
   const cameraIntent = () => {
+    if (routeFlightActive) {
+      routeFlightActive = false;
+    }
     for (const listener of intents) listener();
   };
   const globe = {
@@ -569,6 +573,15 @@ export function fakeGlobe(): FakeGlobe {
     setRouteWaypoints: vi.fn(),
     selectRouteStep: vi.fn(),
     getRoute: vi.fn(() => null),
+    flyRoute: vi.fn(
+      (_route: Route, _options?: { speed?: 'slow' | 'normal' | 'fast'; onFinish?: () => void }) => {
+        routeFlightActive = true;
+      },
+    ),
+    stopRouteFlight: vi.fn(() => {
+      routeFlightActive = false;
+    }),
+    isRouteFlightActive: vi.fn(() => routeFlightActive),
     setBoundaries: vi.fn(),
     setBoundaryClassVisibility: vi.fn(),
     getBoundaryClassVisibility: vi.fn(() => ({
@@ -634,6 +647,7 @@ export function fakeGlobe(): FakeGlobe {
     setHeatmapOpacity: vi.fn(),
     clearHeatmap: vi.fn(),
     setCelestialRing: vi.fn(),
+    setStarrySky: vi.fn(),
     setBloom: vi.fn(),
     setAirQualityReadings: vi.fn(),
     getAirQualityReading: vi.fn(() => undefined),

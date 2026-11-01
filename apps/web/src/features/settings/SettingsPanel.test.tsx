@@ -113,6 +113,18 @@ describe('SettingsPanel', () => {
     expect(harness.runtime.stores.preferences.getState().celestialRingEnabled).toBe(false);
   });
 
+  it('toggles starry sky and milky way preference', async () => {
+    harness = await startHarness();
+    renderWithRuntime(harness.runtime, <SettingsPanel />);
+
+    const toggle = screen.getByRole('switch', { name: /enable starry sky and milky way/i });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    expect(harness.runtime.stores.preferences.getState().starrySky).toBe(false);
+    fireEvent.click(toggle);
+    expect(harness.runtime.stores.preferences.getState().starrySky).toBe(true);
+  });
+
   it('toggles bloom and adjusts bloom intensity slider', async () => {
     harness = await startHarness();
     renderWithRuntime(harness.runtime, <SettingsPanel />);

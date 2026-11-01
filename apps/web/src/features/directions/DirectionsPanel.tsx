@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Route, RouteStep } from '../../contracts';
 import {
   Button,
@@ -7,18 +7,27 @@ import {
   ErrorState,
   NavigationArrowIcon,
   Panel,
+  PlayIcon,
   SegmentedControl,
   type SegmentedOption,
+  SquareIcon,
 } from '../../design';
 import { useGlobe, usePlatform } from '../../runtime';
 import styles from './directions.module.css';
 
 export type RouteProfile = 'car' | 'bike' | 'foot';
+export type FlightSpeed = 'slow' | 'normal' | 'fast';
 
 const PROFILE_OPTIONS: readonly SegmentedOption<RouteProfile>[] = [
   { value: 'car', label: 'Drive' },
   { value: 'bike', label: 'Cycle' },
   { value: 'foot', label: 'Walk' },
+];
+
+const SPEED_OPTIONS: readonly SegmentedOption<FlightSpeed>[] = [
+  { value: 'slow', label: 'Slow' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'fast', label: 'Fast' },
 ];
 
 export interface DirectionsPanelProps {
@@ -66,6 +75,31 @@ export function DirectionsPanel({ className }: DirectionsPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [route, setRoute] = useState<Route | null>(null);
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
+  const [flightSpeed, setFlightSpeed] = useState<FlightSpeed>('normal');
+  const [isFlying, setIsFlying] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!globe) return;
+    return globe.onCameraIntent(() => {
+      setIsFlying(false);
+    });
+  }, [globe]);
+
+  const handleToggleFlight = () => {
+    if (!route || !globe) return;
+    if (isFlying) {
+      globe.stopRouteFlight();
+      setIsFlying(false);
+    } else {
+      setIsFlying(true);
+      globe.flyRoute(route, {
+        speed: flightSpeed,
+        onFinish: () => {
+          setIsFlying(false);
+        },
+      });
+    }
+  };
 
   const handleSetOriginFromView = () => {
     const centre = globe?.centrePosition();
@@ -113,6 +147,10 @@ export function DirectionsPanel({ className }: DirectionsPanelProps) {
       return;
     }
 
+    if (isFlying) {
+      globe?.stopRouteFlight();
+      setIsFlying(false);
+    }
     setLoading(true);
     setError(null);
     globe?.setRouteWaypoints(originCoords, destCoords);
@@ -143,6 +181,10 @@ export function DirectionsPanel({ className }: DirectionsPanelProps) {
   };
 
   const handleClear = () => {
+    if (isFlying) {
+      globe?.stopRouteFlight();
+      setIsFlying(false);
+    }
     setRoute(null);
     setError(null);
     setSelectedStep(null);
@@ -151,6 +193,10 @@ export function DirectionsPanel({ className }: DirectionsPanelProps) {
   };
 
   const handleStepClick = (step: RouteStep) => {
+    if (isFlying) {
+      globe?.stopRouteFlight();
+      setIsFlying(false);
+    }
     setSelectedStep(step.index);
     globe?.selectRouteStep(step.index);
     globe?.flyTo({
@@ -253,6 +299,33 @@ export function DirectionsPanel({ className }: DirectionsPanelProps) {
             <div className={styles.stat}>
               <span className={styles.statValue}>{route.steps ? route.steps.length : '0'}</span>
               <span className={styles.statLabel}>Maneuvers</span>
+            </div>
+          </div>
+
+          <div className={styles.flightRow}>
+            <Button
+              variant={isFlying ? 'secondary' : 'primary'}
+              size="sm"
+              icon={isFlying ? SquareIcon : PlayIcon}
+              onClick={handleToggleFlight}
+            >
+              {isFlying ? 'Stop Flight' : 'Fly Route'}
+            </Button>
+            <div className={styles.speedControl}>
+              <SegmentedControl
+                aria-label="Flight speed"
+                options={SPEED_OPTIONS}
+                value={flightSpeed}
+                onValueChange={(next: FlightSpeed) => {
+                  setFlightSpeed(next);
+                  if (isFlying) {
+                    globe?.flyRoute(route, {
+                      speed: next,
+                      onFinish: () => setIsFlying(false),
+                    });
+                  }
+                }}
+              />
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 import { Cartesian3, Event as CesiumEvent, Rectangle } from '@cesium/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CameraSource, CctvDetectionsResponse, TransitTrail } from '../contracts';
+import type { CameraSource, CctvDetectionsResponse, Route, TransitTrail } from '../contracts';
 import { GlobeEngine } from './GlobeEngine';
 
 const fixtures = vi.hoisted(() => {
@@ -267,6 +267,7 @@ function setup() {
   let flight: MockFlight | null = null;
   const scene = {
     canvas,
+    skyBox: undefined as unknown,
     screenSpaceCameraController: {},
     primitives: {
       add: vi.fn((p: unknown) => p),
@@ -649,6 +650,52 @@ describe('GlobeEngine settled view publication', () => {
     await vi.advanceTimersByTimeAsync(700);
 
     expect(scene.camera.flyTo).toHaveBeenCalledTimes(2);
+    engine.destroy();
+  });
+
+  it('manages route flight lifecycle, frame advancement, and user cancellation', () => {
+    const { engine, scene } = setup();
+    const route: Route = {
+      ok: true,
+      profile: 'car',
+      distanceM: 500,
+      durationS: 30,
+      geometry: [
+        [-97.76, 30.26],
+        [-97.74, 30.26],
+      ],
+    };
+
+    expect(engine.isRouteFlightActive()).toBe(false);
+    const onFinish = vi.fn();
+    engine.flyRoute(route, { speed: 'fast', onFinish });
+
+    expect(engine.isRouteFlightActive()).toBe(true);
+    expect(scene.requestRender).toHaveBeenCalled();
+
+    // Trigger preUpdate tick
+    scene.preUpdate.raiseEvent();
+    expect(scene.camera.setView).toHaveBeenCalled();
+
+    // User camera interaction cancels route flight
+    scene.canvas.dispatchEvent(new Event('pointerdown'));
+    expect(engine.isRouteFlightActive()).toBe(false);
+
+    engine.destroy();
+  });
+
+  it('manages starry sky background toggle and updates scene.skyBox', () => {
+    const { engine, scene } = setup();
+
+    expect(scene.skyBox).toBeDefined();
+
+    engine.setStarrySky(false);
+    expect(scene.skyBox).toBeUndefined();
+    expect(scene.requestRender).toHaveBeenCalled();
+
+    engine.setStarrySky(true);
+    expect(scene.skyBox).toBeDefined();
+
     engine.destroy();
   });
 });

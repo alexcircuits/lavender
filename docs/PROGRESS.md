@@ -492,3 +492,19 @@ then run `check.sh` and e2e. The lanes' documentation notes are collected in
   - Integrated into `GlobeEngine.ts` `#onArrival` lifecycle.
   - 26/26 unit tests in `cameraGroundGuard.test.ts` and 25/25 unit tests in `cameraCinematics.test.ts` passing.
 
+## 2026-11-01 — Route Flight Cinematics (LB-166) & Starfield Photometry (LB-167)
+- **LB-166 Route Flight Cinematics & Tour Director**:
+  - Implemented `routeCinematics.ts`: path chord interpolation, $C^1$ trapezoid velocity ramping ($a = 6\text{ m/s}^2, d = 8\text{ m/s}^2$), locked $-32^\circ$ pitch attitude, coordinated centrifugal banking ($\pm 18^\circ$), lookahead gaze leading, altitude breathing, and terrain clearance floor caching ($60\text{ m}$ clearance).
+  - Wired `flyRoute`, `stopRouteFlight`, and `isRouteFlightActive` into `GlobeController` and `GlobeEngine.ts`.
+  - Added "Fly Route" / "Stop Flight" button with 3-speed selector in `DirectionsPanel.tsx`.
+  - Immediate user camera interaction cancellation with horizon levelling.
+  - 26 unit tests in `routeCinematics.test.ts` passing.
+- **LB-167 Starfield Photometry & Celestial Sky Background**:
+  - Converted `legacy/src/sky/starrySky.js` to `apps/web/src/globe/renderers/starrySky.ts` implementing Cesium `Scene#skyBox` protocol.
+  - Custom WebGL point sprite shader for 9,096 Yale Bright Stars with Gaussian point spread and blackbody spectrum via Zig WASM micro-kernel `lavender_sky_build_star_vertices`.
+  - Milky Way cubemap texture with interleaved gradient dither and adjustable intensity.
+  - Inertial ICRF-to-fixed celestial rotation with IAU 2006 tables and TEME fallback.
+  - Display & Imagery settings toggle in `SettingsPanel.tsx` and runtime preferences.
+  - 9 unit tests in `starrySky.test.ts` passing; initial JS bundle **250.0 KiB gzip <= 250.0 KiB budget**.
+
+

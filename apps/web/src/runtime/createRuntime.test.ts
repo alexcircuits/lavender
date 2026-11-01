@@ -181,6 +181,24 @@ describe('createRuntime', () => {
     expect(globe.setBloom).toHaveBeenLastCalledWith(true, 175);
   });
 
+  it('notifies attached globe when starry sky preference changes', async () => {
+    const runtime = createRuntime(platform);
+    runtime.start();
+    const { globe } = fakeGlobe();
+    runtime.attachGlobe(globe);
+
+    // Initial attach configures starry sky (default true)
+    expect(globe.setStarrySky).toHaveBeenCalledWith(true);
+
+    // Toggle starry sky off
+    runtime.stores.preferences.getState().setStarrySky(false);
+    expect(globe.setStarrySky).toHaveBeenLastCalledWith(false);
+
+    // Toggle starry sky on
+    runtime.stores.preferences.getState().setStarrySky(true);
+    expect(globe.setStarrySky).toHaveBeenLastCalledWith(true);
+  });
+
   it('gives an attached globe the imagery and follows imagery changes', async () => {
     const runtime = createRuntime(platform);
     runtime.start();
