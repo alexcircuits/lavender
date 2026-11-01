@@ -1,4 +1,5 @@
 import { createStore } from 'zustand';
+import type { SupportedLocale } from '../i18n';
 
 export type CoordinateFormat = 'dd' | 'dms' | 'mgrs';
 export type UnitSystem = 'nautical' | 'metric' | 'imperial';
@@ -6,6 +7,7 @@ export type MotionPreference = 'system' | 'reduced' | 'full';
 export type VisualPreset = 'normal' | 'noir' | 'thermal' | 'nvg' | 'crt';
 
 export interface UserPreferences {
+  readonly locale: SupportedLocale;
   readonly coordinateFormat: CoordinateFormat;
   readonly unitSystem: UnitSystem;
   readonly motion: MotionPreference;
@@ -22,6 +24,7 @@ export interface UserPreferences {
 }
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
+  locale: 'en',
   coordinateFormat: 'dd',
   unitSystem: 'metric',
   motion: 'system',
@@ -41,6 +44,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
 };
 
 export interface PreferencesState extends UserPreferences {
+  setLocale(locale: SupportedLocale): Promise<void>;
   setCoordinateFormat(coordinateFormat: CoordinateFormat): void;
   setUnitSystem(unitSystem: UnitSystem): void;
   setMotion(motion: MotionPreference): void;
@@ -60,6 +64,11 @@ export interface PreferencesState extends UserPreferences {
 export const createPreferencesStore = () =>
   createStore<PreferencesState>()((set) => ({
     ...DEFAULT_USER_PREFERENCES,
+    setLocale: async (locale) => {
+      const { setLocale: applyLocale } = await import('../i18n');
+      await applyLocale(locale);
+      set({ locale });
+    },
     setCoordinateFormat: (coordinateFormat) => set({ coordinateFormat }),
     setUnitSystem: (unitSystem) => set({ unitSystem }),
     setMotion: (motion) => set({ motion }),

@@ -9,6 +9,7 @@ import '@cesium/engine/Source/Widget/CesiumWidget.css';
 import {
   Cartesian2,
   Cartesian3,
+  Cartographic,
   Math as CesiumMath,
   Color,
   Ellipsoid,
@@ -45,6 +46,7 @@ import type {
 import type { AnnotationDraft, MapAnnotation } from '../features/annotations/model';
 import { applyBloomToScene, BLOOM_INTENSITY_DEFAULT } from './bloom';
 import { CameraService, HOME_VIEW, MAX_HEIGHT_M, prefersReducedMotion } from './camera';
+import { guardCameraAboveGround } from './cameraGroundGuard';
 import { captureFrame } from './capture';
 import { cesiumCameraPort } from './cesiumCamera';
 import { watchContextLoss } from './contextLoss';
@@ -159,6 +161,9 @@ export class GlobeEngine implements GlobeController {
   #lastRenderErrorAt = 0;
   #bloomEnabled = false;
   #bloomIntensity = BLOOM_INTENSITY_DEFAULT;
+  #pendingArrivalGuard: GeoPoint | null = null;
+  #guardCancel: (() => void) | null = null;
+  #arrivalGeneration = 0;
 
   constructor(options: GlobeMountOptions) {
     this.#options = options;
@@ -360,6 +365,10 @@ export class GlobeEngine implements GlobeController {
     cleanup.push(scene.renderError.addEventListener((_s, error) => this.#renderError(error)));
     cleanup.push(scene.camera.moveEnd.addEventListener(() => this.#emitView()));
     const cameraIntent = () => {
+      this.#pendingArrivalGuard = null;
+      this.#guardCancel?.();
+      this.#guardCancel = null;
+      this.#arrivalGeneration += 1;
       if (this.isFollowing()) {
         this.stopFollowing();
       }
@@ -390,7 +399,10 @@ export class GlobeEngine implements GlobeController {
     });
     cleanup.push(offFirstFrame);
     cleanup.push(watchContextLoss(widget.canvas, { onLost: (error) => this.#report(error) }));
-    const cameraPort = cesiumCameraPort(scene, () => this.#emitView());
+    const cameraPort = cesiumCameraPort(scene, () => {
+      this.#emitView();
+      this.#onArrival();
+    });
     cleanup.push(() => cameraPort.destroy());
 
     return {
@@ -834,26 +846,92 @@ export class GlobeEngine implements GlobeController {
   }
 
   flyTo(target: FlyTarget): void {
+    this.#pendingArrivalGuard = null;
+    this.#guardCancel?.();
+    this.#guardCancel = null;
+    this.#arrivalGeneration += 1;
     this.#cameraIntentListeners.emit(undefined);
-    this.#mounted?.camera.flyTo(target);
+    const m = this.#mounted;
+    if (!m) return;
+
+    let destinationPoint: GeoPoint | null = null;
+    let cameraTarget: FlyTarget = target;
+
+    if (target.kind === 'point') {
+      destinationPoint = target.position;
+    } else if (target.kind === 'bbox') {
+      destinationPoint = {
+        lat: (target.bbox.south + target.bbox.north) / 2,
+        lon: (target.bbox.west + target.bbox.east) / 2,
+      };
+    } else if (target.kind === 'entity') {
+      const located = this.#locateEntity(target.entity);
+      if (located) {
+        const carto = Cartographic.fromCartesian(located.position);
+        destinationPoint = {
+          lat: CesiumMath.toDegrees(carto.latitude),
+          lon: CesiumMath.toDegrees(carto.longitude),
+        };
+        cameraTarget =
+          target.heightM !== undefined
+            ? {
+                kind: 'point',
+                position: destinationPoint,
+                heightM: target.heightM,
+              }
+            : {
+                kind: 'point',
+                position: destinationPoint,
+              };
+      }
+    }
+
+    if (
+      destinationPoint &&
+      Number.isFinite(destinationPoint.lat) &&
+      Number.isFinite(destinationPoint.lon)
+    ) {
+      this.#pendingArrivalGuard = {
+        lat: destinationPoint.lat,
+        lon: destinationPoint.lon,
+      };
+    }
+
+    m.camera.flyTo(cameraTarget);
   }
 
   home(): void {
+    this.#pendingArrivalGuard = null;
+    this.#guardCancel?.();
+    this.#guardCancel = null;
+    this.#arrivalGeneration += 1;
     this.#cameraIntentListeners.emit(undefined);
     this.#mounted?.camera.home();
   }
 
   zoomIn(): void {
+    this.#pendingArrivalGuard = null;
+    this.#guardCancel?.();
+    this.#guardCancel = null;
+    this.#arrivalGeneration += 1;
     this.#cameraIntentListeners.emit(undefined);
     this.#mounted?.camera.zoomIn();
   }
 
   zoomOut(): void {
+    this.#pendingArrivalGuard = null;
+    this.#guardCancel?.();
+    this.#guardCancel = null;
+    this.#arrivalGeneration += 1;
     this.#cameraIntentListeners.emit(undefined);
     this.#mounted?.camera.zoomOut();
   }
 
   resetNorth(): void {
+    this.#pendingArrivalGuard = null;
+    this.#guardCancel?.();
+    this.#guardCancel = null;
+    this.#arrivalGeneration += 1;
     this.#cameraIntentListeners.emit(undefined);
     this.#mounted?.camera.resetNorth();
   }
@@ -875,6 +953,10 @@ export class GlobeEngine implements GlobeController {
   restoreCamera(pose: CameraPose): void {
     const scene = this.#mounted?.widget.scene;
     if (!scene) return;
+    this.#pendingArrivalGuard = null;
+    this.#guardCancel?.();
+    this.#guardCancel = null;
+    this.#arrivalGeneration += 1;
     scene.camera.cancelFlight();
     scene.camera.setView({
       destination: Cartesian3.fromDegrees(pose.lon, pose.lat, pose.heightM),
@@ -938,6 +1020,10 @@ export class GlobeEngine implements GlobeController {
   }
 
   destroy(): void {
+    this.#pendingArrivalGuard = null;
+    this.#guardCancel?.();
+    this.#guardCancel = null;
+    this.#arrivalGeneration += 1;
     const m = this.#mounted;
     this.#mounted = null;
     this.#following = null;
@@ -958,6 +1044,45 @@ export class GlobeEngine implements GlobeController {
     } finally {
       if (!m.widget.isDestroyed()) m.widget.destroy();
     }
+  }
+
+  #onArrival(): void {
+    const point = this.#pendingArrivalGuard;
+    const m = this.#mounted;
+    if (!point || !m) return;
+    this.#pendingArrivalGuard = null;
+    const generation = this.#arrivalGeneration;
+    this.#guardCancel?.();
+    this.#guardCancel = guardCameraAboveGround(
+      m.widget,
+      { lat: point.lat, lon: point.lon },
+      {
+        isStale: () => generation !== this.#arrivalGeneration || this.#mounted === null,
+      },
+    );
+  }
+
+  #locateEntity(ref: EntityRef): Located | undefined {
+    const m = this.#mounted;
+    if (!m) return undefined;
+    if (ref.feed === 'boundaries') {
+      const located = m.boundaries.locate(ref.id);
+      return located ? { position: located.position, symbolPx: located.symbolPx } : undefined;
+    }
+    if (ref.feed === 'cables') return m.cables.locate(ref.id);
+    if (ref.feed === 'cctv') return m.cctv.locate(ref.id);
+    if (ref.feed === 'air-quality') return m.airQuality.locate(ref.id);
+    if (ref.feed === 'gnss') return m.gnss.locate(ref.id);
+    if (ref.feed === 'radio') return m.radio.locate(ref.id);
+    if (ref.feed === 'alpr') return m.alpr.locate(ref.id);
+    if (ref.feed === 'directions-step') {
+      return m.directions.locateStep(Number(ref.id)) ?? undefined;
+    }
+    if (ref.feed === 'directions-waypoint') {
+      return m.directions.locateWaypoint(ref.id as 'origin' | 'destination') ?? undefined;
+    }
+    if (ref.feed === 'installations') return undefined;
+    return m.renderers.get(ref.feed)?.locate?.(ref.id);
   }
 
   #updateTrackingTarget(snapshot: FeedSnapshot): void {

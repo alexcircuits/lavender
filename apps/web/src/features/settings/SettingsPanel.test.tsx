@@ -23,6 +23,36 @@ describe('SettingsPanel', () => {
     expect(screen.getByRole('heading', { name: /about lavender/i })).toBeInTheDocument();
   });
 
+  it('updates language preference and loads locale', async () => {
+    const h = await startHarness();
+    harness = h;
+    renderWithRuntime(h.runtime, <SettingsPanel />);
+
+    // Default locale is 'en'
+    expect(h.runtime.stores.preferences.getState().locale).toBe('en');
+
+    // Switch to Russian
+    const ruOption = screen.getByText('Русский');
+    fireEvent.click(ruOption);
+    await waitFor(() => {
+      expect(h.runtime.stores.preferences.getState().locale).toBe('ru');
+    });
+
+    // Switch to Spanish
+    const esOption = screen.getByText('Español');
+    fireEvent.click(esOption);
+    await waitFor(() => {
+      expect(h.runtime.stores.preferences.getState().locale).toBe('es');
+    });
+
+    // Switch to Simplified Chinese
+    const zhOption = screen.getByText('简体中文');
+    fireEvent.click(zhOption);
+    await waitFor(() => {
+      expect(h.runtime.stores.preferences.getState().locale).toBe('zh-CN');
+    });
+  });
+
   it('updates coordinate format and unit system preferences', async () => {
     harness = await startHarness();
     renderWithRuntime(harness.runtime, <SettingsPanel />);

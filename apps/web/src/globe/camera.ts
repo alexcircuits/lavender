@@ -89,11 +89,14 @@ export function destinationFor(target: FlyTarget): Destination | null {
       heightM: clampHeight(Number.isFinite(heightM) ? heightM : DEFAULT_POINT_HEIGHT_M),
     };
   }
-  const { west, south, east, north } = target.bbox;
-  if (![west, south, east, north].every(Number.isFinite)) return null;
-  if (Math.abs(south) > 90 || Math.abs(north) > 90) return null;
-  const rectangle = paddedRectangle(target.bbox);
-  return rectangle.kind === 'rectangle' && rectangle.north > rectangle.south ? rectangle : null;
+  if (target.kind === 'bbox') {
+    const { west, south, east, north } = target.bbox;
+    if (![west, south, east, north].every(Number.isFinite)) return null;
+    if (Math.abs(south) > 90 || Math.abs(north) > 90) return null;
+    const rectangle = paddedRectangle(target.bbox);
+    return rectangle.kind === 'rectangle' && rectangle.north > rectangle.south ? rectangle : null;
+  }
+  return null;
 }
 
 /** Zoom distance proportional to the current height, bounded by the height limits. */

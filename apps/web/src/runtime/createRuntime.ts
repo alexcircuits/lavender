@@ -75,6 +75,10 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
         hydratedPrefs.bloomVersion ?? BLOOM_SCALE_VERSION,
       );
     }
+    const loc = hydratedPrefs.locale;
+    if (loc && loc !== 'en') {
+      void import('../i18n').then((m) => m.loadLocale(loc));
+    }
     stores.preferences.getState().hydrate(hydratedPrefs);
   }
   const initialState = workspace.getState();
@@ -228,6 +232,7 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
         userPrefsTimer = setTimeout(() => {
           userPrefsTimer = null;
           platform.preferences.set(USER_PREFERENCES_PREF_KEY, {
+            locale: prefs.locale,
             coordinateFormat: prefs.coordinateFormat,
             unitSystem: prefs.unitSystem,
             motion: prefs.motion,

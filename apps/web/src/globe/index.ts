@@ -85,7 +85,8 @@ export interface CameraPose {
 
 export type FlyTarget =
   | { readonly kind: 'point'; readonly position: GeoPoint; readonly heightM?: number }
-  | { readonly kind: 'bbox'; readonly bbox: BBox };
+  | { readonly kind: 'bbox'; readonly bbox: BBox }
+  | { readonly kind: 'entity'; readonly entity: EntityRef; readonly heightM?: number };
 
 export interface GlobeController {
   /** Replaces what the globe shows for `snapshot.feed`, updating primitives in place by id. */

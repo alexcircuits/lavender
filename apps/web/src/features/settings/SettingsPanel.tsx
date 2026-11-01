@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Badge, Button, cx, Panel, SegmentedControl, Toggle } from '../../design';
+import type { SupportedLocale } from '../../i18n';
 import type { SecretStatusResponse } from '../../platform/types';
 import { usePlatform, usePreferences, useSystem } from '../../runtime';
 import type {
@@ -28,6 +29,13 @@ const KNOWN_SECRETS: readonly SecretDefinition[] = [
   { id: 'll2', label: 'Launch Library 2 API token', envVar: 'LAVENDER_LL2_API_TOKEN' },
   { id: 'mapillary', label: 'Mapillary client token', envVar: 'LAVENDER_MAPILLARY_CLIENT_TOKEN' },
   { id: 'tomtom', label: 'TomTom API key', envVar: 'LAVENDER_TOMTOM_API_KEY' },
+];
+
+const LANGUAGE_OPTIONS = [
+  { value: 'en' as const, label: 'English' },
+  { value: 'es' as const, label: 'Español' },
+  { value: 'ru' as const, label: 'Русский' },
+  { value: 'zh-CN' as const, label: '简体中文' },
 ];
 
 export interface SettingsPanelProps {
@@ -336,6 +344,18 @@ export function SettingsPanel({ className }: SettingsPanelProps) {
           <p className={styles.sectionDescription}>
             Display formats for latitude, longitude, altitude, and velocity.
           </p>
+        </div>
+
+        <div className={styles.settingRow}>
+          <div className={styles.settingHeader}>
+            <span className={styles.settingLabel}>Language</span>
+          </div>
+          <SegmentedControl
+            aria-label="Language"
+            options={LANGUAGE_OPTIONS}
+            value={preferences.locale}
+            onValueChange={(val) => void preferences.setLocale(val as SupportedLocale)}
+          />
         </div>
 
         <div className={styles.settingRow}>

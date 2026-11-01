@@ -9,6 +9,17 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Done
 
+- **LB-120 Application Internationalization & Localization Engine**:
+  - **i18n Core & Reactive Store (`apps/web/src/i18n/`)**: Minimal zero-dependency localization architecture (`locale.ts`, `index.ts`). Dynamic, on-demand code-splitting for language catalogs (`es.json`, `ru.json`, `zh-CN.json`) via `import('./locales/*.json')` ensures zero bytes of translation overhead for default English users. Features robust pluralization (`tn`), parameter interpolation (`msg`), browser locale auto-detection, persistent locale storage, and locale-aware number/datetime formatters (`formatNumber`, `formatDateTime`).
+  - **Preferences & UI Wiring (`SettingsPanel.tsx`, `preferencesStore.ts`)**: Integrated language dropdown in Settings with native language names (English, Español, Русский, 简体中文), reactive runtime updates across the shell and panels.
+  - **Bundle Budget & Test Verification**: Workspace JS bundle **249.9 KiB gzip <= 250.0 KiB budget**; 24/24 unit tests in `i18n.test.ts` passing.
+
+- **LB-165 Camera Ground Guard & Surface Collision Prevention Kinematics**:
+  - **Surface Collision Prevention (`apps/web/src/globe/cameraGroundGuard.ts`)**: Ported `legacy/src/cameraGroundGuard.js`. Multi-attempt asynchronous surface mesh height sampling (`scene.sampleHeight`), terrain clearance deficit calculation (`MIN_EYE_CLEARANCE_M = 120`), and cubic easing arrival lift (`easeOutCubic`). Immediately cancels ground lifts on user canvas interaction (`pointerdown`, `wheel`, `keydown`) or programmatic camera steering (`flyTo`, `lookAt`, `zoomIn`, `zoomOut`, `resetNorth`) to eliminate jitter and respect user intent.
+  - **Camera Cinematics & Trajectory Profiling (`apps/web/src/globe/cameraCinematics.ts`)**: Dynamic turn-rate bank roll target calculation (`routeBankTargetDeg`), exponential arrival smoothing (`approachValue`), altitude breathing, and $C^1$ trapezoid speed profiling.
+  - **Globe Engine Wiring (`GlobeEngine.ts`)**: Attached ground guard `#onArrival` hook to guard camera above ground on `flyTo` arrivals.
+  - **Tests & Verification**: 26 unit tests in `cameraGroundGuard.test.ts` and 25 unit tests in `cameraCinematics.test.ts` passing.
+
 - **LB-164 Local Receiver & SDR Ingest Daemon (WebUSB, AVR/Beast TCP Streaming, Mode-S Decoder)**:
   - **WebUSB RTL-SDR Controller & UI (`apps/web/src/features/sdr/`)**: Ported `legacy/src/sdr/` into strict TypeScript module (`usbDevices.ts`, `gain.ts`, `spectrum.ts`, `sdrController.ts`, `LocalSdrPanel.tsx`). Supports WebUSB device selection for RTL2832U devices (`0x0bda:0x2832`, `0x0bda:0x2838`), 29 R820T gain steps (0.0 to 49.6 dB) with persistent storage, FFT power spectrum analysis (`analyzeSpectrum`), and connects to Zig WASM `AdsbStreamDecoder` (`wasmSdr.ts`). Code-split with `SourcesPanel.tsx` integration; workspace JS bundle **249.5 KiB gzip <= 250.0 KiB budget**; 33 unit tests in `src/features/sdr/` passing.
   - **Backend Mode-S AVR & Beast Sockets (`crates/lavender-core` & `crates/lavender-server`)**: Mode-S ASCII AVR frame parser (`parse_avr_stream`), binary Beast frame parser (`parse_beast_stream`) handling 0x1A byte stuffing and resynchronization, DF 11/17/18/19 ICAO extraction, ADS-B extended squitter callsign, velocity, altitude, and CPR position decoding in `local_receivers.rs`. Background TCP stream client daemon (`local_receiver_daemon.rs`) connecting to `dump1090`/`readsb` ports 30002/30005 with SSRF safe IP validation, exponential reconnect backoff, and transparent stream decoding in `POST /api/v1/local-receivers/ingest`.
@@ -186,7 +197,7 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Backlog (ranked)
 
-- **LB-120** i18n decision · **LB-122** AI enrichment (owner gate) · **LB-130** Zig WASM rebuild-provenance script + CI · **LB-131** vision sidecar lifecycle in lavender-server · **LB-132** Nim CEP retire-or-wire decision.
+- **LB-122** AI enrichment (owner gate) · **LB-130** Zig WASM rebuild-provenance script + CI · **LB-131** vision sidecar lifecycle in lavender-server · **LB-132** Nim CEP retire-or-wire decision.
 - Release track (Flokzy-owned): ENG-996–999 desktop, ENG-1000–1004
   measurement/CI, ENG-1005–1009 guides/deploy/licence/legacy-retirement.
 

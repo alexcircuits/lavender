@@ -38,6 +38,7 @@ const fixtures = vi.hoisted(() => {
   const cableItems: unknown[] = [];
   const cctvCameras: unknown[] = [];
   const transitTrails: unknown[] = [];
+  const _cableLocate: unknown = undefined;
   const heatmapContacts: unknown[] = [];
   const heatmapVisibilities: boolean[] = [];
   const heatmapOpacities: number[] = [];
@@ -59,6 +60,7 @@ const fixtures = vi.hoisted(() => {
     boundaryVisibilities,
     boundarySelected,
     cableItems,
+    cableLocate: undefined as unknown,
     cctvCameras,
     transitTrails,
     heatmapContacts,
@@ -77,6 +79,9 @@ vi.mock('@cesium/engine', () => ({
     }
   },
   CreditDisplay: {},
+  EasingFunction: {
+    CUBIC_IN_OUT: (time: number) => time,
+  },
   EllipsoidTerrainProvider: class {},
   ImageryLayer: { fromProviderAsync: () => ({}) },
   Ion: {},
@@ -172,7 +177,7 @@ vi.mock('./renderers/cables', () => ({
       fixtures.cableItems.push(cables);
     });
     setSelected = vi.fn();
-    locate = vi.fn();
+    locate = vi.fn(() => fixtures.cableLocate);
     clear = vi.fn();
     destroy = vi.fn();
   },
@@ -598,5 +603,52 @@ describe('GlobeEngine settled view publication', () => {
     expect(scene.postRender.numberOfListeners).toBe(0);
     expect(scene.renderError.numberOfListeners).toBe(0);
     expect(scene.camera.moveEnd.numberOfListeners).toBe(0);
+  });
+
+  it('invokes ground guard on point arrival and lifts when clearance deficit exists', async () => {
+    vi.useFakeTimers();
+    const { engine, scene, completeFlight } = setup();
+    (scene as unknown as { sampleHeight: (carto: unknown) => number }).sampleHeight = vi.fn(
+      () => 1609,
+    );
+    scene.camera.positionCartographic = {
+      longitude: -1.83,
+      latitude: 0.69,
+      height: 140,
+    } as unknown as import('@cesium/core').Cartographic;
+
+    engine.flyTo({ kind: 'point', position: { lat: 39.7392, lon: -104.9903 } });
+    completeFlight();
+
+    await vi.advanceTimersByTimeAsync(700);
+
+    expect(scene.camera.flyTo).toHaveBeenCalledTimes(2);
+    engine.destroy();
+  });
+
+  it('invokes ground guard on entity arrival and lifts camera when buried', async () => {
+    vi.useFakeTimers();
+    const { engine, scene, completeFlight } = setup();
+    (scene as unknown as { sampleHeight: (carto: unknown) => number }).sampleHeight = vi.fn(
+      () => 1400,
+    );
+    scene.camera.positionCartographic = {
+      longitude: 1.48,
+      latitude: 0.48,
+      height: 100,
+    } as unknown as import('@cesium/core').Cartographic;
+
+    fixtures.cableLocate = {
+      position: Cartesian3.fromDegrees(85.324, 27.7172, 100),
+      symbolPx: 20,
+    };
+
+    engine.flyTo({ kind: 'entity', entity: { feed: 'cables', id: 'cable-1' } });
+    completeFlight();
+
+    await vi.advanceTimersByTimeAsync(700);
+
+    expect(scene.camera.flyTo).toHaveBeenCalledTimes(2);
+    engine.destroy();
   });
 });

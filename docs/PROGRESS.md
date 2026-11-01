@@ -478,3 +478,17 @@ then run `check.sh` and e2e. The lanes' documentation notes are collected in
   launchesIsland focus — pre-existing 5 s timeouts on a busy machine.
 - Demo server restarted on the new build: http://127.0.0.1:7410 with
   simulation + fixtures; /api/v1/divisions/{at,search} live.
+
+## 2026-11-01 — Internationalization (LB-120) & Camera Ground Guard (LB-165)
+- **LB-120 Application Internationalization & Localization Engine**:
+  - Implemented zero-dependency reactive i18n core in `apps/web/src/i18n/` (`index.ts`, `locale.ts`, `i18n.test.ts`).
+  - Added code-split language catalogs for `es.json`, `ru.json`, and `zh-CN.json` dynamically imported on demand, adding 0 bytes to default English bundle.
+  - Wired language switcher into `SettingsPanel.tsx` and `preferencesStore.ts`.
+  - Initial workspace JS bundle **249.9 KiB gzip <= 250.0 KiB budget**; 24/24 unit tests passing.
+- **LB-165 Camera Ground Guard & Surface Collision Kinematics**:
+  - Ported `legacy/src/cameraGroundGuard.js` into `apps/web/src/globe/cameraGroundGuard.ts`.
+  - Implemented terrain sample height verification (`MIN_EYE_CLEARANCE_M = 120`), arrival clearance lifting with cubic easing, and user interaction cancellation (`pointerdown`, `wheel`, `keydown`, camera commands) to eliminate camera fights.
+  - Implemented dynamic turn-rate bank roll kinematics (`routeBankTargetDeg`), altitude breathing, and trapezoid speed profiling in `apps/web/src/globe/cameraCinematics.ts`.
+  - Integrated into `GlobeEngine.ts` `#onArrival` lifecycle.
+  - 26/26 unit tests in `cameraGroundGuard.test.ts` and 25/25 unit tests in `cameraCinematics.test.ts` passing.
+
