@@ -34,6 +34,7 @@
     "@tanstack/react-virtual": "3.14.15",
     "@tauri-apps/api": "2.12.3",
     "cmdk": "1.1.1",
+    "egm96-universal": "1.1.1",
     "github-slugger": "2.0.0",
     "mermaid": "12.2.0",
     "prism-react-renderer": "2.4.1",

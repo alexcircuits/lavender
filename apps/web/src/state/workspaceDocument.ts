@@ -1,7 +1,7 @@
 import type { FeedFilters } from '../contracts';
 import { type MapAnnotation, validateAnnotations } from '../features/annotations/model';
 import type { CameraPose } from '../globe';
-import { MAX_HEIGHT_M, MIN_HEIGHT_M } from '../globe/camera';
+import { MAX_HEIGHT_M, MIN_HEIGHT_M } from '../globe/cameraLimits';
 
 export const WORKSPACE_SCHEMA_VERSION = 2;
 export const MAX_DOCUMENT_BYTES = 5_500;

@@ -83,6 +83,28 @@ describe('SettingsPanel', () => {
     expect(harness.runtime.stores.preferences.getState().celestialRingEnabled).toBe(false);
   });
 
+  it('toggles bloom and adjusts bloom intensity slider', async () => {
+    harness = await startHarness();
+    renderWithRuntime(harness.runtime, <SettingsPanel />);
+
+    const toggle = screen.getByRole('switch', { name: /enable bloom/i });
+    expect(toggle).not.toBeChecked();
+    expect(screen.queryByLabelText(/bloom intensity/i)).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(harness.runtime.stores.preferences.getState().bloomEnabled).toBe(true);
+    expect(toggle).toBeChecked();
+
+    const slider = screen.getByLabelText(/bloom intensity/i) as HTMLInputElement;
+    expect(slider).toBeInTheDocument();
+    expect(slider.value).toBe('100');
+    expect(screen.getByText('100%')).toBeInTheDocument();
+
+    fireEvent.change(slider, { target: { value: '160' } });
+    expect(harness.runtime.stores.preferences.getState().bloomIntensity).toBe(160);
+    expect(screen.getByText('160%')).toBeInTheDocument();
+  });
+
   it('safely handles desktop provider keys without ever exposing values in the DOM', async () => {
     harness = await startHarness();
     const setSecretSpy = vi.spyOn(harness.platform, 'setSecret');

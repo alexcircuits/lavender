@@ -9,6 +9,18 @@ for the ENG-\* tasks this board references. Update together with
 
 ## Done
 
+- **LB-162 Cesium Bloom & HDR Post-Process Normalization**:
+  - **Bloom Normalization & Mapping (`apps/web/src/globe/bloom.ts`)**: Ported `legacy/src/bloom.js` and `legacy/src/ui/visualEffects.js` into strict TypeScript module. Versioned scale migration (`v1` 0–100 inverted to `v2` 0–200, unversioned tolerance), Hermite cubic smoothstep easing ($3t^2 - 2t^3$) mapped to Cesium bloom uniforms (`contrast`, `brightness`, `sigma`, `delta`, `stepSize`, `glowOnly`). Gated by perceptual threshold ($> 0.06$).
+  - **Globe Engine Integration (`apps/web/src/globe/index.ts`, `GlobeEngine.ts`, `test/fakes.ts`)**: Added `setBloom(enabled, intensity)` to `GlobeController` and `GlobeEngine`.
+  - **Preferences & UI Controls (`preferencesStore.ts`, `createRuntime.ts`, `SettingsPanel.tsx`)**: Bloom toggle and 0–200% intensity slider with live readout in Settings under "Display & Imagery". Persisted across sessions and restored on launch.
+  - **Tests & Verification**: 23 unit tests in `bloom.test.ts`, verified against Cesium mock scene and legacy test vectors.
+
+- **LB-163 EGM96 Geoid / MSL Altitude Datum Service (F-014)**:
+  - **Geoid Undulation Module (`apps/web/src/globe/geoid.ts`)**: Ported `legacy/src/data/geoid.js` into strict TypeScript module. Lazy dynamic import of `egm96-universal` keeps the ~2.7 MB NGA 15-minute grid completely code-split from the eager bundle. Implemented $h = H + N$ and $H = h - N$ display conversion with graceful uncorrected fallback.
+  - **Status Bar Datum Integration (`apps/web/src/shell/StatusBar.tsx`, `shell.module.css`)**: Interactive altitude datum toggle button in the status bar (`MSL` vs `HAE`). Computes local geoid undulation from camera center coordinates in real time.
+  - **Bundle Optimization (`cameraLimits.ts`)**: Decoupled `state/workspaceDocument.ts` from eagerly importing camera limits, preserving initial JS bundle at **249.2 KiB gzip <= 250.0 KiB budget**.
+  - **Tests & Verification**: 11 unit tests in `geoid.test.ts` verifying London (+46.0 m), Austin (-26.9 m), San Francisco (-32.2 m), Denver (-17.0 m), and SFO touchdown (-32.3 m, resolving the famous -15 m cockpit bug to +17 m MSL). 151/151 web test files passing (1,096/1,096 tests).
+
 - **F-108 / F-109 Deep-Link Share Codec, URL Hash State Restoration & ShareModal**:
   - **URL Hash Share Codec (`apps/web/src/features/share/shareCodec.ts`)**: Minimal versioned deep link encoder & decoder (`v=2`). Encodes camera pose (lat, lon, alt, heading, pitch, roll), active layers via single-character base tokens (`f`, `a`, `s`, `e`, `y`, `w`, `2`, `x`, `b`, `j`), visual optical preset (`noir`, `nvg`, `flir`, `crt`, `normal`), HUD overlay, scope mask, cyber sonar, selected contact (`feed:id`), and tracking mode (`follow` | `cockpit`). Fully backward-compatible with legacy GEV share links while stripping `?lang` overrides to respect recipient preferences.
   - **Share Restoration Hook (`apps/web/src/features/share/useShareRestoration.ts`)**: On app startup, inspects `window.location.hash`, restores camera trajectory via `globe.flyTo` and `globe.restoreCamera`, reactivates persisted layers in `workspaceStore`, restores visual optical preset in `preferencesStore`, restores selection and tracking (follow or cockpit), and notifies the user with a toast.

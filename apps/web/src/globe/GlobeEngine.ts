@@ -43,6 +43,7 @@ import type {
   VesselTrackResponse,
 } from '../contracts';
 import type { AnnotationDraft, MapAnnotation } from '../features/annotations/model';
+import { applyBloomToScene, BLOOM_INTENSITY_DEFAULT } from './bloom';
 import { CameraService, HOME_VIEW, MAX_HEIGHT_M, prefersReducedMotion } from './camera';
 import { captureFrame } from './capture';
 import { cesiumCameraPort } from './cesiumCamera';
@@ -156,6 +157,8 @@ export class GlobeEngine implements GlobeController {
   #lastView: ViewState | null = null;
   #restarts = 0;
   #lastRenderErrorAt = 0;
+  #bloomEnabled = false;
+  #bloomIntensity = BLOOM_INTENSITY_DEFAULT;
 
   constructor(options: GlobeMountOptions) {
     this.#options = options;
@@ -205,6 +208,7 @@ export class GlobeEngine implements GlobeController {
     const scene = widget.scene;
     scene.backgroundColor = groundColor();
     scene.highDynamicRange = false;
+    applyBloomToScene(scene, this.#bloomEnabled, this.#bloomIntensity);
 
     const globe = scene.globe;
     if (globe) {
@@ -629,6 +633,18 @@ export class GlobeEngine implements GlobeController {
     const m = this.#mounted;
     if (!m) return;
     m.celestialRing.setEnabled(enabled);
+    m.widget.scene.requestRender();
+  }
+
+  /** Controls bloom post-processing and intensity (0–200). */
+  setBloom(enabled: boolean, intensity?: number): void {
+    this.#bloomEnabled = enabled;
+    if (intensity !== undefined) {
+      this.#bloomIntensity = intensity;
+    }
+    const m = this.#mounted;
+    if (!m) return;
+    applyBloomToScene(m.widget.scene, this.#bloomEnabled, this.#bloomIntensity);
     m.widget.scene.requestRender();
   }
 

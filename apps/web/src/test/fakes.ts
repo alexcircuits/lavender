@@ -634,6 +634,7 @@ export function fakeGlobe(): FakeGlobe {
     setHeatmapOpacity: vi.fn(),
     clearHeatmap: vi.fn(),
     setCelestialRing: vi.fn(),
+    setBloom: vi.fn(),
     setAirQualityReadings: vi.fn(),
     getAirQualityReading: vi.fn(() => undefined),
     clearAirQuality: vi.fn(),

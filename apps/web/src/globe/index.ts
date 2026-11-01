@@ -161,6 +161,8 @@ export interface GlobeController {
   clearHeatmap(): void;
   /** Shows or hides the screen-space celestial reference ring (full-globe view). */
   setCelestialRing(enabled: boolean): void;
+  /** Controls bloom post-processing and intensity (0–200). */
+  setBloom(enabled: boolean, intensity?: number): void;
   /** Sets real-time air quality readings on the globe. */
   setAirQualityReadings(readings: readonly AirQualityReading[]): void;
   /** Retrieves an air quality station reading by id. */

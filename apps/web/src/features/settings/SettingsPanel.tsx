@@ -152,6 +152,41 @@ export function SettingsPanel({ className }: SettingsPanelProps) {
         <div className={styles.settingRow}>
           <div className={styles.settingHeader}>
             <div>
+              <div className={styles.settingLabel}>Bloom</div>
+              <div className={styles.settingSubtext}>
+                HDR glow and atmospheric bloom post-processing
+              </div>
+            </div>
+          </div>
+          <Toggle
+            aria-label="Enable bloom"
+            checked={preferences.bloomEnabled}
+            onCheckedChange={(checked) => preferences.setBloomEnabled(checked)}
+          />
+        </div>
+
+        {preferences.bloomEnabled && (
+          <div className={styles.settingRow}>
+            <div className={styles.sliderHeader}>
+              <span className={styles.settingLabel}>Bloom Intensity</span>
+              <span className={styles.settingSubtext}>{preferences.bloomIntensity}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="200"
+              step="1"
+              value={preferences.bloomIntensity}
+              onChange={(e) => preferences.setBloomIntensity(Number(e.target.value))}
+              className={styles.slider}
+              aria-label="Bloom intensity"
+            />
+          </div>
+        )}
+
+        <div className={styles.settingRow}>
+          <div className={styles.settingHeader}>
+            <div>
               <div className={styles.settingLabel}>Reconnaissance Intelligence HUD</div>
               <div className={styles.settingSubtext}>
                 NRO/NGA telemetry: Grid coordinates, GSD, NIIRS, ONA, solar position, and

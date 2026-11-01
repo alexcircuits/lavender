@@ -17,6 +17,8 @@ export interface UserPreferences {
   readonly sonarEnabled: boolean;
   readonly celestialRingEnabled: boolean;
   readonly cockpitCloudsEnabled: boolean;
+  readonly bloomEnabled: boolean;
+  readonly bloomIntensity: number;
 }
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
@@ -34,6 +36,8 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   // Upstream cockpit clouds default off (cockpitCloudEffects.js reads an
   // opt-in storage key; a missing value is off).
   cockpitCloudsEnabled: false,
+  bloomEnabled: false,
+  bloomIntensity: 100,
 };
 
 export interface PreferencesState extends UserPreferences {
@@ -48,6 +52,8 @@ export interface PreferencesState extends UserPreferences {
   setSonarEnabled(sonarEnabled: boolean): void;
   setCelestialRingEnabled(celestialRingEnabled: boolean): void;
   setCockpitCloudsEnabled(cockpitCloudsEnabled: boolean): void;
+  setBloomEnabled(bloomEnabled: boolean): void;
+  setBloomIntensity(bloomIntensity: number): void;
   hydrate(prefs: Partial<UserPreferences>): void;
 }
 
@@ -65,6 +71,8 @@ export const createPreferencesStore = () =>
     setSonarEnabled: (sonarEnabled) => set({ sonarEnabled }),
     setCelestialRingEnabled: (celestialRingEnabled) => set({ celestialRingEnabled }),
     setCockpitCloudsEnabled: (cockpitCloudsEnabled) => set({ cockpitCloudsEnabled }),
+    setBloomEnabled: (bloomEnabled) => set({ bloomEnabled }),
+    setBloomIntensity: (bloomIntensity) => set({ bloomIntensity }),
     hydrate: (prefs) => set((s) => ({ ...s, ...prefs })),
   }));
 

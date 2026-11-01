@@ -7,6 +7,7 @@
 import type { ImageryDescriptor } from '../contracts';
 import { FeedController } from '../feeds/FeedController';
 import type { GlobeController } from '../globe';
+import { BLOOM_SCALE_VERSION, decodeBloomIntensity } from '../globe/bloom';
 import { type LavenderPlatform, toApiError } from '../platform';
 import { createStores, type Stores, type UserPreferences } from '../state/stores';
 import {
@@ -63,10 +64,18 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
   );
 
   const initialPreferences = platform.preferences.get<unknown>(WORKSPACE_PREF_KEY);
-  const initialUserPrefs =
-    platform.preferences.get<Partial<UserPreferences>>(USER_PREFERENCES_PREF_KEY);
+  const initialUserPrefs = platform.preferences.get<
+    Partial<UserPreferences> & { bloomVersion?: number }
+  >(USER_PREFERENCES_PREF_KEY);
   if (initialUserPrefs && typeof initialUserPrefs === 'object') {
-    stores.preferences.getState().hydrate(initialUserPrefs);
+    const hydratedPrefs = { ...initialUserPrefs };
+    if (typeof hydratedPrefs.bloomIntensity === 'number') {
+      hydratedPrefs.bloomIntensity = decodeBloomIntensity(
+        hydratedPrefs.bloomIntensity,
+        hydratedPrefs.bloomVersion ?? BLOOM_SCALE_VERSION,
+      );
+    }
+    stores.preferences.getState().hydrate(hydratedPrefs);
   }
   const initialState = workspace.getState();
   initialState.restore(
@@ -208,7 +217,13 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
     let persistTimer: ReturnType<typeof setTimeout> | null = null;
     let userPrefsTimer: ReturnType<typeof setTimeout> | null = null;
     cleanup.push(
-      stores.preferences.subscribe((prefs) => {
+      stores.preferences.subscribe((prefs, prev) => {
+        if (
+          prefs.bloomEnabled !== prev.bloomEnabled ||
+          prefs.bloomIntensity !== prev.bloomIntensity
+        ) {
+          ui.getState().globe?.setBloom(prefs.bloomEnabled, prefs.bloomIntensity);
+        }
         if (userPrefsTimer) clearTimeout(userPrefsTimer);
         userPrefsTimer = setTimeout(() => {
           userPrefsTimer = null;
@@ -220,6 +235,8 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
             defaultImagery: prefs.defaultImagery,
             celestialRingEnabled: prefs.celestialRingEnabled,
             cockpitCloudsEnabled: prefs.cockpitCloudsEnabled,
+            bloomEnabled: prefs.bloomEnabled,
+            bloomIntensity: prefs.bloomIntensity,
           });
         }, persistDelayMs);
       }),
@@ -275,6 +292,8 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
       syncImagery();
       share.apply(system.getState().catalog);
       syncAnnotations();
+      const prefs = stores.preferences.getState();
+      globe.setBloom(prefs.bloomEnabled, prefs.bloomIntensity);
     },
     detachGlobe() {
       offCameraIntent?.();

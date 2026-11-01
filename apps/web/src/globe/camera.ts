@@ -14,8 +14,9 @@ export const NORTH_UP_DURATION_S = 0.6;
 export const DEFAULT_POINT_HEIGHT_M = 400_000;
 /** Home: the whole Earth, centred on the Atlantic/Europe/Africa longitudes. */
 export const HOME_VIEW = { lon: 10, lat: 20, heightM: 20_000_000 } as const;
-export const MIN_HEIGHT_M = 100;
-export const MAX_HEIGHT_M = 40_000_000;
+export { MAX_HEIGHT_M, MIN_HEIGHT_M } from './cameraLimits';
+
+import { MAX_HEIGHT_M, MIN_HEIGHT_M } from './cameraLimits';
 /** Zoom in halves the height; zoom out doubles it. */
 export const ZOOM_IN_FRACTION = 0.5;
 export const ZOOM_OUT_FRACTION = 1;

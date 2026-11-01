@@ -70,6 +70,19 @@
   font: var(--type-caption);
 }
 
+.sliderHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .select {
   composes: sq from global;
   appearance: none;

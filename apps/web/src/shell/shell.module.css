@@ -379,6 +379,15 @@
   flex: none;
 }
 
+.altitudeButton {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
 .clock {
   flex: none;
   font-family: var(--font-mono);

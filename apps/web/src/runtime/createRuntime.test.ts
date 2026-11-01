@@ -129,6 +129,58 @@ describe('createRuntime', () => {
     expect(runtime.stores.preferences.getState().cockpitCloudsEnabled).toBe(true);
   });
 
+  it('persists bloom preferences after a quiet period', async () => {
+    const runtime = createRuntime(platform, { persistDelayMs: 200 });
+    runtime.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(runtime.stores.preferences.getState().bloomEnabled).toBe(false);
+    expect(runtime.stores.preferences.getState().bloomIntensity).toBe(100);
+
+    runtime.stores.preferences.getState().setBloomEnabled(true);
+    runtime.stores.preferences.getState().setBloomIntensity(150);
+    await vi.advanceTimersByTimeAsync(200);
+
+    const saved = platform.preferences.data.get(USER_PREFERENCES_PREF_KEY) as
+      | { bloomEnabled?: boolean; bloomIntensity?: number }
+      | undefined;
+    expect(saved?.bloomEnabled).toBe(true);
+    expect(saved?.bloomIntensity).toBe(150);
+  });
+
+  it('restores persisted bloom preferences on boot with version normalization', async () => {
+    platform.preferences = memoryPreferences({
+      [USER_PREFERENCES_PREF_KEY]: {
+        bloomEnabled: true,
+        bloomIntensity: 80,
+        bloomVersion: 1,
+      },
+    });
+    const runtime = createRuntime(platform);
+    runtime.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(runtime.stores.preferences.getState().bloomEnabled).toBe(true);
+    // Legacy v1 (80) migrates to (100 - 80) * 2 = 40
+    expect(runtime.stores.preferences.getState().bloomIntensity).toBe(40);
+  });
+
+  it('notifies attached globe when bloom preferences change', async () => {
+    const runtime = createRuntime(platform);
+    runtime.start();
+    const { globe } = fakeGlobe();
+    runtime.attachGlobe(globe);
+
+    // Initial attach configures bloom
+    expect(globe.setBloom).toHaveBeenCalledWith(false, 100);
+
+    // Toggle bloom enabled
+    runtime.stores.preferences.getState().setBloomEnabled(true);
+    expect(globe.setBloom).toHaveBeenLastCalledWith(true, 100);
+
+    // Change intensity
+    runtime.stores.preferences.getState().setBloomIntensity(175);
+    expect(globe.setBloom).toHaveBeenLastCalledWith(true, 175);
+  });
+
   it('gives an attached globe the imagery and follows imagery changes', async () => {
     const runtime = createRuntime(platform);
     runtime.start();

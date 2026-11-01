@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { GeoPoint } from '../contracts';
 import { CircleIcon, cx, formatCount, type Icon, SquareIcon, TriangleIcon } from '../design';
+import type { ViewState } from '../globe';
 import { formatDecimal, formatDms } from '../lib/coordinates';
 import { spaceMgrs, toMgrs } from '../lib/mgrs';
 import { useNow } from '../lib/useNow';
@@ -90,41 +91,97 @@ function CursorReadout() {
   );
 }
 
-/** Formats camera altitude respecting the user's unit system. */
-export function formatHeight(metres: number, units: UnitSystem = 'metric'): string {
+/** Formats camera altitude respecting the user's unit system and optional datum indicator. */
+export function formatHeight(
+  metres: number,
+  units: UnitSystem = 'metric',
+  datum?: string | undefined,
+): string {
   if (!Number.isFinite(metres)) return 'unknown';
+  const datumSuffix = datum ? ` ${datum}` : '';
   if (units === 'metric') {
-    if (metres < 1_000) return `${Math.round(metres)} m`;
+    if (metres < 1_000) return `${Math.round(metres)} m${datumSuffix}`;
     const km = metres / 1_000;
-    if (km < 100) return `${km.toFixed(1)} km`;
-    return `${formatCount(km)} km`;
+    if (km < 100) return `${km.toFixed(1)} km${datumSuffix}`;
+    return `${formatCount(km)} km${datumSuffix}`;
   }
   const feet = metres * 3.28084;
-  if (feet < 10_000) return `${Math.round(feet).toLocaleString('en-US')} ft`;
+  if (feet < 10_000) return `${Math.round(feet).toLocaleString('en-US')} ft${datumSuffix}`;
   if (units === 'nautical') {
     const nm = metres / 1852;
-    if (nm < 100) return `${nm.toFixed(1)} NM`;
-    return `${formatCount(nm)} NM`;
+    if (nm < 100) return `${nm.toFixed(1)} NM${datumSuffix}`;
+    return `${formatCount(nm)} NM${datumSuffix}`;
   }
   const miles = metres / 1609.344;
-  if (miles < 100) return `${miles.toFixed(1)} mi`;
-  return `${formatCount(miles)} mi`;
+  if (miles < 100) return `${miles.toFixed(1)} mi${datumSuffix}`;
+  return `${formatCount(miles)} mi${datumSuffix}`;
 }
 
 function CameraHeight() {
   const globe = useGlobe();
   const unitSystem = usePreferences((s) => s.unitSystem);
-  const [heightM, setHeightM] = useState<number | null>(null);
+  const [view, setView] = useState<ViewState | null>(null);
+  const [datum, setDatum] = useState<'msl' | 'hae'>('msl');
+  const [geoidReady, setGeoidReady] = useState(false);
+  const geoidRef = useRef<typeof import('../globe/geoid') | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    import('../globe/geoid')
+      .then((mod) => {
+        geoidRef.current = mod;
+        return mod.ensureGeoidReady();
+      })
+      .then(() => {
+        if (active) setGeoidReady(true);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (!globe) return;
-    const off = globe.onViewChange((view) => setHeightM(view.heightM));
+    const off = globe.onViewChange(setView);
     return () => {
       off();
-      setHeightM(null);
+      setView(null);
     };
   }, [globe]);
-  if (heightM === null) return null;
-  return <span className={styles.altitude}>Camera at {formatHeight(heightM, unitSystem)}</span>;
+
+  if (!view || !Number.isFinite(view.heightM)) return null;
+
+  const rawHeightM = view.heightM;
+  let displayHeightM = rawHeightM;
+  let datumLabel: string | undefined;
+
+  if (datum === 'msl' && geoidReady && view.centre && geoidRef.current) {
+    try {
+      const n = geoidRef.current.geoidHeight(view.centre.lat, view.centre.lon);
+      displayHeightM = geoidRef.current.ellipsoidalToMslDisplayM(rawHeightM, n);
+      datumLabel = 'MSL';
+    } catch {
+      displayHeightM = rawHeightM;
+    }
+  } else if (datum === 'hae' && geoidReady && view.centre) {
+    datumLabel = 'HAE';
+  }
+
+  const toggleDatum = () => {
+    setDatum((prev) => (prev === 'msl' ? 'hae' : 'msl'));
+  };
+
+  return (
+    <button
+      type="button"
+      className={cx(styles.altitude, styles.altitudeButton)}
+      onClick={toggleDatum}
+      title="Click to toggle altitude datum (MSL / HAE)"
+    >
+      Camera at {formatHeight(displayHeightM, unitSystem, datumLabel)}
+    </button>
+  );
 }
 
 export function UtcClock({ className }: { className?: string | undefined }) {
