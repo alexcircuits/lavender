@@ -60,6 +60,7 @@ import {
   type SubscribeOptions,
   type TransportState,
   toApiError,
+  type WeatherObservation,
   type WindGridRequest,
   type WindRequest,
 } from '../types';
@@ -435,6 +436,24 @@ export class WebPlatform implements LavenderPlatform {
 
   airQuality(options?: CallOptions): Promise<AirQualitySnapshot> {
     return this.#get('/air-quality', options);
+  }
+
+  /**
+   * Current point weather observation for the cockpit cloud deck (LB-161): Open-Meteo
+   * current conditions, normalized over the raw fetch. Null when the observation is
+   * unavailable — the deck fails soft.
+   */
+  async weatherConditions(
+    latitude: number,
+    longitude: number,
+    options?: CallOptions,
+  ): Promise<WeatherObservation | null> {
+    return (await import('./weatherConditions')).fetchWeatherConditions(
+      this.#fetch,
+      latitude,
+      longitude,
+      options,
+    );
   }
 
   gnssCells(bbox?: BBox, options?: CallOptions): Promise<GnssSnapshot> {

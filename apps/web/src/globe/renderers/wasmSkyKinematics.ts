@@ -64,7 +64,12 @@ export interface WeatherEffectProfile {
   storm: number;
   wind: number;
   windDirectionDeg: number;
+  /** Deterministic frame-budget hint in [0, 1]; maps onto the render fps clamp. */
+  frameCost: number;
 }
+
+/** Number of f32 values the Zig kernel writes per weather profile. */
+export const WEATHER_PROFILE_FLOATS = 10;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -323,24 +328,29 @@ export function sampleCameraMove(
   };
 }
 
-/** Derives weather effect strengths from WMO observations. */
+function zeroProfile(): WeatherEffectProfile {
+  return {
+    available: false,
+    cloud: 0,
+    rain: 0,
+    snow: 0,
+    fog: 0,
+    haze: 0,
+    droplets: 0,
+    storm: 0,
+    wind: 0,
+    windDirectionDeg: 0,
+    frameCost: 0,
+  };
+}
+
+/** Derives weather effect strengths from WMO observations via the Zig kernel. */
 export function deriveWeatherEffectProfile(
   weather: WeatherEffectInput | null | undefined,
 ): WeatherEffectProfile {
   const reported = weather?.weatherCode;
   if (reported == null || reported === '' || !Number.isFinite(Number(reported))) {
-    return {
-      available: false,
-      cloud: 0,
-      rain: 0,
-      snow: 0,
-      fog: 0,
-      haze: 0,
-      droplets: 0,
-      storm: 0,
-      wind: 0,
-      windDirectionDeg: 0,
-    };
+    return zeroProfile();
   }
 
   const wasm = getActiveLavenderWasm();
@@ -358,32 +368,23 @@ export function deriveWeatherEffectProfile(
   const fn = (wasm?.exports as unknown as WeatherExports | undefined)
     ?.lavender_weather_derive_effects;
 
-  const code = Number(reported);
-  const cover = Number(weather?.cloudCoverPct) || 0;
-  const precip = Number(weather?.precipitationMm) || 0;
-  const windKph = Number(weather?.windKph) || 0;
-  const visM = Number(weather?.visibilityM) || 0;
-  const windDir = Number(weather?.windDirectionDeg) || 0;
-
   if (wasm && fn) {
+    const code = Number(reported);
+    const cover = Number(weather?.cloudCoverPct) || 0;
+    const precip = Number(weather?.precipitationMm) || 0;
+    const windKph = Number(weather?.windKph) || 0;
+    // Legacy semantics (weatherEffectsMath.js): a missing observation is not a
+    // 0 m observation — the kernel's NaN means "absent" and zeroes visibility fog.
+    const rawVisM = Number(weather?.visibilityM);
+    const visM = Number.isFinite(rawVisM) ? rawVisM : Number.NaN;
+    const windDir = Number(weather?.windDirectionDeg) || 0;
     const ptr = align8(wasm.heapBase + 163840);
-    ensureMemory(wasm, ptr + 36);
+    ensureMemory(wasm, ptr + WEATHER_PROFILE_FLOATS * 4);
     const ok = fn(code, cover, precip, windKph, visM, windDir, ptr);
     if (!ok) {
-      return {
-        available: false,
-        cloud: 0,
-        rain: 0,
-        snow: 0,
-        fog: 0,
-        haze: 0,
-        droplets: 0,
-        storm: 0,
-        wind: 0,
-        windDirectionDeg: 0,
-      };
+      return zeroProfile();
     }
-    const res = new Float32Array(wasm.memory.buffer, ptr, 9);
+    const res = new Float32Array(wasm.memory.buffer, ptr, WEATHER_PROFILE_FLOATS);
     return {
       available: true,
       cloud: res[0] ?? 0,
@@ -395,13 +396,35 @@ export function deriveWeatherEffectProfile(
       storm: res[6] ?? 0,
       wind: res[7] ?? 0,
       windDirectionDeg: res[8] ?? 0,
+      frameCost: res[9] ?? 0,
     };
   }
+
+  return deriveWeatherEffectProfileTs(weather);
+}
+
+/** Pure TypeScript reference fallback for the weather effect kernel. */
+export function deriveWeatherEffectProfileTs(
+  weather: WeatherEffectInput | null | undefined,
+): WeatherEffectProfile {
+  const reported = weather?.weatherCode;
+  if (reported == null || reported === '' || !Number.isFinite(Number(reported))) {
+    return zeroProfile();
+  }
+
+  const code = Number(reported);
+  const cover = Number(weather?.cloudCoverPct) || 0;
+  const precip = Number(weather?.precipitationMm) || 0;
+  const windKph = Number(weather?.windKph) || 0;
+  // Legacy semantics: finiteness is checked on the raw observation, so a missing
+  // visibility contributes no fog (coercing it to 0 m would read as total fog).
+  const rawVisM = Number(weather?.visibilityM);
+  const windDir = Number(weather?.windDirectionDeg) || 0;
 
   const cCover = range01(cover, 8, 100);
   const precipitation = Math.max(0, precip);
   const wind = range01(windKph, 4, 90);
-  const visibilityFog = Number.isFinite(visM) ? range01(12000 - visM, 0, 11500) : 0;
+  const visibilityFog = Number.isFinite(rawVisM) ? range01(12000 - rawVisM, 0, 11500) : 0;
 
   const drizzle = code >= 51 && code <= 57;
   const rainCode = (code >= 61 && code <= 67) || (code >= 80 && code <= 82) || code >= 95;
@@ -412,24 +435,31 @@ export function deriveWeatherEffectProfile(
   const observedPrecip = range01(precipitation, 0.05, 8);
   const rainFloor = drizzle ? 0.12 : rainCode ? (stormCode ? 0.68 : 0.28) : 0;
   const snowFloor = snowCode ? 0.3 : 0;
-  const rain = drizzle || rainCode ? Math.max(rainFloor, observedPrecip) : 0;
-  const snow = snowCode ? Math.max(snowFloor, observedPrecip) : 0;
-  const fog = Math.max(fogCode ? 0.78 : 0, visibilityFog);
-  const storm = stormCode ? Math.max(0.55, observedPrecip) : 0;
+  const rain = clamp01(drizzle || rainCode ? Math.max(rainFloor, observedPrecip) : 0);
+  const snow = clamp01(snowCode ? Math.max(snowFloor, observedPrecip) : 0);
+  const fog = clamp01(Math.max(fogCode ? 0.78 : 0, visibilityFog));
+  const storm = clamp01(stormCode ? Math.max(0.55, observedPrecip) : 0);
   const forcedCloud = stormCode ? 0.92 : rain || snow ? 0.7 : fogCode ? 0.55 : 0;
-  const cloud = Math.max(cCover, forcedCloud);
+  const cloud = clamp01(Math.max(cCover, forcedCloud));
+  const droplets = clamp01(rain * (0.58 + storm * 0.42));
+  // Mirrors the kernel's frame-budget hint: weights sum to 1 so the hint stays
+  // a true fraction of the frame budget (0 clear sky → 1 heaviest weather).
+  const frameCost = clamp01(
+    0.22 * cloud + 0.2 * rain + 0.26 * snow + 0.24 * storm + 0.08 * droplets,
+  );
 
   return {
     available: true,
-    cloud: clamp01(cloud),
-    rain: clamp01(rain),
-    snow: clamp01(snow),
-    fog: clamp01(fog),
+    cloud,
+    rain,
+    snow,
+    fog,
     haze: clamp01(Math.max(fog * 0.78, cloud * 0.14 + (rain + snow) * 0.2)),
-    droplets: clamp01(rain * (0.58 + storm * 0.42)),
-    storm: clamp01(storm),
+    droplets,
+    storm,
     wind,
     windDirectionDeg: ((windDir % 360) + 360) % 360,
+    frameCost,
   };
 }
 

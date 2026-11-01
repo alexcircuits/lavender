@@ -57,3 +57,5 @@ export function CyberSonarOverlay({
     </div>
   );
 }
+
+export default CyberSonarOverlay;

@@ -450,9 +450,9 @@ export fn lavender_director_sample_camera_move(
     for (pose, 0..) |v, i| out_pose[i] = v;
 }
 
-/// Weather: derives effect strengths into `out_profile` (9 f32: cloud, rain, snow,
-/// fog, haze, droplets, storm, wind, windDirDeg). NaN `weather_code` means missing
-/// weather; returns false (profile zeroed) when unavailable.
+/// Weather: derives effect strengths into `out_profile` (10 f32: cloud, rain, snow,
+/// fog, haze, droplets, storm, wind, windDirDeg, frameCost). NaN `weather_code` means
+/// missing weather; returns false (profile zeroed) when unavailable.
 export fn lavender_weather_derive_effects(
     weather_code: f64,
     cloud_cover_pct: f64,

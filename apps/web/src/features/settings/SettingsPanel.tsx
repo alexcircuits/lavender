@@ -202,6 +202,22 @@ export function SettingsPanel({ className }: SettingsPanelProps) {
         <div className={styles.settingRow}>
           <div className={styles.settingHeader}>
             <div>
+              <div className={styles.settingLabel}>Cockpit Weather Clouds</div>
+              <div className={styles.settingSubtext}>
+                Weather-backed cloud deck over the cockpit view, 12–15 fps frame budget
+              </div>
+            </div>
+          </div>
+          <Toggle
+            aria-label="Enable cockpit weather clouds"
+            checked={preferences.cockpitCloudsEnabled}
+            onCheckedChange={(checked) => preferences.setCockpitCloudsEnabled(checked)}
+          />
+        </div>
+
+        <div className={styles.settingRow}>
+          <div className={styles.settingHeader}>
+            <div>
               <div className={styles.settingLabel}>Cyber Sonar Acoustic Sweep</div>
               <div className={styles.settingSubtext}>
                 Animated radial sweep beam, distance rings, and contact gain enhancement

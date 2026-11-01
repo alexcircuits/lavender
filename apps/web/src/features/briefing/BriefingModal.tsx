@@ -334,3 +334,5 @@ export function BriefingModal({ open, onOpenChange, defaultOpen, className }: Br
     </Dialog>
   );
 }
+
+export default BriefingModal;

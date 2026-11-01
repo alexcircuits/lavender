@@ -218,3 +218,5 @@ export function HudOverlay({
     </div>
   );
 }
+
+export default HudOverlay;

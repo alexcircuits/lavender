@@ -1,0 +1,26 @@
+/* Cockpit cloud deck (LB-161): weather-backed 2.5D cloud overlay above the globe
+   while cockpit mode is active. Sits under the PFD (z-raised vs z-widget), never
+   intercepts input, and its low-res backing store is stretched to the stage. */
+.deck {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-raised);
+  overflow: hidden;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  /* Low-res backing store stretched over the stage; the visor fade is baked in. */
+  image-rendering: auto;
+  opacity: 0;
+  transition: opacity 480ms ease;
+}
+
+.deck[data-active='true'] .canvas {
+  opacity: 1;
+}

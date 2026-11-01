@@ -188,3 +188,5 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
     </Dialog>
   );
 }
+
+export default ShareModal;

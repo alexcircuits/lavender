@@ -120,3 +120,5 @@ export function ScopeMask({
     </div>
   );
 }
+
+export default ScopeMask;

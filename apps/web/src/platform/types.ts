@@ -119,6 +119,20 @@ export interface CallOptions {
   readonly signal?: AbortSignal;
 }
 
+/**
+ * One current-conditions weather observation (LB-161), as the cockpit cloud deck's
+ * weather kernel consumes it. Every field is optional: providers report what the
+ * upstream observation carried and the kernel fills the rest from the WMO code.
+ */
+export interface WeatherObservation {
+  readonly weatherCode?: number | undefined;
+  readonly cloudCoverPct?: number | undefined;
+  readonly precipitationMm?: number | undefined;
+  readonly windKph?: number | undefined;
+  readonly windDirectionDeg?: number | undefined;
+  readonly visibilityM?: number | undefined;
+}
+
 /** One wind forecast variant: a model and an optional same-cycle overlay (default none). */
 export interface WindRequest {
   readonly model: WindModel;
@@ -224,6 +238,16 @@ export interface LavenderPlatform {
   ): Promise<{ readonly elements: readonly MilitaryInstallationItem[] }>;
   /** Real-time air quality observation station readings. */
   airQuality?(options?: CallOptions): Promise<AirQualitySnapshot>;
+  /**
+   * Current point weather observation for the cockpit cloud deck (LB-161). Open-Meteo
+   * backed (upstream's regional provider); null when the observation is unavailable —
+   * the deck fails soft.
+   */
+  weatherConditions?(
+    latitude: number,
+    longitude: number,
+    options?: CallOptions,
+  ): Promise<WeatherObservation | null>;
   /** Evaluates the current GNSS navigation integrity snapshot across 0.5° cells. */
   gnssCells?(bbox?: BBox, options?: CallOptions): Promise<GnssSnapshot>;
   /** Returns the static DO-260A/B provenance metadata for the GNSS integrity classifier. */

@@ -73,7 +73,7 @@ fn angle(a: f64, b: f64, e: f64) f64 {
 }
 
 /// Number of f32 values written by `deriveWeatherEffectProfile`.
-pub const WEATHER_PROFILE_FLOATS: usize = 9;
+pub const WEATHER_PROFILE_FLOATS: usize = 10;
 
 pub const WeatherProfile = struct {
     available: bool = false,
@@ -86,6 +86,10 @@ pub const WeatherProfile = struct {
     storm: f64 = 0,
     wind: f64 = 0,
     wind_dir_deg: f64 = 0,
+    /// Deterministic frame-budget hint in [0, 1]: the render cost of the derived
+    /// weather. Effect renderers map it onto their fps clamp (0 -> fastest bound,
+    /// 1 -> slowest bound) so heavy weather spends fewer, not heavier, frames.
+    frame_cost: f64 = 0,
 };
 
 fn clamp01(value: f64) f64 {
@@ -131,18 +135,27 @@ pub fn deriveWeatherEffectProfile(
     const storm = if (storm_code) @max(0.55, observed) else 0.0;
     const forced_cloud: f64 = if (storm_code) 0.92 else if (rain != 0 or snow != 0) 0.7 else if (fog_code) 0.55 else 0.0;
     const cloud = @max(cover, forced_cloud);
+    const rain_c = clamp01(rain);
+    const snow_c = clamp01(snow);
+    const storm_c = clamp01(storm);
+    const droplets_c = clamp01(rain * (0.58 + storm * 0.42));
+    // Frame-budget hint: bounded linear mix of the layer densities the cloud deck
+    // must composite. Weights sum to 1 so the hint stays a true fraction of budget.
+    const frame_cost =
+        0.22 * clamp01(cloud) + 0.20 * rain_c + 0.26 * snow_c + 0.24 * storm_c + 0.08 * droplets_c;
 
     return .{
         .available = true,
         .cloud = clamp01(cloud),
-        .rain = clamp01(rain),
-        .snow = clamp01(snow),
+        .rain = rain_c,
+        .snow = snow_c,
         .fog = clamp01(fog),
         .haze = clamp01(@max(fog * 0.78, cloud * 0.14 + (rain + snow) * 0.2)),
-        .droplets = clamp01(rain * (0.58 + storm * 0.42)),
-        .storm = clamp01(storm),
+        .droplets = droplets_c,
+        .storm = storm_c,
         .wind = wind,
         .wind_dir_deg = if (isFinite(wind_direction_deg)) @rem(@rem(wind_direction_deg, 360.0) + 360.0, 360.0) else 0.0,
+        .frame_cost = clamp01(frame_cost),
     };
 }
 
@@ -158,7 +171,7 @@ pub fn weatherAltitudeFactors(altitude_m: f64) AltitudeFactors {
     };
 }
 
-/// Writes the profile as [cloud, rain, snow, fog, haze, droplets, storm, wind, windDirDeg].
+/// Writes the profile as [cloud, rain, snow, fog, haze, droplets, storm, wind, windDirDeg, frameCost].
 pub fn writeProfile(p: WeatherProfile, out: *[WEATHER_PROFILE_FLOATS]f32) void {
     out[0] = @floatCast(p.cloud);
     out[1] = @floatCast(p.rain);
@@ -169,4 +182,5 @@ pub fn writeProfile(p: WeatherProfile, out: *[WEATHER_PROFILE_FLOATS]f32) void {
     out[6] = @floatCast(p.storm);
     out[7] = @floatCast(p.wind);
     out[8] = @floatCast(p.wind_dir_deg);
+    out[9] = @floatCast(p.frame_cost);
 }

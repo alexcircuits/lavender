@@ -1,4 +1,10 @@
+import { useMemo } from 'react';
+import { useStore } from 'zustand';
+import type { Aircraft } from '../../contracts';
 import { Button, XIcon } from '../../design';
+import type { GlobeController } from '../../globe';
+import { type Runtime, useOptionalRuntime } from '../../runtime';
+import { CockpitCloudDeck } from './CockpitCloudDeck';
 import styles from './cockpit.module.css';
 
 export interface CockpitPfdProps {
@@ -12,26 +18,81 @@ export interface CockpitPfdProps {
   readonly verticalSpeedFpm?: number | undefined;
   readonly squawk?: string | undefined;
   readonly theme?: 'noir' | 'nvg' | 'flir' | 'crt' | undefined;
+  readonly latitude?: number | null | undefined;
+  readonly longitude?: number | null | undefined;
   readonly onExit?: (() => void) | undefined;
 }
 
-/**
- * Primary Flight Display (PFD) Avionics HUD for Cockpit View Mode.
- * Renders airspeed tape, altitude tape, pitch ladder, compass tape, and telemetry.
- */
-export function CockpitPfd({
+interface CockpitPfdInternalProps extends CockpitPfdProps {
+  readonly globe?: GlobeController | null | undefined;
+  readonly selectedEntity?: unknown;
+  readonly visualPreset?: string | undefined;
+  readonly cockpitCloudsEnabled?: boolean | undefined;
+}
+
+function CockpitPfdPresentational({
   className,
-  callsign = 'AIRCRAFT',
-  registration,
-  typeCode,
-  headingDeg = 0,
-  speedKnots = 250,
-  altitudeFt = 10000,
-  verticalSpeedFpm = 0,
-  squawk = '1200',
-  theme = 'noir',
-  onExit,
-}: CockpitPfdProps) {
+  callsign: callsignProp,
+  registration: registrationProp,
+  typeCode: typeCodeProp,
+  headingDeg: headingDegProp,
+  speedKnots: speedKnotsProp,
+  altitudeFt: altitudeFtProp,
+  verticalSpeedFpm: verticalSpeedFpmProp,
+  squawk: squawkProp,
+  theme: themeProp,
+  latitude: latitudeProp,
+  longitude: longitudeProp,
+  onExit: onExitProp,
+  globe,
+  selectedEntity,
+  visualPreset = 'normal',
+  cockpitCloudsEnabled = false,
+}: CockpitPfdInternalProps) {
+  const followState = globe?.getFollowState();
+  const aircraft = useMemo(() => {
+    if (selectedEntity && typeof selectedEntity === 'object' && 'hex' in selectedEntity) {
+      return selectedEntity as Aircraft;
+    }
+    return null;
+  }, [selectedEntity]);
+
+  const callsign =
+    callsignProp ??
+    (aircraft?.callsign?.trim() || aircraft?.hex || followState?.target?.id || 'AIRCRAFT');
+  const registration = registrationProp ?? aircraft?.registration ?? undefined;
+  const typeCode = typeCodeProp ?? aircraft?.typeCode ?? undefined;
+  const headingDeg = headingDegProp ?? followState?.headingDeg ?? aircraft?.trackDeg ?? 0;
+  const speedKnots = speedKnotsProp ?? aircraft?.groundSpeedKt ?? 250;
+  const altitudeFt =
+    altitudeFtProp ?? aircraft?.altitudeBaroFt ?? aircraft?.altitudeGeomFt ?? 10000;
+  const verticalSpeedFpm = verticalSpeedFpmProp ?? aircraft?.verticalRateFpm ?? 0;
+  const squawk = squawkProp ?? aircraft?.squawk ?? '1200';
+  const latitude = latitudeProp ?? aircraft?.position?.lat;
+  const longitude = longitudeProp ?? aircraft?.position?.lon;
+
+  const onExit = onExitProp ?? (() => globe?.exitCockpit());
+
+  const theme =
+    themeProp ??
+    (visualPreset === 'thermal'
+      ? 'flir'
+      : visualPreset === 'nvg'
+        ? 'nvg'
+        : visualPreset === 'crt'
+          ? 'crt'
+          : 'noir');
+
+  const cloudAnchor = useMemo(() => {
+    if (latitude == null || longitude == null) return null;
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    return {
+      latitude,
+      longitude,
+      altitudeM: Math.max(0, altitudeFt * 0.3048),
+    };
+  }, [latitude, longitude, altitudeFt]);
+
   const normHeading = Math.round(((headingDeg % 360) + 360) % 360);
   const headingText = normHeading.toString().padStart(3, '0');
 
@@ -58,6 +119,7 @@ export function CockpitPfd({
       className={`${styles.container} ${themeClass} ${className ?? ''}`}
       aria-label="Cockpit Flight Display"
     >
+      {cockpitCloudsEnabled && <CockpitCloudDeck anchor={cloudAnchor} />}
       {/* Top Heading Tape */}
       <div className={styles.headingTape}>
         <div className={styles.headingDigits}>{headingText}°</div>
@@ -143,3 +205,37 @@ export function CockpitPfd({
     </section>
   );
 }
+
+function CockpitPfdConnected({
+  runtime,
+  ...props
+}: CockpitPfdProps & { readonly runtime: Runtime }) {
+  const globe = runtime.stores.ui.getState().globe;
+  const selectedEntity = useStore(runtime.stores.feeds, (s) => s.selectedEntity);
+  const visualPreset = useStore(runtime.stores.preferences, (s) => s.visualPreset);
+  const cockpitCloudsEnabled = useStore(runtime.stores.preferences, (s) => s.cockpitCloudsEnabled);
+
+  return (
+    <CockpitPfdPresentational
+      {...props}
+      globe={globe}
+      selectedEntity={selectedEntity}
+      visualPreset={visualPreset}
+      cockpitCloudsEnabled={cockpitCloudsEnabled}
+    />
+  );
+}
+
+/**
+ * Primary Flight Display (PFD) Avionics HUD for Cockpit View Mode.
+ * Renders airspeed tape, altitude tape, pitch ladder, compass tape, and telemetry.
+ */
+export function CockpitPfd(props: CockpitPfdProps) {
+  const runtime = useOptionalRuntime();
+  if (runtime) {
+    return <CockpitPfdConnected runtime={runtime} {...props} />;
+  }
+  return <CockpitPfdPresentational {...props} />;
+}
+
+export default CockpitPfd;

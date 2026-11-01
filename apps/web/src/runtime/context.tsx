@@ -30,6 +30,10 @@ export function RuntimeProvider({ runtime, children }: RuntimeProviderProps) {
   return <RuntimeContext.Provider value={runtime}>{children}</RuntimeContext.Provider>;
 }
 
+export function useOptionalRuntime(): Runtime | null {
+  return useContext(RuntimeContext);
+}
+
 export function useRuntime(): Runtime {
   const runtime = useContext(RuntimeContext);
   if (!runtime) throw new Error('useRuntime must be used inside <RuntimeProvider>');

@@ -1,23 +1,14 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Button, CopyIcon, IconButton, MagnifyingGlassIcon } from '../design';
 
 // Code-split with the other Wave B panels to hold the startup budget.
-const BriefingModal = lazy(() =>
-  import('../features/briefing').then((m) => ({ default: m.BriefingModal })),
-);
-const ShareModal = lazy(() =>
-  import('../features/share/ShareModal').then((m) => ({ default: m.ShareModal })),
-);
-const HudOverlay = lazy(() => import('../features/hud').then((m) => ({ default: m.HudOverlay })));
-const ScopeMask = lazy(() => import('../features/scope').then((m) => ({ default: m.ScopeMask })));
-const CyberSonarOverlay = lazy(() =>
-  import('../features/sonar').then((m) => ({ default: m.CyberSonarOverlay })),
-);
-const CockpitPfd = lazy(() =>
-  import('../features/cockpit').then((m) => ({ default: m.CockpitPfd })),
-);
+const BriefingModal = lazy(() => import('../features/briefing/BriefingModal'));
+const ShareModal = lazy(() => import('../features/share/ShareModal'));
+const HudOverlay = lazy(() => import('../features/hud/HudOverlay'));
+const ScopeMask = lazy(() => import('../features/scope/ScopeMask'));
+const CyberSonarOverlay = lazy(() => import('../features/sonar/CyberSonarOverlay'));
+const CockpitPfd = lazy(() => import('../features/cockpit/CockpitPfd'));
 
-import type { Aircraft } from '../contracts';
 import {
   GLOBE_REGION_ID,
   ShortcutSheet,
@@ -30,7 +21,7 @@ import { LayerAnnouncer, useBoundariesLayer } from '../features/layers';
 import { CommandPalette, SearchBar } from '../features/search';
 import { useShareRestoration } from '../features/share/useShareRestoration';
 import type { MountGlobe, TrackingState } from '../globe';
-import { useFeeds, useGlobe, usePreferences, useUi, useWorkspace } from '../runtime';
+import { useGlobe, usePreferences, useUi, useWorkspace } from '../runtime';
 import { CreditsButton } from './CreditsButton';
 import { FeedStatusChip } from './FeedStatusChip';
 import { FollowingChip } from './FollowingChip';
@@ -63,6 +54,14 @@ export function AppShell({ mountGlobe }: AppShellProps) {
   const setShareOpen = useUi((s) => s.setShareOpen);
   const sidePanel = useUi((s) => s.sidePanel);
   const visualPreset = usePreferences((s) => s.visualPreset);
+  const overlayTheme =
+    visualPreset === 'thermal'
+      ? 'flir'
+      : visualPreset === 'nvg'
+        ? 'nvg'
+        : visualPreset === 'crt'
+          ? 'crt'
+          : 'noir';
   const hudEnabled = usePreferences((s) => s.hudEnabled);
   const scopeMaskEnabled = usePreferences((s) => s.scopeMaskEnabled);
   const sonarEnabled = usePreferences((s) => s.sonarEnabled);
@@ -90,16 +89,7 @@ export function AppShell({ mountGlobe }: AppShellProps) {
     globe?.setCelestialRing(celestialRingEnabled);
   }, [globe, celestialRingEnabled]);
 
-  const selectedEntity = useFeeds((s) => s.selectedEntity);
   const isCockpit = followState?.mode === 'cockpit' && followState.status !== 'released';
-  const trackedAircraft = useMemo(() => {
-    if (!isCockpit || !followState?.target || followState.target.feed !== 'aircraft') return null;
-    if (selectedEntity && typeof selectedEntity === 'object' && 'hex' in selectedEntity) {
-      const a = selectedEntity as Aircraft;
-      if (a.hex === followState.target.id) return a;
-    }
-    return null;
-  }, [isCockpit, followState?.target, selectedEntity]);
 
   const leftRef = useRef<HTMLDivElement | null>(null);
   useRailFocusReturn(leftRef);
@@ -123,48 +113,8 @@ export function AppShell({ mountGlobe }: AppShellProps) {
           <Suspense fallback={null}>
             {scopeMaskEnabled && <ScopeMask enabled={scopeMaskEnabled} />}
             {sonarEnabled && <CyberSonarOverlay visible={sonarEnabled} />}
-            {hudEnabled && (
-              <HudOverlay
-                visible={hudEnabled}
-                theme={
-                  visualPreset === 'thermal'
-                    ? 'flir'
-                    : visualPreset === 'nvg'
-                      ? 'nvg'
-                      : visualPreset === 'crt'
-                        ? 'crt'
-                        : 'noir'
-                }
-              />
-            )}
-            {isCockpit && (
-              <CockpitPfd
-                callsign={
-                  trackedAircraft?.callsign?.trim() ||
-                  trackedAircraft?.hex ||
-                  followState?.target?.id
-                }
-                registration={trackedAircraft?.registration ?? undefined}
-                typeCode={trackedAircraft?.typeCode ?? undefined}
-                headingDeg={followState?.headingDeg ?? trackedAircraft?.trackDeg ?? undefined}
-                speedKnots={trackedAircraft?.groundSpeedKt ?? undefined}
-                altitudeFt={
-                  trackedAircraft?.altitudeBaroFt ?? trackedAircraft?.altitudeGeomFt ?? undefined
-                }
-                verticalSpeedFpm={trackedAircraft?.verticalRateFpm ?? undefined}
-                squawk={trackedAircraft?.squawk ?? undefined}
-                theme={
-                  visualPreset === 'thermal'
-                    ? 'flir'
-                    : visualPreset === 'nvg'
-                      ? 'nvg'
-                      : visualPreset === 'crt'
-                        ? 'crt'
-                        : 'noir'
-                }
-                onExit={() => globe?.exitCockpit()}
-              />
-            )}
+            {hudEnabled && <HudOverlay visible={hudEnabled} theme={overlayTheme} />}
+            {isCockpit && <CockpitPfd />}
           </Suspense>
           {status === 'loading' ? <p className={styles.caption}>Loading globe…</p> : null}
           {status === 'failed' ? (

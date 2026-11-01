@@ -6,6 +6,7 @@ import {
   bvToTemperature,
   cockpitAnchorCorrectionStep,
   deriveWeatherEffectProfile,
+  deriveWeatherEffectProfileTs,
   loadLavenderWasm,
   normalizeHeading,
   raDecToUnitVector,
@@ -139,6 +140,47 @@ describe('wasmSkyKinematics', () => {
       expect(storm.storm).toBeGreaterThan(0.5);
       expect(storm.rain).toBeGreaterThan(0.6);
       expect(storm.cloud).toBeGreaterThan(0.8);
+    });
+
+    it('maps the frame-cost budget hint identically in WASM and TS fallback', () => {
+      const observations = [
+        { weatherCode: 95, precipitationMm: 12, windKph: 60, cloudCoverPct: 90 },
+        { weatherCode: 53, cloudCoverPct: 40 },
+        { weatherCode: 73, precipitationMm: 8, windKph: 90, cloudCoverPct: 90, visibilityM: 12000 },
+        { weatherCode: 45, visibilityM: 900, cloudCoverPct: 60 },
+        { weatherCode: 0, cloudCoverPct: 8, visibilityM: 24000 },
+      ] as const;
+
+      for (const weather of observations) {
+        const wasm = deriveWeatherEffectProfile(weather);
+        expect(wasm.available).toBe(true);
+        expect(wasm.frameCost).toBeGreaterThanOrEqual(0);
+        expect(wasm.frameCost).toBeLessThanOrEqual(1);
+        // The WASM kernel and the pure-TS reference must agree on the hint.
+        const tsFallback = deriveWeatherEffectProfileTs(weather);
+        expect(wasm.frameCost).toBeCloseTo(tsFallback.frameCost, 5);
+        // ... and on visibility fog (legacy semantics: a missing observation is
+        // not a 0 m observation — missing visibility contributes no fog).
+        expect(wasm.fog).toBeCloseTo(tsFallback.fog, 5);
+      }
+
+      // Missing visibility never reads as pea-soup fog: clear sky stays clear and
+      // a storm's fog stays 0 even though its observation carries no visibility.
+      const clear = deriveWeatherEffectProfile({ weatherCode: 0, cloudCoverPct: 4 });
+      expect(clear.fog).toBe(0);
+      expect(deriveWeatherEffectProfileTs({ weatherCode: 0, cloudCoverPct: 4 }).fog).toBe(0);
+      const noVisStorm = deriveWeatherEffectProfile({ weatherCode: 95, precipitationMm: 12 });
+      expect(noVisStorm.fog).toBe(0);
+      expect(deriveWeatherEffectProfileTs({ weatherCode: 95, precipitationMm: 12 }).fog).toBe(0);
+
+      // Missing weather costs nothing; heavier weather costs strictly more.
+      expect(deriveWeatherEffectProfile(null).frameCost).toBe(0);
+      const drizzle = deriveWeatherEffectProfile({ weatherCode: 53 });
+      const storm = deriveWeatherEffectProfile({ weatherCode: 95, precipitationMm: 12 });
+      const snow = deriveWeatherEffectProfile({ weatherCode: 73, precipitationMm: 8 });
+      expect(drizzle.frameCost).toBeGreaterThan(0);
+      expect(drizzle.frameCost).toBeLessThan(storm.frameCost);
+      expect(snow.frameCost).toBeGreaterThan(drizzle.frameCost);
     });
 
     it('calculates weather altitude attenuation factors', () => {

@@ -16,6 +16,7 @@ export interface UserPreferences {
   readonly scopeMaskEnabled: boolean;
   readonly sonarEnabled: boolean;
   readonly celestialRingEnabled: boolean;
+  readonly cockpitCloudsEnabled: boolean;
 }
 
 export const DEFAULT_USER_PREFERENCES: UserPreferences = {
@@ -30,6 +31,9 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   sonarEnabled: false,
   // Upstream mounts the ring disabled (applicationShell.js `enabled: false`).
   celestialRingEnabled: false,
+  // Upstream cockpit clouds default off (cockpitCloudEffects.js reads an
+  // opt-in storage key; a missing value is off).
+  cockpitCloudsEnabled: false,
 };
 
 export interface PreferencesState extends UserPreferences {
@@ -43,6 +47,7 @@ export interface PreferencesState extends UserPreferences {
   setScopeMaskEnabled(scopeMaskEnabled: boolean): void;
   setSonarEnabled(sonarEnabled: boolean): void;
   setCelestialRingEnabled(celestialRingEnabled: boolean): void;
+  setCockpitCloudsEnabled(cockpitCloudsEnabled: boolean): void;
   hydrate(prefs: Partial<UserPreferences>): void;
 }
 
@@ -59,6 +64,7 @@ export const createPreferencesStore = () =>
     setScopeMaskEnabled: (scopeMaskEnabled) => set({ scopeMaskEnabled }),
     setSonarEnabled: (sonarEnabled) => set({ sonarEnabled }),
     setCelestialRingEnabled: (celestialRingEnabled) => set({ celestialRingEnabled }),
+    setCockpitCloudsEnabled: (cockpitCloudsEnabled) => set({ cockpitCloudsEnabled }),
     hydrate: (prefs) => set((s) => ({ ...s, ...prefs })),
   }));
 

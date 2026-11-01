@@ -31,6 +31,7 @@ export type {
   PreferenceStore,
   SecretStatusResponse,
   TransportState,
+  WeatherObservation,
   WindGridRequest,
   WindRequest,
 } from './types';

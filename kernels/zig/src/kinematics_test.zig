@@ -123,6 +123,37 @@ test "writeProfile layout" {
     try std.testing.expectApproxEqAbs(@as(f32, 0.55), out[6], 1e-6);
     try std.testing.expectApproxEqAbs(@as(f32, 1), out[7], 1e-6);
     try std.testing.expectApproxEqAbs(@as(f32, 90), out[8], 1e-4);
+    // frameCost rides in slot 9 and matches the profile's own hint.
+    try std.testing.expectApproxEqAbs(@as(f32, @floatCast(p.frame_cost)), out[9], 1e-6);
+}
+
+test "deriveWeatherEffectProfile frame cost is deterministic and ordered" {
+    const nan = std.math.nan(f64);
+    // Missing weather costs nothing to render.
+    const missing = k.deriveWeatherEffectProfile(nan, 100, 5, 50, 100, 90);
+    try std.testing.expectEqual(@as(f64, 0), missing.frame_cost);
+
+    // Clear sky: zero hint, the effect renderer may run its fastest clamp.
+    const clear = k.deriveWeatherEffectProfile(0, 8, 0, 4, 20000, 370);
+    try std.testing.expectEqual(@as(f64, 0), clear.frame_cost);
+
+    // Thunderstorm (code 95): cloud .92, rain .68, storm .55, droplets .68*(.58+.55*.42).
+    const storm = k.deriveWeatherEffectProfile(95, 0, 0, 0, nan, 0);
+    const storm_droplets = 0.68 * (0.58 + 0.55 * 0.42);
+    const storm_cost = 0.22 * 0.92 + 0.20 * 0.68 + 0.24 * 0.55 + 0.08 * storm_droplets;
+    try std.testing.expectApproxEqAbs(@as(f64, storm_cost), storm.frame_cost, eps);
+
+    // Drizzle is cheaper than a storm; snow heavier than drizzle (same cloud floor).
+    const drizzle = k.deriveWeatherEffectProfile(53, nan, nan, nan, nan, nan);
+    const snow = k.deriveWeatherEffectProfile(73, 0, 8, 90, 12000, 0);
+    try std.testing.expect(drizzle.frame_cost < storm.frame_cost);
+    try std.testing.expect(drizzle.frame_cost < snow.frame_cost);
+    try std.testing.expect(snow.frame_cost <= 1);
+    try std.testing.expect(storm.frame_cost <= 1);
+
+    // Determinism: identical observations produce the identical hint.
+    const again = k.deriveWeatherEffectProfile(95, 0, 0, 0, nan, 0);
+    try std.testing.expectEqual(storm.frame_cost, again.frame_cost);
 }
 
 const nan_vis = std.math.nan(f64);

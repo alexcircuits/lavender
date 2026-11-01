@@ -219,6 +219,7 @@ export function createRuntime(platform: LavenderPlatform, options: RuntimeOption
             labelArbitration: prefs.labelArbitration,
             defaultImagery: prefs.defaultImagery,
             celestialRingEnabled: prefs.celestialRingEnabled,
+            cockpitCloudsEnabled: prefs.cockpitCloudsEnabled,
           });
         }, persistDelayMs);
       }),

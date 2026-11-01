@@ -3,6 +3,7 @@ export {
   type RuntimeProviderProps,
   useFeeds,
   useGlobe,
+  useOptionalRuntime,
   usePlatform,
   usePreferences,
   useRuntime,

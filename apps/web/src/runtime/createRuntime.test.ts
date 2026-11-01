@@ -105,6 +105,30 @@ describe('createRuntime', () => {
     expect(runtime.stores.preferences.getState().celestialRingEnabled).toBe(true);
   });
 
+  it('defaults cockpit clouds off and persists the toggle after a quiet period', async () => {
+    const runtime = createRuntime(platform, { persistDelayMs: 200 });
+    runtime.start();
+    await vi.advanceTimersByTimeAsync(0);
+    // Upstream cockpit clouds default off (an explicit opt-in enables them).
+    expect(runtime.stores.preferences.getState().cockpitCloudsEnabled).toBe(false);
+    runtime.stores.preferences.getState().setCockpitCloudsEnabled(true);
+    await vi.advanceTimersByTimeAsync(200);
+    const saved = platform.preferences.data.get(USER_PREFERENCES_PREF_KEY) as
+      | { cockpitCloudsEnabled?: boolean }
+      | undefined;
+    expect(saved?.cockpitCloudsEnabled).toBe(true);
+  });
+
+  it('restores a persisted cockpit clouds preference on boot', async () => {
+    platform.preferences = memoryPreferences({
+      [USER_PREFERENCES_PREF_KEY]: { cockpitCloudsEnabled: true },
+    });
+    const runtime = createRuntime(platform);
+    runtime.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(runtime.stores.preferences.getState().cockpitCloudsEnabled).toBe(true);
+  });
+
   it('gives an attached globe the imagery and follows imagery changes', async () => {
     const runtime = createRuntime(platform);
     runtime.start();
